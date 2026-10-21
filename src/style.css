@@ -613,3 +613,22 @@ button.controls-key.capturing {
     grid-template-columns: 1fr;
   }
 }
+
+.duel-rules {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+button.rule {
+  padding: 5px 10px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+button.rule.active {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}

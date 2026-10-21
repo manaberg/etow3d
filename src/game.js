@@ -12,6 +12,7 @@ import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage } from './entities/spells.js';
 import { Scroll, Potion, Ring, Stairs } from './entities/items.js';
+import { DuelLoot } from './entities/duelLoot.js';
 import { Hud } from './ui/hud.js';
 
 const STAT_KEYS = [
@@ -21,10 +22,13 @@ const STAT_KEYS = [
 ];
 
 export class Game {
-  constructor({ container, hudRoot, mode, difficulty, onExit }) {
+  constructor({ container, hudRoot, mode, difficulty, rules, onExit }) {
     this.mode = mode;
     this.duelMode = mode === 'duel';
     this.difficulty = difficulty || 'hard';
+    // duels are progressive (start with one spell, loot the rest) unless classic
+    this.progressive = this.duelMode && rules !== 'classic';
+    this.duelLoot = null;
     this.onExit = onExit;
     this.gfx = new Gfx(container);
     this.fx = this.gfx.fx;
@@ -79,9 +83,10 @@ export class Game {
     this.entities = [];
     this.player = null;
     const plan = DungeonLevels.getPlan(this.depth);
-    // survival gets a multi-room dungeon, duels a single open arena
+    // survival floors grow with depth; duels get a compact dungeon of six
+    // rooms, big enough to hide, flank and race for loot
     const options = this.duelMode
-      ? { cols: 44, rows: 30, roomCount: 1, maxRoomW: 30, maxRoomH: 16 }
+      ? { cols: 56, rows: 38, roomCount: 6 }
       : { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
     this.world = new World(options, () => this.navFrame);
     this.gfx.buildLevel(this.world);
@@ -109,14 +114,35 @@ export class Game {
 
   startDuel() {
     this.buildWorld();
-    const room = this.world.getMainRoom();
-    const center = this.world.getRoomCenterPixel(room);
-    // duelists start facing each other from opposite ends of the room
-    const offset = Math.min(520, Math.floor(room.w * TILE / 2) - 150);
-    const player = this.spawn(Mage, center.x - offset - 24, center.y - 24);
+    // the duelists start in the two rooms farthest apart; no stairs, and the
+    // whole (small) map is known from the start
+    const rooms = this.world.rooms;
+    let pair = [0, Math.min(1, rooms.length - 1)];
+    let farthest = -1;
+    for (let a = 0; a < rooms.length; a++) {
+      for (let b = a + 1; b < rooms.length; b++) {
+        const ca = this.world.getRoomCenterPixel(rooms[a]);
+        const cb = this.world.getRoomCenterPixel(rooms[b]);
+        const d = Math.hypot(ca.x - cb.x, ca.y - cb.y);
+        if (d > farthest) {
+          farthest = d;
+          pair = [a, b];
+        }
+      }
+    }
+    for (const room of rooms) {
+      room.visited = true;
+    }
+    const ps = this.world.getRoomSpawnPoint(rooms[pair[0]], 3);
+    const player = this.spawn(Mage, ps.x, ps.y);
     this.player = player;
     this.configureDuelPlayer(player);
-    this.rival = this.spawn(DuelWizard, center.x + offset - 24, center.y - 24, { difficulty: this.difficulty });
+    const rs = this.world.getRoomSpawnPoint(rooms[pair[1]], 3);
+    this.rival = this.spawn(DuelWizard, rs.x, rs.y, { difficulty: this.difficulty });
+    if (this.progressive) {
+      this.duelLoot = new DuelLoot(this);
+      this.duelLoot.setup(player, this.rival);
+    }
     this.duelWinnerDeclared = false;
   }
 
@@ -130,6 +156,8 @@ export class Game {
       player[flag] = true;
     }
     player.is2Charges = 3;
+    // the rival moves at 120, the duel player's 100 with the ring of speed
+    player.desiredVel = 100;
     player.hp = player.maxHp = DuelRules.hp;
     player.stunDuration = DuelRules.stunFrames;
     player.fearDuration = DuelRules.fearFrames;
@@ -599,7 +627,9 @@ export class Game {
     this.currentRoomIndex = index;
     if (index >= 0 && !this.world.rooms[index].visited) {
       this.world.rooms[index].visited = true;
-      this.hud.minimap.render();
+      if (this.hud.minimap) {
+        this.hud.minimap.render();
+      }
     }
   }
 
@@ -739,7 +769,16 @@ export class Game {
     if (before !== this.entities.length && this.rival && this.rival.killed) {
       this.rival = null;
     }
-    if (this.duelMode || !player) {
+    if (this.duelMode) {
+      if (player) {
+        this.updateCurrentRoom(player);
+      }
+      if (this.duelLoot) {
+        this.duelLoot.update();
+      }
+      return;
+    }
+    if (!player) {
       return;
     }
     if (this.descendRequested) {

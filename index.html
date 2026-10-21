@@ -25,7 +25,11 @@
         </div>
         <div class="mode">
           <h3>Duel</h3>
-          <p>Every spell against a rival wizard who learns how you dodge.</p>
+          <p>A rival wizard who learns how you dodge, in a small dungeon of its own.</p>
+          <div class="duel-rules" role="group" aria-label="Duel rules">
+            <button type="button" data-rules="progressive" class="secondary rule" title="Start with one spell; race for scrolls and potions">Progressive</button>
+            <button type="button" data-rules="classic" class="secondary rule" title="Every spell from the start">Classic</button>
+          </div>
           <div class="buttons">
             <button data-mode="duel" data-ai="normal" class="secondary">Normal</button>
             <button data-mode="duel" data-ai="hard">Hard</button>

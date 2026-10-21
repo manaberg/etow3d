@@ -25,6 +25,19 @@ export const DuelRules = {
   onGcd(spell) {
     return !this.gcdFree.includes(spell);
   },
+  // progressive duels (see duelLoot.js): frames until the first scroll and
+  // potion, frames between drops, how many may lie around at once, and what
+  // potions give
+  progressive: {
+    firstScroll: 180,
+    firstPotion: 600,
+    scrollEvery: 420,
+    potionEvery: 660,
+    maxScrolls: 3,
+    maxPotions: 2,
+    redHeal: 120,
+    blueManergy: 60
+  },
   // reaction: frames before a new projectile is noticed
   // castLock: minimum frames between two offensive casts
   // decisionInterval: frames between movement re-plans when nothing new happens

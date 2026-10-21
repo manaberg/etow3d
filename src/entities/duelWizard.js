@@ -13,7 +13,10 @@ export function resolveDifficulty() {
 // The rival wizard of duel mode. It reads every bolt in flight, scores
 // sixteen escape directions a short horizon ahead, shields or blinks out of
 // hits it cannot dodge, and learns how far to lead its shots from where the
-// player actually went.
+// player actually went. Duels are fought in a small dungeon: it only sees and
+// shoots along clear lines of sight, follows the corridors (flow fields) to
+// hunt a player it cannot see, and in progressive duels runs for scrolls and
+// potions when they are worth the trip.
 export class DuelWizard extends Enemy {
   defaults() {
     super.defaults();
@@ -53,6 +56,9 @@ export class DuelWizard extends Enemy {
     this.stunDuration = DuelRules.stunFrames;
     this.fearDuration = DuelRules.fearFrames;
     this.label = 'RIVAL WIZARD';
+    // spells it can cast; null knows them all (classic duels), progressive
+    // duels hand it a set (duelLoot.js)
+    this.known = null;
   }
 
   init() {
@@ -90,6 +96,11 @@ export class DuelWizard extends Enemy {
     this.decoyFooled = false;
     this.newThreat = false;
     this.inSlowZone = false;
+    // where the pathfinder says to go (unit vector) and how hard to pull that way
+    this.navDir = null;
+    this.navPull = 0;
+    this.lootGoal = null;
+    this.lootValue = 0;
     // lead model: how far ahead of the player to aim, learnt from where the player actually went
     this.leadModel = [{ k: 0, err: 30 }, { k: 0.5, err: 30 }, { k: 1, err: 30 }];
     this.pendingShots = [];
@@ -117,9 +128,13 @@ export class DuelWizard extends Enemy {
     return { x: e.pos.x + e.size.x / 2, y: e.pos.y + e.size.y / 2 };
   }
 
+  knows(spell) {
+    return spell === 'missile' || !this.known || this.known.has(spell);
+  }
+
   ready(spell) {
     const book = this.spellBook[spell];
-    if (this.cdLeft[spell] > 0 || this.manergy <= book.need || (this.gcd > 0 && DuelRules.onGcd(spell))) {
+    if (!this.knows(spell) || this.cdLeft[spell] > 0 || this.manergy <= book.need || (this.gcd > 0 && DuelRules.onGcd(spell))) {
       return false;
     }
     return !(spell === 'ironshot' && this.ironCharges <= 0);
@@ -140,13 +155,8 @@ export class DuelWizard extends Enemy {
 
   arenaBounds() {
     if (!this._bounds) {
-      const room = this.game.world.getMainRoom();
-      this._bounds = {
-        left: (room.x - 1) * TILE,
-        top: (room.y - 1) * TILE,
-        right: (room.x + room.w + 1) * TILE,
-        bottom: (room.y + room.h + 1) * TILE
-      };
+      const world = this.game.world;
+      this._bounds = { left: 0, top: 0, right: world.pixelWidth, bottom: world.pixelHeight };
     }
     return this._bounds;
   }
@@ -164,9 +174,19 @@ export class DuelWizard extends Enemy {
     };
   }
 
+  // open space around a point, from the pathfinder's distance-to-wall map
   wallClearance(cx, cy) {
-    const b = this.arenaBounds();
-    return Math.min(cx - b.left, b.right - cx, cy - b.top, b.bottom - cy);
+    const pf = this.game.world.pathfinder;
+    const t = pf.worldToTile(cx, cy);
+    if (!pf.inBounds(t.x, t.y)) {
+      return 0;
+    }
+    return (pf.clearance[t.y * pf.width + t.x] + 0.5) * TILE;
+  }
+
+  canSee(x, y) {
+    const me = this.center();
+    return this.game.world.hasLineOfSight(me.x, me.y, x, y);
   }
 
   moveSpeed() {
@@ -310,6 +330,10 @@ export class DuelWizard extends Enemy {
     if (this.frame % this.ai.decisionInterval === 0 || this.newThreat) {
       this.chooseTactic(player);
     }
+    if (this.frame % 12 === 0) {
+      this.chooseLoot(player);
+    }
+    this.planRoute();
     this.decideMovement(player);
     this.decideDefense(player);
     if (this.castLock <= 0) {
@@ -324,8 +348,9 @@ export class DuelWizard extends Enemy {
     const pc = this.center(player);
     const dx = pc.x - me.x;
     const dy = pc.y - me.y;
-    // invisible players are only noticed up close, or by the spells they cast
-    const visible = !player.invis || Math.sqrt(dx * dx + dy * dy) < 110;
+    // invisible players are only noticed up close, or by the spells they cast;
+    // walls hide everyone
+    const visible = (!player.invis || Math.sqrt(dx * dx + dy * dy) < 110) && this.canSee(pc.x, pc.y);
     this.newThreat = false;
     this.threats = [];
     this.zones = [];
@@ -421,6 +446,87 @@ export class DuelWizard extends Enemy {
     } else {
       this.tactic = 'kite';
     }
+  }
+
+  // Progressive duels: is a scroll or potion worth running for right now?
+  chooseLoot(player) {
+    this.lootGoal = null;
+    this.lootValue = 0;
+    const loot = this.game.duelLoot;
+    if (!loot || this.tactic === 'punish') {
+      return;
+    }
+    const me = this.center();
+    const pc = this.center(player);
+    const spellsLeft = loot.missing(this).length;
+    let best = 0;
+    for (const e of this.game.entities) {
+      if (!e.isLoot || e.killed) {
+        continue;
+      }
+      let value;
+      if (e.isBlue === undefined) {
+        value = spellsLeft > 0 ? 1 : 0.2;
+      } else if (e.isBlue) {
+        value = 1 - this.manergy / this.maxManergy;
+      } else {
+        value = Math.min(1, (this.maxHp - this.hp) / DuelRules.progressive.redHeal);
+      }
+      const c = e.center();
+      const mine = Math.hypot(c.x - me.x, c.y - me.y);
+      const theirs = Math.hypot(c.x - pc.x, c.y - pc.y);
+      // mid-fight only grab what is close; never run a race the player is sure to win
+      if (this.target.visible && (mine > 320 || theirs < mine * 0.5)) {
+        continue;
+      }
+      const score = value / (1 + mine / 400);
+      if (score > best && value > 0.25) {
+        best = score;
+        this.lootGoal = e;
+        this.lootValue = value;
+      }
+    }
+  }
+
+  // Where the corridors lead: toward loot worth taking, or toward a player
+  // out of sight. Nothing when the player is in plain view and no loot calls.
+  planRoute() {
+    let goal = null;
+    let pull = 0;
+    if (this.lootGoal && !this.lootGoal.killed) {
+      goal = this.lootGoal;
+      pull = 14 + 16 * this.lootValue;
+    } else if (!this.target.visible) {
+      const t = this.target;
+      goal = this.huntMark || (this.huntMark = {
+        id: 'rival-hunt-' + this.id,
+        pos: { x: 0, y: 0 },
+        size: { x: 2, y: 2 },
+        center() {
+          return { x: this.pos.x + 1, y: this.pos.y + 1 };
+        }
+      });
+      goal.pos.x = t.x - 1;
+      goal.pos.y = t.y - 1;
+      pull = 18;
+    }
+    this.navDir = null;
+    this.navPull = 0;
+    if (!goal) {
+      return;
+    }
+    // borrow the shared chase navigation, keep only the direction it picks
+    const vx = this.vel.x;
+    const vy = this.vel.y;
+    if (this.game.navigateEntityToward(this, goal, 100, 20)) {
+      const len = Math.hypot(this.vel.x, this.vel.y);
+      if (len > 0) {
+        this.navDir = { x: this.vel.x / len, y: this.vel.y / len };
+        this.navPull = pull;
+      }
+    }
+    this.vel.x = vx;
+    this.vel.y = vy;
   }
 
   engageReady(player) {
@@ -532,17 +638,23 @@ export class DuelWizard extends Enemy {
     const cx = x + 24;
     const cy = y + 24;
     const dist = Math.hypot(t.x - cx, t.y - cy);
-    // sway the preferred range a little so the spacing is not static
-    const desired = this.tacticRanges[this.tactic] + Math.sin(this.frame / 50) * 35;
-    score -= Math.abs(dist - desired) * 0.12;
+    if (t.visible) {
+      // sway the preferred range a little so the spacing is not static
+      const desired = this.tacticRanges[this.tactic] + Math.sin(this.frame / 50) * 35;
+      score -= Math.abs(dist - desired) * 0.12;
+    }
+    if (this.navDir) {
+      score += (dir.x * this.navDir.x + dir.y * this.navDir.y) * this.navPull;
+    }
     // stay out of the player's auto-target range unless we are going in on purpose
     if (this.tactic !== 'engage' && this.tactic !== 'punish' && dist < 315 && this.playerHasAutoThreat(player)) {
       score -= (315 - dist) * 0.5;
     }
     // walls and corners are where duels are lost
+    // (but corridors are fine when the route runs through them)
     const clearance = this.wallClearance(cx, cy);
     if (clearance < 120) {
-      score -= (120 - clearance) * 0.25;
+      score -= (120 - clearance) * (this.navDir ? 0.06 : 0.25);
     }
     if (dir.x || dir.y) {
       const me = this.center();
@@ -660,6 +772,10 @@ export class DuelWizard extends Enemy {
     }
     const spare = this.manergy - reserve;
 
+    // nothing to shoot at through a wall
+    if (!this.canSee(t.x, t.y)) {
+      return;
+    }
     // while invisible, hold fire unless an opening appears
     if (this.invis && !helpless && !(this.tactic === 'engage' && dist < 290)) {
       return;
@@ -777,7 +893,7 @@ export class DuelWizard extends Enemy {
       return;
     }
     // lifesteal ray when overflowing with manergy and nothing else to do
-    if (real && dist < 380 && !player.shielded && this.hp < this.maxHp && (this.manergy > 92 || this.rayFrames > 0) && this.manergy > 10) {
+    if (real && dist < 380 && this.knows('ray') && !player.shielded && this.hp < this.maxHp && (this.manergy > 92 || this.rayFrames > 0) && this.manergy > 10) {
       if (this.rayFrames <= 0) {
         this.rayFrames = 6;
       }

@@ -34,6 +34,22 @@ const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
 
+// Duel rules: progressive (one spell, loot the rest) unless ?rules=classic.
+let duelRules = /[?&]rules=classic/i.test(window.location.search) ? 'classic' : 'progressive';
+function showDuelRules() {
+  for (const b of document.querySelectorAll('[data-rules]')) {
+    b.classList.toggle('active', b.dataset.rules === duelRules);
+    b.setAttribute('aria-pressed', b.dataset.rules === duelRules ? 'true' : 'false');
+  }
+}
+for (const b of document.querySelectorAll('[data-rules]')) {
+  b.addEventListener('click', () => {
+    duelRules = b.dataset.rules;
+    showDuelRules();
+  });
+}
+showDuelRules();
+
 function start(mode, difficulty) {
   menu.classList.add('hidden');
   if (game) {
@@ -44,6 +60,7 @@ function start(mode, difficulty) {
     hudRoot,
     mode,
     difficulty,
+    rules: duelRules,
     onExit(action) {
       if (action === 'restart') {
         start(mode, difficulty);
@@ -89,7 +106,7 @@ for (const button of menu.querySelectorAll('[data-mode]')) {
   button.addEventListener('click', () => {
     const mode = button.dataset.mode;
     const ai = button.dataset.ai;
-    const query = mode === 'duel' ? '?mode=duel&ai=' + ai : '?mode=survival';
+    const query = mode === 'duel' ? '?mode=duel&ai=' + ai + (duelRules === 'classic' ? '&rules=classic' : '') : '?mode=survival';
     history.replaceState(null, '', window.location.pathname + query);
     modelsReady.then(() => start(mode, ai));
   });

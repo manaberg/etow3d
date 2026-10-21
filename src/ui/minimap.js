@@ -84,6 +84,14 @@ export class Minimap {
         }
       }
     }
+    // duel loot: scrolls gold, potions red or blue (the rival stays hidden)
+    for (const e of game.entities) {
+      if (e.isLoot && !e.killed && game.duelLoot) {
+        const c = e.center();
+        ctx.fillStyle = e.isBlue === undefined ? '#ffd040' : (e.isBlue ? '#6aa8ff' : '#ff5a64');
+        ctx.fillRect(Math.floor(c.x * scale) - 2, Math.floor(c.y * scale) - 2, 4, 4);
+      }
+    }
     const pc = player.center();
     ctx.fillStyle = '#fff';
     ctx.fillRect(Math.floor(pc.x * scale) - 2, Math.floor(pc.y * scale) - 2, 4, 4);

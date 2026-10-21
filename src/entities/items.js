@@ -20,9 +20,12 @@ class Item extends Entity {
         return;
       }
     }
-    const player = this.game.player;
+    const game = this.game;
+    const player = game.player;
     if (player && !player.dead && this.touches(player)) {
       this.pickUp(player);
+    } else if (game.duelLoot && this.isLoot && game.rival && !game.rival.killed && this.touches(game.rival)) {
+      this.pickUp(game.rival);
     }
   }
 
@@ -52,6 +55,7 @@ export class Scroll extends Item {
   defaults() {
     super.defaults();
     this.tier = 0;
+    this.isLoot = true;
   }
 
   init() {
@@ -83,6 +87,12 @@ export class Scroll extends Item {
   }
 
   pickUp(player) {
+    if (this.game.duelLoot) {
+      this.game.duelLoot.takeScroll(player);
+      this.game.pickupFx(this, 0xfff0c0);
+      this.kill();
+      return;
+    }
     const n = this.pickUsefulSpell(player);
     const flag = SCROLL_SPELLS[n];
     const upgrade = SCROLL_UPGRADES[n];
@@ -109,6 +119,7 @@ export class Potion extends Item {
     super.defaults();
     this.isSpecial = false;
     this.knightPot = false;
+    this.isLoot = true;
   }
 
   init() {
@@ -124,6 +135,12 @@ export class Potion extends Item {
   }
 
   pickUp(player) {
+    if (this.game.duelLoot) {
+      this.game.duelLoot.takePotion(player, this.isBlue);
+      this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);
+      this.kill();
+      return;
+    }
     const stats = this.game.stats;
     if (this.isBlue) {
       player.maxManergy += 25;

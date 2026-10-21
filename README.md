@@ -94,8 +94,15 @@ shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orc
 and champions always drop loot. Orc clerics and orc mages appear from depth 4 and 5, and the
 warlord waits on the tenth floor.
 
-**Duel.** A one-room arena where both wizards have every spell. A 3 s global cooldown
-follows every spell except magic missile and lifesteal, for both wizards (`DuelRules.gcd`). The rival wizard reads the
+**Duel.** You against a rival wizard in a small dungeon of six themed rooms and corridors (no
+stairs); you start in the two rooms farthest apart. Walls block sight and bolts, so you can
+hide, flank and ambush, and the rival hunts you through the corridors when it loses you.
+In **progressive** duels (the default) each wizard starts with magic missile and one random
+spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first
+learns a spell they lack (potions heal or restore manergy). The rival runs for loot when it
+is worth it and tells you what it learned. **Classic** duels (`?rules=classic`, or the toggle
+on the menu) give both wizards every spell from the start. A 3 s global cooldown follows
+every spell except magic missile and lifesteal, for both wizards (`DuelRules.gcd`). The rival wizard reads the
 bolts in flight, scores escape directions, shields or blinks out of hits it cannot dodge,
 picks tactics (kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its
 shots from how you dodge. Normal, hard and insane differ in reaction time, aim and tricks.

@@ -83,16 +83,18 @@ export class Hud {
       this.rivalHp = this.makeBar(rival, '', 'rival-hp');
       this.rivalMy = this.makeBar(rival, '', 'rival-my');
       this.rivalInfo = el('div', 'rival-info', rival);
-    } else {
-      const mapBox = el('div', 'hud-map', right);
-      this.mapCanvas = el('canvas', 'minimap', mapBox);
-      this.minimap = new Minimap(this.mapCanvas, game);
-      this.minimap.render();
-      this.roomLabel = el('div', 'map-line', mapBox);
+    }
+    // duels are fought in a small dungeon too, so both modes get the map
+    const mapBox = el('div', 'hud-map', right);
+    this.mapCanvas = el('canvas', 'minimap', mapBox);
+    this.minimap = new Minimap(this.mapCanvas, game);
+    this.minimap.render();
+    this.roomLabel = el('div', 'map-line', mapBox);
+    if (!game.duelMode) {
       this.slainLabel = el('div', 'map-line', mapBox);
       this.goalLabel = el('div', 'map-line goal', mapBox);
-      el('div', 'map-line dim', mapBox, 'M :: LARGER MAP');
     }
+    el('div', 'map-line dim', mapBox, actionKeyLabel('map') + ' :: LARGER MAP');
 
     this.banner = el('div', 'hud-banner', root);
     this.bannerTitle = el('div', 'banner-title', this.banner);
@@ -273,9 +275,8 @@ export class Hud {
 
     if (game.duelMode) {
       this.updateRival();
-    } else {
-      this.updateMap();
     }
+    this.updateMap();
     this.updateBanner();
     this.updateToasts(dt);
     this.updateEffects(dt);
@@ -292,7 +293,8 @@ export class Hud {
     setText(this.rivalHp.text, Math.max(0, Math.round(rival.hp)) + '');
     this.rivalMy.fill.style.width = Math.max(0, rival.manergy / rival.maxManergy * 100) + '%';
     setText(this.rivalMy.text, Math.round(rival.manergy) + '');
-    setText(this.rivalInfo, 'TACTIC :: ' + rival.tactic.toUpperCase());
+    const spells = rival.known ? ' :: SPELLS ' + (rival.known.size + 1) : '';
+    setText(this.rivalInfo, 'TACTIC :: ' + rival.tactic.toUpperCase() + spells);
   }
 
   updateMap() {
@@ -300,6 +302,9 @@ export class Hud {
     this.minimap.draw();
     const room = game.currentRoomIndex >= 0 ? game.world.rooms[game.currentRoomIndex].label : 'CORRIDOR';
     setText(this.roomLabel, room);
+    if (game.duelMode) {
+      return;
+    }
     setText(this.slainLabel, 'SLAIN ' + game.floorSlain + ' / ' + game.levelEnemyTotal);
     let goal;
     if (DungeonLevels.getPlan(game.depth).boss) {
