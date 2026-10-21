@@ -1,10 +1,14 @@
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { Projectile } from './spells.js';
+import { Arcana } from './arcana.js';
+import { buildSheep } from '../render/models.js';
 
 // Damage reflected enemy bolts deal when a shield sends them back.
 const REFLECTED_DAMAGE = { stone: 20, missile2: 50, fireball2: 75, ironshot2: 200 };
 const CHAIN_MEMORY = 45;
+// share of its speed a chilled monster keeps
+const CHILL_SLOW = 0.4;
 
 // Shared parts of every dungeon monster: hit points, the player's spells
 // landing on it, stun and fear, and the 3D rig.
@@ -31,6 +35,13 @@ export class Enemy extends Entity {
     this.canBeFeared = false;
     this.spawnFrames = 0;
     this.wander = 0;
+    // the mage's D&D spells: chill (cone of cold), knockback (thunderwave),
+    // polymorph (regular orcs only)
+    this.chillFrames = 0;
+    this.knock = null;
+    this.knockResist = 0;
+    this.canPolymorph = false;
+    this.sheepFrames = 0;
   }
 
   get alive() {
@@ -112,6 +123,11 @@ export class Enemy extends Entity {
         this.stun();
         p.kill();
         break;
+      case 'scorch':
+        this.hurt(Arcana.scorch.damage);
+        fx.burst(c.x, c.y, 1.4, { color: [0xff5020, 0xffc040], count: 12, speed: 4, life: 0.35, size: 0.7 });
+        p.kill();
+        break;
       default:
         this.hurt(REFLECTED_DAMAGE[p.kind] || 20);
         fx.burst(c.x, c.y, 1.4, { color: 0xffffff, count: 8, speed: 3, life: 0.3, size: 0.6 });
@@ -144,6 +160,10 @@ export class Enemy extends Entity {
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
       this.hp -= (zone.tier ? 1 : 0.5) * k;
+    } else if (zone.kind === 'guardians') {
+      this.hp -= Arcana.guardians.dps / 60 * k;
+    } else if (zone.kind === 'cloud') {
+      this.hp -= Arcana.cloud.dps / 60 * k;
     }
   }
 
@@ -165,6 +185,24 @@ export class Enemy extends Entity {
     this.game.fx.column(c.x, c.y, 30, { color: [0x40ff60, 0x20a040], count: 16, rise: 1.2, life: 0.8, size: 0.7 });
   }
 
+  chill(frames) {
+    this.chillFrames = Math.max(this.chillFrames, frames);
+  }
+
+  // Pushed away over a few frames; walls stop it. Bosses barely budge.
+  shove(angle, distance) {
+    const d = distance * (1 - this.knockResist);
+    if (d > 1) {
+      this.knock = { x: Math.cos(angle) * d / 12, y: Math.sin(angle) * d / 12, frames: 12 };
+    }
+  }
+
+  polymorph(frames) {
+    this.sheepFrames = frames;
+    this.isFeared = false;
+    this.aggro = false;
+  }
+
   fear() {
     this.isFeared = true;
     this.fearFrames = 0;
@@ -173,6 +211,14 @@ export class Enemy extends Entity {
   }
 
   tickDebuffs(k) {
+    this.chillFrames = Math.max(0, this.chillFrames - k);
+    if (this.sheepFrames > 0) {
+      this.sheepFrames = Math.max(0, this.sheepFrames - k);
+      if (this.sheepFrames === 0) {
+        const c = this.center();
+        this.game.fx.burst(c.x, c.y, 1.2, { color: [0xff80e0, 0xffffff], count: 30, speed: 5, life: 0.5, size: 0.9 });
+      }
+    }
     if (this.isStunned) {
       this.stunFrames += k;
       if (this.stunFrames >= this.stunDuration) {
@@ -204,6 +250,26 @@ export class Enemy extends Entity {
     const slow = this.game.zoneSlow(this);
     this.vel.x *= slow;
     this.vel.y *= slow;
+    if (this.knock) {
+      const res = this.game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
+      this.pos.x = res.x;
+      this.pos.y = res.y;
+      this.knock.frames -= k;
+      if (this.knock.frames <= 0) {
+        this.knock = null;
+      }
+    }
+    if (this.chillFrames > 0) {
+      // chilled: crawl this step without losing the heading
+      const vx = this.vel.x;
+      const vy = this.vel.y;
+      this.vel.x *= CHILL_SLOW;
+      this.vel.y *= CHILL_SLOW;
+      this.move(k);
+      this.vel.x = vx;
+      this.vel.y = vy;
+      return;
+    }
     this.move(k);
   }
 
@@ -234,6 +300,24 @@ export class Enemy extends Entity {
     }
     if (this.rig.aura) {
       this.rig.aura.rotation.z = time;
+    }
+    if (this.chillFrames > 0 && Math.random() < 0.3) {
+      this.game.fx.emit(c.x + (Math.random() - 0.5) * 30, c.y + (Math.random() - 0.5) * 30, Math.random() * this.rig.height, {
+        color: 0xbfe8ff, life: 0.5, size: 0.4, vy: -0.5
+      });
+    }
+    // polymorphed: the orc is hidden and a sheep wanders in its place
+    const sheep = this.sheepFrames > 0;
+    if (sheep && !this.sheep) {
+      this.sheep = buildSheep();
+      this.rig.root.add(this.sheep);
+    }
+    if (this.sheep) {
+      this.sheep.visible = sheep;
+      this.rig.body.visible = !sheep;
+      if (sheep) {
+        this.sheep.position.y = Math.abs(Math.sin(time * 8)) * 0.08 * Math.min(1, speed / 20);
+      }
     }
   }
 }

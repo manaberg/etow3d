@@ -17,6 +17,7 @@ export const BoltKinds = {
   missile2: { speed: 300, life: 2, size: 20, color: 0x7dff4a, radius: 0.16, trail: 0x50c030 },
   fireball2: { speed: 400, life: 1, size: 36, color: 0xff3070, radius: 0.3, trail: 0xff2060, light: 0xff2060 },
   ironshot2: { speed: 1000, life: 0.5, size: 26, pierce: true },
+  scorch: { speed: 700, life: 0.6, size: 18, color: 0xff5020, radius: 0.12, trail: 0xff4010, light: 0xff5010 },
   shadowbolt: { speed: 450, life: 1, size: 41, color: 0x9a40ff, radius: 0.3, trail: 0x6020c0, light: 0x8030ff }
 };
 
@@ -145,7 +146,8 @@ export class Projectile extends Entity {
 }
 
 // Ground areas: blizzards (player or duel rival), the warlord's meteor
-// swarm and the fire he leaves behind. `radius` in px.
+// swarm and the fire he leaves behind, and the mage's spirit guardians (which
+// follow `follow`) and cloudkill (which drifts by `drift` px/s). `radius` in px.
 export class Zone extends Entity {
   defaults() {
     this.kind = 'blizzard';
@@ -153,6 +155,8 @@ export class Zone extends Entity {
     this.radius = 96;
     this.life = 240;
     this.tier = 0;
+    this.follow = null;
+    this.drift = null;
   }
 
   init() {
@@ -160,10 +164,10 @@ export class Zone extends Entity {
     this.size = { x: this.radius * 2, y: this.radius * 2 };
     this.pos.x -= this.radius;
     this.pos.y -= this.radius;
-    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20 }[this.kind];
+    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20, guardians: 0xffe080, cloud: 0x70d040 }[this.kind];
     this.color = color;
     this.view = buildZone(color, this.radius * UNIT, this.kind === 'fire' ? 0.5 : 0.28);
-    if (this.kind === 'fire') {
+    if (this.kind === 'fire' || this.kind === 'cloud') {
       this.view.userData.rune.visible = false;
     }
     this.game.gfx.add(this.view);
@@ -187,6 +191,14 @@ export class Zone extends Entity {
       return;
     }
     const game = this.game;
+    if (this.follow) {
+      const f = this.follow.center();
+      this.pos.x = f.x - this.radius;
+      this.pos.y = f.y - this.radius;
+    } else if (this.drift) {
+      this.pos.x += this.drift.x * k / 60;
+      this.pos.y += this.drift.y * k / 60;
+    }
     if (this.team === 'player') {
       for (const enemy of game.hostilesOf('player')) {
         if (!enemy.killed && this.covers(enemy)) {
@@ -233,6 +245,24 @@ export class Zone extends Entity {
         fx.burst(x, y, 0.2, { color: [0xff6020, 0xffc040], count: 10, speed: 4, life: 0.5, size: 0.9, lift: 2, gravity: 6 });
       }
       this.game.gfx.requestLight(c.x, c.y, 2, 0xff4010, 12);
+    } else if (this.kind === 'guardians') {
+      // spectral motes wheeling around the caster
+      for (let i = 0; i < 3; i++) {
+        const a = time * 2.4 + i * (Math.PI * 2 / 3);
+        const r = this.radius * 0.8;
+        fx.emit(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, 1.2 + Math.sin(time * 5 + i) * 0.4, {
+          color: i === 0 ? 0xffffff : 0xffe080, life: 0.45, size: 0.8
+        });
+      }
+      this.game.gfx.requestLight(c.x, c.y, 2, 0xffd070, 8);
+    } else if (this.kind === 'cloud') {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * this.radius;
+        fx.emit(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, 0.3 + Math.random() * 1.5, {
+          color: Math.random() < 0.5 ? 0x5a9a30 : 0x9ad050, life: 1.2, size: 2.2, vy: 0.3, grow: 1.5
+        });
+      }
     } else {
       if (Math.random() < 0.5) {
         fx.column(c.x, c.y, this.radius * 0.8, { color: [0xff7020, 0xffc040], count: 1, rise: 1.8, life: 0.6, size: 0.8 });

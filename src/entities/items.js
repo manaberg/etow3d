@@ -37,8 +37,10 @@ class Item extends Entity {
   }
 }
 
-// Spellbook flags in the scroll numbering of the 2D game (1-15).
-const SCROLL_SPELLS = [null, 'hasFireball', 'hasLightning', 'hasIronshot', 'hasBlink', 'hasTimestop', 'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasRay', 'hasInvis', 'hasFear', 'hasPwkill', 'hasTele'];
+// Spellbook flags in the scroll numbering of the 2D game (1-15), then the
+// spells new to the 3D game.
+const SCROLL_SPELLS = [null, 'hasFireball', 'hasLightning', 'hasIronshot', 'hasBlink', 'hasTimestop', 'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasRay', 'hasInvis', 'hasFear', 'hasPwkill', 'hasTele',
+  'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph', 'hasDisintegrate', 'hasWeapon'];
 const SCROLL_UPGRADES = { 1: 'hasFb2', 2: 'hasLg2', 3: 'hasIs2', 4: 'hasBk2', 10: 'hasBz2' };
 
 function spellName(flag) {
@@ -53,7 +55,7 @@ export class Scroll extends Item {
   }
 
   init() {
-    this.spellnumber = Math.floor(Math.random() * 15) + 1;
+    this.spellnumber = Math.floor(Math.random() * (SCROLL_SPELLS.length - 1)) + 1;
     this.view = buildScroll(this.tier);
     this.game.gfx.add(this.view);
   }

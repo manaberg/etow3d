@@ -20,6 +20,7 @@ export class Orc extends Enemy {
     this.enraged = false;
     this.quiver = 0;
     this.canBeFeared = true;
+    this.canPolymorph = true;
     this.spawnFrames = 120;
   }
 
@@ -70,6 +71,22 @@ export class Orc extends Enemy {
     this.stoneCooldown = Math.max(0, this.stoneCooldown - k);
     this.healCooldown = Math.max(0, this.healCooldown - k);
     this.castCooldown = Math.max(0, this.castCooldown - k);
+
+    if (this.sheepFrames > 0) {
+      // polymorphed into a sheep: it ambles about and can neither fight nor cast
+      this.wander -= k;
+      if (this.wander <= 0) {
+        const a = Math.random() * Math.PI * 2;
+        this.vel.x = Math.cos(a) * 30;
+        this.vel.y = Math.sin(a) * 30;
+        this.wander = 90;
+      }
+      this.moveBody(k);
+      if (this.hp < 0) {
+        this.die();
+      }
+      return;
+    }
 
     const image = game.firstImage();
     const hasRoomSight = game.hasRoomLineOfSight(this, player);

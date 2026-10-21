@@ -633,6 +633,44 @@ export function buildIronshot() {
   return g;
 }
 
+// What polymorph turns an orc into.
+export function buildSheep() {
+  const g = new THREE.Group();
+  const wool = mat(0xece8de);
+  const face = mat(0x2a2422);
+  g.add(mesh(geo('sheep.body', () => new THREE.IcosahedronGeometry(0.62, 1)), wool, 0, 0.82, 0));
+  g.children[0].scale.set(0.95, 0.85, 1.25);
+  for (const [x, z] of [[-0.3, 0.5], [0.3, 0.5], [-0.3, -0.5], [0.3, -0.5]]) {
+    g.add(mesh(geo('sheep.leg', () => new THREE.BoxGeometry(0.14, 0.5, 0.14)), face, x, 0.25, z));
+  }
+  const head = new THREE.Group();
+  head.add(mesh(geo('sheep.head', () => new THREE.BoxGeometry(0.34, 0.36, 0.46)), face, 0, 0, 0));
+  head.add(mesh(geo('sheep.tuft', () => new THREE.IcosahedronGeometry(0.22, 0)), wool, 0, 0.2, -0.08));
+  for (const x of [-0.24, 0.24]) {
+    const ear = mesh(geo('sheep.ear', () => new THREE.BoxGeometry(0.2, 0.06, 0.12)), face, x, 0.08, -0.05);
+    ear.rotation.z = x < 0 ? 0.4 : -0.4;
+    head.add(ear);
+  }
+  head.position.set(0, 1.12, 0.78);
+  g.add(head);
+  return g;
+}
+
+// Spiritual weapon: a glowing spectral sword.
+export function buildSpectralBlade() {
+  const g = new THREE.Group();
+  const spirit = new THREE.MeshBasicMaterial({ color: 0x80e0ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const blade = new THREE.Group();
+  blade.add(mesh(geo('sword.spirit.blade', () => new THREE.BoxGeometry(0.1, 1.5, 0.28)), spirit, 0, 0.95, 0));
+  blade.add(mesh(geo('sword.spirit.tip', () => new THREE.ConeGeometry(0.2, 0.35, 4)), spirit, 0, 1.87, 0));
+  blade.add(mesh(geo('sword.spirit.guard', () => new THREE.BoxGeometry(0.14, 0.1, 0.8)), spirit, 0, 0.18, 0));
+  blade.add(mesh(geo('sword.spirit.grip', () => new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6)), spirit, 0, -0.06, 0));
+  blade.add(glowSprite(0x60c0ff, 2.2, 0.6));
+  blade.children[blade.children.length - 1].position.y = 0.9;
+  g.add(blade);
+  return g;
+}
+
 // Flat disc on the ground marking an area spell.
 export function buildZone(color, radiusUnits, opacity = 0.35) {
   const g = new THREE.Group();

@@ -7,6 +7,7 @@ import { buildOrc } from '../render/models.js';
 export class Clericorc extends Enemy {
   defaults() {
     super.defaults();
+    this.knockResist = 0.5;
     this.hp = this.maxHp = 8000;
     this.desiredVel = 100;
     this.attackCooldown = 0;
@@ -106,6 +107,7 @@ export class Clericorc extends Enemy {
 export class Mageorc extends Enemy {
   defaults() {
     super.defaults();
+    this.knockResist = 0.5;
     this.hp = this.maxHp = 3000;
     this.desiredVel = 90;
     this.attackCooldown = 0;
@@ -195,6 +197,7 @@ export class Mageorc extends Enemy {
 export class Boss extends Enemy {
   defaults() {
     super.defaults();
+    this.knockResist = 0.9;
     this.hp = this.maxHp = 20000;
     this.manergy = 200;
     this.maxManergy = 200;

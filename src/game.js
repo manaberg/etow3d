@@ -243,7 +243,7 @@ export class Game {
     total += this.spawnOrcPack(plan, stairsRoom, guards);
     let remaining = plan.orcs - guards;
     while (remaining > 0) {
-      const packSize = Math.min(remaining, randInt(2, 3 + Math.floor(this.depth / 3)));
+      const packSize = Math.min(remaining, randInt(3, 5 + Math.floor(this.depth / 3)));
       total += this.spawnOrcPack(plan, this.pickLairRoom(lairs, 'barracks'), packSize);
       remaining -= packSize;
     }
@@ -390,6 +390,8 @@ export class Game {
     for (const e of this.entities) {
       if (e instanceof Zone && !e.killed && e.kind === 'blizzard' && e.team !== friendlyTeam && e.covers(entity)) {
         slow = Math.min(slow, entity.slowIn ? entity.slowIn(e) : 0.5);
+      } else if (e instanceof Zone && !e.killed && e.kind === 'guardians' && e.team !== friendlyTeam && e.covers(entity)) {
+        slow = Math.min(slow, 0.6);
       }
     }
     return slow;

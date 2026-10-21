@@ -9,18 +9,18 @@
 export const DungeonLevels = {
   count: 10,
   // share of the floor's enemies to slay before the stairs unseal
-  unlockShare: 0.5,
+  unlockShare: 0.4,
   plans: [
-    { name: 'THE UPPER HALLS', rooms: 7, orcs: 10, classes: { grunt: 7, slinger: 3 }, scrolls: 3, potions: 3, rings: 0, tier2: 0, champion: 0 },
-    { name: 'THE WARRENS', rooms: 8, orcs: 14, classes: { grunt: 6, slinger: 3, knight: 2 }, scrolls: 3, potions: 4, rings: 0, tier2: 0, champion: 0 },
-    { name: 'THE MUSTER HALLS', rooms: 8, orcs: 18, classes: { grunt: 5, slinger: 3, knight: 2, shaman: 1, berserker: 1 }, scrolls: 4, potions: 4, rings: 1, tier2: 0.1, champion: 0 },
-    { name: 'THE BONE CRYPTS', rooms: 9, orcs: 22, classes: { grunt: 4, slinger: 3, knight: 2, shaman: 2, berserker: 2 }, clerics: 1, scrolls: 4, potions: 5, rings: 1, tier2: 0.2, champion: 0 },
-    { name: 'THE SUNKEN LIBRARY', rooms: 9, orcs: 26, classes: { grunt: 4, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 1 }, mages: 1, scrolls: 5, potions: 5, rings: 1, tier2: 0.3, champion: 0.04 },
-    { name: 'THE IRON FORGES', rooms: 10, orcs: 30, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 2, warlock: 2 }, clerics: 1, mages: 1, scrolls: 5, potions: 6, rings: 1, tier2: 0.4, champion: 0.06 },
-    { name: 'THE BLOOD PITS', rooms: 10, orcs: 34, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 2, warlock: 2 }, clerics: 1, mages: 1, scrolls: 6, potions: 6, rings: 2, tier2: 0.5, champion: 0.08 },
-    { name: 'THE SHADOW VAULTS', rooms: 10, orcs: 38, classes: { grunt: 2, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, clerics: 2, mages: 1, scrolls: 6, potions: 7, rings: 2, tier2: 0.6, champion: 0.1 },
-    { name: 'THE BURNING DEEP', rooms: 11, orcs: 42, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 3, warlock: 4 }, clerics: 2, mages: 2, scrolls: 7, potions: 8, rings: 2, tier2: 0.7, champion: 0.12 },
-    { name: 'THRONE OF THE WARLORD', rooms: 9, orcs: 18, classes: { knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, boss: true, scrolls: 4, potions: 10, rings: 1, tier2: 0.8, champion: 0.15 }
+    { name: 'THE UPPER HALLS', rooms: 7, orcs: 22, classes: { grunt: 7, slinger: 3 }, scrolls: 5, potions: 3, rings: 0, tier2: 0, champion: 0 },
+    { name: 'THE WARRENS', rooms: 8, orcs: 30, classes: { grunt: 6, slinger: 3, knight: 2 }, scrolls: 5, potions: 4, rings: 0, tier2: 0, champion: 0 },
+    { name: 'THE MUSTER HALLS', rooms: 8, orcs: 38, classes: { grunt: 5, slinger: 3, knight: 2, shaman: 1, berserker: 1 }, scrolls: 6, potions: 4, rings: 1, tier2: 0.1, champion: 0 },
+    { name: 'THE BONE CRYPTS', rooms: 9, orcs: 46, classes: { grunt: 4, slinger: 3, knight: 2, shaman: 2, berserker: 2 }, clerics: 1, scrolls: 6, potions: 5, rings: 1, tier2: 0.2, champion: 0 },
+    { name: 'THE SUNKEN LIBRARY', rooms: 9, orcs: 54, classes: { grunt: 4, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 1 }, mages: 1, scrolls: 7, potions: 5, rings: 1, tier2: 0.3, champion: 0.04 },
+    { name: 'THE IRON FORGES', rooms: 10, orcs: 62, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 2, warlock: 2 }, clerics: 1, mages: 1, scrolls: 7, potions: 6, rings: 1, tier2: 0.4, champion: 0.06 },
+    { name: 'THE BLOOD PITS', rooms: 10, orcs: 70, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 2, warlock: 2 }, clerics: 1, mages: 1, scrolls: 8, potions: 6, rings: 2, tier2: 0.5, champion: 0.08 },
+    { name: 'THE SHADOW VAULTS', rooms: 10, orcs: 78, classes: { grunt: 2, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, clerics: 2, mages: 1, scrolls: 8, potions: 7, rings: 2, tier2: 0.6, champion: 0.1 },
+    { name: 'THE BURNING DEEP', rooms: 11, orcs: 86, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 3, warlock: 4 }, clerics: 2, mages: 2, scrolls: 9, potions: 8, rings: 2, tier2: 0.7, champion: 0.12 },
+    { name: 'THRONE OF THE WARLORD', rooms: 9, orcs: 34, classes: { knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, boss: true, scrolls: 6, potions: 10, rings: 1, tier2: 0.8, champion: 0.15 }
   ],
 
   getPlan(depth) {

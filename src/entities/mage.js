@@ -4,6 +4,7 @@ import { UNIT } from '../core/constants.js';
 import { buildMage, glowMap } from '../render/models.js';
 import { Projectile, Zone, MirrorImage } from './spells.js';
 import { DuelRules } from './duelRules.js';
+import { castArcana } from './arcana.js';
 
 // The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
 // manergy that must be exceeded and `cost` what a cast spends; `flag` is the
@@ -24,7 +25,18 @@ export const SpellBook = [
   { id: 'invis', key: 'T', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis' },
   { id: 'fear', key: 'C', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear' },
   { id: 'pwkill', key: 'X', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2' },
-  { id: 'tele', key: 'V', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele' }
+  { id: 'tele', key: 'V', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele' },
+  // D&D spells new to the 3D game (see arcana.js)
+  { id: 'scorch', key: 'H', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch' },
+  { id: 'cone', key: 'Z', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone' },
+  { id: 'thunder', key: 'B', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder' },
+  { id: 'meteor', key: '6', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor' },
+  { id: 'guardians', key: '7', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians' },
+  { id: 'cloud', key: '8', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud' },
+  { id: 'heal', key: 'Y', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal' },
+  { id: 'polymorph', key: 'U', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph' },
+  { id: 'disintegrate', key: '9', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate' },
+  { id: 'weapon', key: '0', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon' }
 ];
 
 export const SpellById = {};
@@ -371,6 +383,7 @@ export class Mage extends Entity {
         this.spend('tele');
       }
     }
+    castArcana(this);
   }
 
   // A bolt reached the mage.

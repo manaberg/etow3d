@@ -57,6 +57,16 @@ starts a duel, and `/` shows the main menu.
 | `C` | fear |
 | `X` | power word kill (hover an enemy) |
 | `V` | telekinesis (hover loot) |
+| `H` | scorching ray (three fire bolts) |
+| `Z` | cone of cold (damages and chills in front of you) |
+| `B` | thunderwave (blasts nearby enemies away) |
+| `6` | meteor swarm at the cursor |
+| `7` | spirit guardians (a damaging, slowing aura that follows you) |
+| `8` | cloudkill at the cursor (a poison cloud that rolls away from you) |
+| `Y` | healing word |
+| `U` | polymorph (turns an orc under the cursor into a sheep) |
+| `9` | disintegrate (a ray into the first enemy in line) |
+| `0` | spiritual weapon (a spectral sword that fights beside you) |
 | `Space` | descend the stairs |
 | Mouse wheel | zoom |
 | `M` | larger map |
@@ -67,9 +77,12 @@ starts a duel, and `/` shows the main menu.
 **Survival.** Ten floors, from The Upper Halls down to the Throne of the Warlord. Every floor
 is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,
 alchemy lab, crypt, throne room) joined by corridors. The stairs down wait in the throne room
-and unseal once half of the floor's enemies are slain. Spells are learnt from scrolls; tier 2
+and unseal once 40% of the floor's enemies are slain. Spells are learnt from scrolls; tier 2
 scrolls upgrade fireball, lightning, iron shot, blink and blizzard. Potions heal or raise
 maximum manergy, and rings add passive effects. Spells, rings and stats carry down the stairs.
+Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
+to spiritual weapon in the table above). They are survival-only; duels keep the original
+spell book.
 
 Orcs guard their rooms until they see, hear or get hit by the player, then rally the pack
 and hunt through the dungeon on flow-field paths. Classes: grunt, slinger, knight (charges),
