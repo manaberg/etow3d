@@ -17,6 +17,14 @@ export const DuelRules = {
   },
   blizzardDamage: 0.25,
   blizzard2Damage: 0.5,
+  // global cooldown: after any spell, every other spell waits this many frames,
+  // except the ones listed as free (magic missile and the lifesteal channel)
+  gcd: 45,
+  gcdFree: ['missile', 'ray'],
+
+  onGcd(spell) {
+    return !this.gcdFree.includes(spell);
+  },
   // reaction: frames before a new projectile is noticed
   // castLock: minimum frames between two offensive casts
   // decisionInterval: frames between movement re-plans when nothing new happens

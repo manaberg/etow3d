@@ -6,6 +6,7 @@ import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
 import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
+import { DuelRules } from '../entities/duelRules.js';
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -245,8 +246,14 @@ export class Hud {
       }
       known++;
       r.tier.style.display = spell.tier && player[spell.tier] ? '' : 'none';
-      const left = player.cd[spell.id];
-      const frac = spell.cd > 0 ? 1 - left / spell.cd : 1;
+      let left = player.cd[spell.id];
+      let frac = spell.cd > 0 ? 1 - left / spell.cd : 1;
+      // the duel's global cooldown holds back spells that are otherwise ready
+      const gcd = player.gcdLeft(spell.id);
+      if (gcd > left) {
+        left = gcd;
+        frac = Math.min(frac, 1 - gcd / DuelRules.gcd);
+      }
       r.fill.style.width = (frac * 100) + '%';
       const affordable = player.manergy > spell.need && !(spell.id === 'ironshot' && player.is2Charges <= 0 && left > 0);
       r.row.classList.toggle('cooling', left > 0);

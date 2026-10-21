@@ -66,6 +66,8 @@ export class DuelWizard extends Enemy {
     this.acc = 0;
     // short grace period at the start of the duel
     this.castLock = 45;
+    // global cooldown frames left (DuelRules.gcd)
+    this.gcd = 0;
     this.tactic = 'kite';
     this.strafeSign = 1;
     this.strafeTimer = 0;
@@ -117,7 +119,7 @@ export class DuelWizard extends Enemy {
 
   ready(spell) {
     const book = this.spellBook[spell];
-    if (this.cdLeft[spell] > 0 || this.manergy <= book.need) {
+    if (this.cdLeft[spell] > 0 || this.manergy <= book.need || (this.gcd > 0 && DuelRules.onGcd(spell))) {
       return false;
     }
     return !(spell === 'ironshot' && this.ironCharges <= 0);
@@ -126,6 +128,9 @@ export class DuelWizard extends Enemy {
   spend(spell, offensive) {
     this.cdLeft[spell] = this.spellBook[spell].cd;
     this.manergy -= this.spellBook[spell].cost;
+    if (DuelRules.onGcd(spell)) {
+      this.gcd = DuelRules.gcd;
+    }
     if (offensive) {
       this.castLock = this.ai.castLock;
       // attacking breaks invisibility
@@ -274,6 +279,9 @@ export class DuelWizard extends Enemy {
     this.tickDebuffs(1);
     if (this.castLock > 0) {
       this.castLock--;
+    }
+    if (this.gcd > 0) {
+      this.gcd--;
     }
     if (this.rayFrames > 0) {
       this.rayFrames--;
@@ -701,6 +709,7 @@ export class DuelWizard extends Enemy {
         }
         this.ironCharges--;
         this.manergy -= this.spellBook.ironshot.cost;
+        this.gcd = DuelRules.gcd;
         this.castLock = helpless ? 2 : this.ai.castLock;
         this.invisFrames = 0;
         return;

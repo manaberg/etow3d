@@ -68,6 +68,8 @@ export class Mage extends Entity {
     for (const spell of SpellBook) {
       this.cd[spell.id] = 0;
     }
+    // duel global cooldown (frames left), see DuelRules.gcd
+    this.gcd = 0;
     // the 2D game started a few spells on cooldown
     this.is2Charges = 1;
     // buffs (frames left) and debuffs
@@ -140,13 +142,25 @@ export class Mage extends Entity {
 
   // Lets the duel loadout start every spell on cooldown like the 2D game.
   ready(id) {
-    return this.cd[id] <= 0;
+    return this.cd[id] <= 0 && this.gcdLeft(id) <= 0;
+  }
+
+  // Frames of duel global cooldown still holding back this spell.
+  gcdLeft(id) {
+    return this.game.duelMode && DuelRules.onGcd(id) ? this.gcd : 0;
   }
 
   spend(id, extraCost) {
     const spell = SpellById[id];
     this.cd[id] = spell.cd;
     this.manergy -= spell.cost + (extraCost || 0);
+    this.startGcd(id);
+  }
+
+  startGcd(id) {
+    if (this.game.duelMode && DuelRules.onGcd(id)) {
+      this.gcd = DuelRules.gcd;
+    }
   }
 
   canCast(id) {
@@ -218,6 +232,7 @@ export class Mage extends Entity {
     if (this.cd.ironshot <= 0 && this.is2Charges <= 0) {
       this.is2Charges = this.hasIs2 ? 2 : 1;
     }
+    this.gcd = Math.max(0, this.gcd - k);
     this.shieldFrames = Math.max(0, this.shieldFrames - k);
     this.hasteFrames = Math.max(0, this.hasteFrames - k);
     this.invisFrames = Math.max(0, this.invisFrames - k);
@@ -268,10 +283,11 @@ export class Mage extends Entity {
       this.spend('fireball', extra);
       this.rig.swing();
     }
-    if (input.pressed('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.manergy > 40) {
+    if (input.pressed('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.gcdLeft('ironshot') <= 0 && this.manergy > 40) {
       fire('ironshot', aim);
       stats.iscount++;
       this.manergy -= 40;
+      this.startGcd('ironshot');
       if (this.is2Charges === 1) {
         this.cd.ironshot = SpellById.ironshot.cd;
       }
