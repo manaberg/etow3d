@@ -19,7 +19,7 @@ export const DuelRules = {
   blizzard2Damage: 0.5,
   // global cooldown: after any spell, every other spell waits this many frames,
   // except the ones listed as free (magic missile and the lifesteal channel)
-  gcd: 45,
+  gcd: 180,
   gcdFree: ['missile', 'ray'],
 
   onGcd(spell) {

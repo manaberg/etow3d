@@ -94,7 +94,7 @@ shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orc
 and champions always drop loot. Orc clerics and orc mages appear from depth 4 and 5, and the
 warlord waits on the tenth floor.
 
-**Duel.** A one-room arena where both wizards have every spell. A 0.75 s global cooldown
+**Duel.** A one-room arena where both wizards have every spell. A 3 s global cooldown
 follows every spell except magic missile and lifesteal, for both wizards (`DuelRules.gcd`). The rival wizard reads the
 bolts in flight, scores escape directions, shields or blinks out of hits it cannot dodge,
 picks tactics (kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its
