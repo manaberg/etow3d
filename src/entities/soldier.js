@@ -100,7 +100,18 @@ export class Soldier extends Enemy {
     const regiment = this.regiment;
     const order = regiment.order;
     this.retarget -= k;
-    if (this.retarget <= 0 || !this.target || this.target.killed || this.target.dead) {
+    if (order === 'attack' && (this.retarget <= 0 || !this.target || this.target.killed)) {
+      // sent against one regiment: go for its nearest orc
+      this.target = battle.attackFoe(this);
+      if (!this.target) {
+        // that regiment is gone: hold the ground we won
+        regiment.order = 'hold';
+        regiment.attackTarget = null;
+        regiment.point = { x: regiment.centroid.x, y: regiment.centroid.y };
+      }
+      this.sees = this.target ? game.hasRoomLineOfSight(this, this.target) : false;
+      this.retarget = 18 + Math.random() * 12;
+    } else if (this.retarget <= 0 || !this.target || this.target.killed || this.target.dead) {
       // charging orcs look far for a fight; others only around them
       this.target = battle.nearestFoe(this, order === 'charge' ? Infinity : (this.range || 260));
       this.sees = this.target ? game.hasRoomLineOfSight(this, this.target) : false;
@@ -126,7 +137,7 @@ export class Soldier extends Enemy {
       this.vel.y = 0;
     } else if (this.isFeared) {
       this.stumble(k);
-    } else if (target && (order === 'charge' || engaged)) {
+    } else if (target && (order === 'charge' || order === 'attack' || engaged)) {
       if (this.range && dist < this.range && this.sees) {
         this.vel.x = 0;
         this.vel.y = 0;
@@ -280,7 +291,8 @@ export class Soldier extends Enemy {
       const tc = this.target.center();
       facing = Math.atan2(tc.x - c.x, tc.y - c.y);
     } else {
-      facing = this.side === 'player' ? Math.PI / 2 : -Math.PI / 2;
+      // the player's army faces up the screen, the rival's down
+      facing = this.side === 'player' ? Math.PI : 0;
     }
     this.rig.animate(dt, this.isStunned ? 0 : Math.min(1.3, speed / 90), facing);
     const sheep = this.sheepFrames > 0;

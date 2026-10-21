@@ -741,3 +741,19 @@ button.rule.active {
 .hud.battle .hud-toasts {
   bottom: 120px;
 }
+
+.battle-mode {
+  color: #c090ff;
+}
+
+.battle-mode.commander {
+  color: #ffd060;
+}
+
+.drag-box {
+  position: absolute;
+  display: none;
+  border: 1px solid #ffd060;
+  background: rgba(255, 208, 96, 0.12);
+  pointer-events: none;
+}

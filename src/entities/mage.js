@@ -177,13 +177,9 @@ export class Mage extends Entity {
     const input = game.input;
     this.timePlayed += k / 60;
     this.tickTimers(k);
-    if (game.battle && !game.battle.fighting) {
-      // the armies are still deploying
-      this.vel.x = 0;
-      this.vel.y = 0;
-      this.aim = Math.atan2(input.ground.y - this.center().y, input.ground.x - this.center().x);
-      return;
-    }
+    // battles: while the armies deploy, or while the wizard commands them,
+    // it stands still and casts nothing (but still regenerates and can fall)
+    const standing = !!game.battle && (!game.battle.fighting || game.battle.commander);
 
     // movement
     // the ring of speed adds a fifth, as 100 -> 120 did in the 2D game
@@ -191,7 +187,7 @@ export class Mage extends Entity {
     if (this.hasted) {
       speed *= 2.5;
     }
-    if (this.isStunned) {
+    if (this.isStunned || standing) {
       this.vel.x = 0;
       this.vel.y = 0;
     } else if (this.isFeared) {
@@ -222,7 +218,9 @@ export class Mage extends Entity {
       this.manergy = Math.min(this.maxManergy, this.manergy + (this.hasMrring ? 0.5 : 0.4) * k);
     }
 
-    this.castSpells();
+    if (!standing) {
+      this.castSpells();
+    }
     this.move(k);
 
     if (this.hp <= 0 && !this.dead) {

@@ -89,7 +89,9 @@ export class Hud {
       const box = el('div', 'hud-battle', right);
       this.battleScore = el('div', 'battle-score', box);
       this.battleArmies = el('div', 'map-line', box);
+      this.battleMode = el('div', 'map-line battle-mode', box);
       this.battleKeys = el('div', 'map-line dim', box);
+      this.dragBox = el('div', 'drag-box', root);
       // the player's regiments as clickable cards along the bottom
       this.regimentBar = el('div', 'hud-regiments', root);
       this.regimentCards = [];
@@ -314,14 +316,28 @@ export class Hud {
     const battle = this.game.battle;
     setText(this.battleScore, 'BATTLE ' + (battle.round + 1) + ' / 5 :: YOU ' + battle.score.player + ' - ' + battle.score.enemy + ' RIVAL');
     setText(this.battleArmies, 'ARMIES :: ' + battle.armyCount('player') + ' VS ' + battle.armyCount('enemy'));
-    setText(this.battleKeys, actionKeyLabel('regiment_next') + ' SELECT  ' + actionKeyLabel('order_charge') + ' CHARGE  ' +
-      actionKeyLabel('order_hold') + ' MARCH  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+    setText(this.battleMode, (battle.commander ? 'COMMANDER MODE' : 'SPELL MODE') + ' :: ' + actionKeyLabel('mode_toggle') + ' TO SWITCH');
+    this.battleMode.classList.toggle('commander', battle.commander);
+    setText(this.battleKeys, battle.commander
+      ? 'CLICK / DRAG SELECT :: RIGHT CLICK MOVE OR ATTACK'
+      : actionKeyLabel('order_charge') + ' CHARGE  ' + actionKeyLabel('order_hold') + ' MARCH  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+    // the drag-select box
+    const d = battle.drag;
+    this.dragBox.style.display = d ? 'block' : 'none';
+    if (d) {
+      Object.assign(this.dragBox.style, {
+        left: Math.min(d.x0, d.x1) + 'px',
+        top: Math.min(d.y0, d.y1) + 'px',
+        width: Math.abs(d.x1 - d.x0) + 'px',
+        height: Math.abs(d.y1 - d.y0) + 'px'
+      });
+    }
     for (const card of this.regimentCards) {
       const r = card.regiment;
       card.node.classList.toggle('selected', battle.selected.has(r.id));
       card.node.classList.toggle('lost', r.alive === 0);
       setText(card.count, r.alive + ' / ' + r.size);
-      setText(card.order, r.order === 'hold' ? 'HOLD' : (r.order === 'charge' ? 'CHARGE' : 'FOLLOW'));
+      setText(card.order, { hold: 'HOLD', charge: 'CHARGE', follow: 'FOLLOW', attack: 'ATTACK' }[r.order]);
       card.fill.style.width = (r.alive / r.size * 100) + '%';
     }
   }

@@ -39,10 +39,11 @@ export const BattleRules = {
     { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 },
     { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 }
   ],
-  // open battlefield in dungeon cells (2 tiles each) for an army of n a side
+  // open battlefield in dungeon cells (2 tiles each) for an army of n a side:
+  // wide for the battle lines, deep enough for three lines on either side
   field(n) {
-    const w = 60 + Math.round(n * 0.35);
-    const h = 40 + Math.round(n * 0.15);
+    const w = 64 + Math.round(n * 0.3);
+    const h = 52 + Math.round(n * 0.24);
     return { cols: w + 6, rows: h + 6, roomCount: 1, minRoomW: w, maxRoomW: w, minRoomH: h, maxRoomH: h, outcrops: 10 + Math.round(n / 8) };
   }
 };
@@ -99,6 +100,13 @@ export class Battle {
     this.grid = new Map();
     this.over = false;
     this.markers = null;
+    // commander mode (Tab): the wizard stands, the camera roams, the mouse
+    // selects and orders regiments. Battles open in it, for deployment.
+    this.commander = true;
+    this.cam = { x: 0, y: 0 };
+    this.drag = null;
+    this.listeners = [];
+    this.attachMouse();
   }
 
   get armySize() {
@@ -123,10 +131,12 @@ export class Battle {
     const width = room.w * TILE;
     const height = room.h * TILE;
     this.bounds = { left, top, right: left + width, bottom: top + height };
-    const mid = top + height / 2;
+    const mid = left + width / 2;
     this.regiments = { player: [], enemy: [] };
-    const wizardPlayer = this.deployArmy('player', n, left + width * 0.2, mid, 1);
-    const wizardEnemy = this.deployArmy('enemy', n, left + width * 0.8, mid, -1);
+    // the player's army along the bottom of the field advancing up the screen,
+    // the rival's along the top (dir is the way each army faces, in y)
+    const wizardPlayer = this.deployArmy('player', n, top + height * 0.75, mid, -1);
+    const wizardEnemy = this.deployArmy('enemy', n, top + height * 0.25, mid, 1);
 
     const pl = game.spawn(Mage, wizardPlayer.x - 24, wizardPlayer.y - 24);
     game.player = pl;
@@ -143,6 +153,8 @@ export class Battle {
     game.rival = rival;
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
+    this.commander = true;
+    this.cam = { x: wizardPlayer.x, y: wizardPlayer.y - 320 };
     this.fighting = false;
     this.fightFrames = 0;
     this.deploy = BattleRules.deployFrames;
@@ -156,9 +168,10 @@ export class Battle {
 
   // Splits an army into regiments by type and lays them out in three lines
   // facing the enemy: infantry and shock troops in front with knights on the
-  // flanks, slingers behind them, mystics at the back. Returns where the
-  // wizard stands, behind it all.
-  deployArmy(side, n, frontX, midY, dir) {
+  // flanks, slingers behind them, mystics at the back. Lines run across the
+  // field (x) and the army faces along y. Returns where the wizard stands,
+  // behind it all.
+  deployArmy(side, n, frontY, midX, dir) {
     const game = this.game;
     const shares = BattleRules.shares[Math.min(this.round, BattleRules.shares.length - 1)];
     const sp = BattleRules.spacing;
@@ -192,20 +205,20 @@ export class Battle {
     // knights alternate between the two flanks of the front line
     regiments.filter((r) => r.kind === 'knights').forEach((r, i) => (i % 2 === 0 ? front.unshift(r) : front.push(r)));
     const lines = [front, regiments.filter((r) => r.kind === 'slingers'), regiments.filter((r) => r.kind === 'mystics')];
-    let lineX = frontX;
+    let lineY = frontY;
     for (const line of lines) {
       if (!line.length) {
         continue;
       }
       const total = line.reduce((s, r) => s + r.width, 0) + (line.length - 1) * 60;
-      let y = midY - total / 2;
+      let x = midX - total / 2;
       let deepest = 0;
       for (const r of line) {
-        r.point = this.clampPoint({ x: lineX - dir * r.depth / 2, y: y + r.width / 2 });
-        y += r.width + 60;
+        r.point = this.clampPoint({ x: x + r.width / 2, y: lineY - dir * r.depth / 2 });
+        x += r.width + 60;
         deepest = Math.max(deepest, r.depth);
       }
-      lineX -= dir * (deepest + 110);
+      lineY -= dir * (deepest + 110);
     }
     // reserve instanced slots per look, then spawn every orc in its slot
     const looks = {};
@@ -246,8 +259,8 @@ export class Battle {
         const col = i % r.cols;
         const rank = Math.floor(i / r.cols);
         const slot = {
-          x: -dir * (rank - (r.ranks - 1) / 2) * sp,
-          y: (col - (r.cols - 1) / 2) * sp
+          x: (col - (r.cols - 1) / 2) * sp,
+          y: -dir * (rank - (r.ranks - 1) / 2) * sp
         };
         let spot = { x: r.point.x + slot.x - 24, y: r.point.y + slot.y - 24 };
         if (!game.world.canStandAt(spot.x, spot.y, 48, 48)) {
@@ -257,7 +270,7 @@ export class Battle {
       });
       this.regiments[side].push(regiment);
     });
-    return this.clampPoint({ x: lineX + dir * 60, y: midY });
+    return this.clampPoint({ x: midX, y: lineY + dir * 60 });
   }
 
   clampPoint(p) {
@@ -281,6 +294,12 @@ export class Battle {
       }
     } else {
       this.fightFrames++;
+    }
+    if (input.pressed('mode_toggle')) {
+      this.setCommander(!this.commander);
+    }
+    if (this.commander) {
+      this.panCamera(input);
     }
     this.readOrders(input);
     this.commandRival();
@@ -306,22 +325,11 @@ export class Battle {
     this.game.hud.toast('BATTLE ' + (this.round + 1) + ' :: FIGHT!', '#ffb85a');
   }
 
-  // Tab cycles the selection (all regiments, then each in turn), backquote
-  // selects all, and the order keys apply to whatever is selected.
+  // Backquote selects all; the order keys apply to whatever is selected (in
+  // either mode; commander mode adds the mouse, see attachMouse).
   readOrders(input) {
     const game = this.game;
     const mine = this.regiments.player.filter((r) => r.alive > 0);
-    if (input.pressed('regiment_next') && mine.length) {
-      const allSelected = mine.every((r) => this.selected.has(r.id));
-      const current = mine.findIndex((r) => this.selected.has(r.id));
-      if (allSelected && mine.length > 1) {
-        this.selectOnly(mine[0].id);
-      } else if (current === mine.length - 1 || current < 0) {
-        this.selectAll();
-      } else {
-        this.selectOnly(mine[current + 1].id);
-      }
-    }
     if (input.pressed('regiment_all')) {
       this.selectAll();
     }
@@ -350,9 +358,10 @@ export class Battle {
     }
   }
 
-  order(regiments, order) {
+  order(regiments, order, target) {
     const game = this.game;
     for (const r of regiments) {
+      r.attackTarget = order === 'attack' ? target : null;
       if (order === 'follow') {
         // close in around the wizard, on the side the regiment came from
         const w = game.player.center();
@@ -364,6 +373,180 @@ export class Battle {
       }
       r.order = order;
     }
+  }
+
+  // ------------------------------------------------------------- commander mode
+
+  setCommander(on) {
+    const game = this.game;
+    this.commander = on;
+    this.drag = null;
+    if (on) {
+      const c = game.player.center();
+      this.cam = { x: c.x, y: c.y - 200 };
+    }
+    game.hud.toast(on ? 'COMMANDER MODE :: CLICK TO SELECT, RIGHT CLICK TO ORDER' : 'SPELL MODE', on ? '#ffd060' : '#c090ff');
+  }
+
+  // WASD / arrows pan the commander's camera; faster when zoomed out.
+  panCamera(input) {
+    const speed = this.game.gfx.zoom * 0.55;
+    if (input.state('up')) { this.cam.y -= speed; }
+    if (input.state('down')) { this.cam.y += speed; }
+    if (input.state('left')) { this.cam.x -= speed; }
+    if (input.state('right')) { this.cam.x += speed; }
+    const b = this.bounds;
+    this.cam.x = Math.max(b.left, Math.min(b.right, this.cam.x));
+    this.cam.y = Math.max(b.top, Math.min(b.bottom + 400, this.cam.y));
+  }
+
+  // Mouse in commander mode: left click or drag selects, right click orders.
+  attachMouse() {
+    const canvas = this.game.gfx.canvas;
+    const on = (type, fn) => {
+      canvas.addEventListener(type, fn);
+      this.listeners.push([type, fn]);
+    };
+    const local = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    on('mousedown', (e) => {
+      if (!this.commander || this.game.state !== 'playing') {
+        return;
+      }
+      const m = local(e);
+      if (e.button === 0) {
+        this.drag = { x0: m.x, y0: m.y, x1: m.x, y1: m.y, add: e.shiftKey };
+      } else if (e.button === 2) {
+        this.rightClick(m);
+      }
+    });
+    on('mousemove', (e) => {
+      if (this.drag) {
+        const m = local(e);
+        this.drag.x1 = m.x;
+        this.drag.y1 = m.y;
+      }
+    });
+    on('mouseup', (e) => {
+      if (e.button !== 0 || !this.drag) {
+        return;
+      }
+      const d = this.drag;
+      this.drag = null;
+      if (Math.abs(d.x1 - d.x0) + Math.abs(d.y1 - d.y0) < 8) {
+        this.clickSelect({ x: d.x0, y: d.y0 }, d.add);
+      } else {
+        this.boxSelect(d, d.add);
+      }
+    });
+  }
+
+  // The unit nearest a screen point, within a little slack.
+  unitAt(screen, side) {
+    const g = this.game.gfx.pickGround(screen);
+    if (!g) {
+      return null;
+    }
+    const probe = { center: () => g };
+    let best = null;
+    let bestD = 40;
+    for (const e of this.near(probe, 48, side)) {
+      const c = e.center();
+      const d = Math.hypot(c.x - g.x, c.y - g.y);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  clickSelect(screen, add) {
+    const unit = this.unitAt(screen, 'player');
+    if (unit && unit.regiment) {
+      this.toggleSelect(unit.regiment.id, add);
+    } else if (!add) {
+      this.selected = new Set();
+    }
+  }
+
+  // Every regiment with an orc inside the dragged box.
+  boxSelect(d, add) {
+    const gfx = this.game.gfx;
+    const x0 = Math.min(d.x0, d.x1);
+    const x1 = Math.max(d.x0, d.x1);
+    const y0 = Math.min(d.y0, d.y1);
+    const y1 = Math.max(d.y0, d.y1);
+    const picked = new Set(add ? this.selected : []);
+    for (const r of this.regiments.player) {
+      for (const u of r.units) {
+        if (u.killed) {
+          continue;
+        }
+        const c = u.center();
+        const p = gfx.project(c.x, c.y, 1);
+        if (p && p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) {
+          picked.add(r.id);
+          break;
+        }
+      }
+    }
+    this.selected = picked;
+  }
+
+  // Right click: on an enemy, the selection attacks its regiment (or the
+  // rival wizard); on open ground, it marches there and holds.
+  rightClick(screen) {
+    const game = this.game;
+    const chosen = this.regiments.player.filter((r) => r.alive > 0 && this.selected.has(r.id));
+    if (!chosen.length) {
+      return;
+    }
+    const foe = this.unitAt(screen, 'enemy');
+    if (foe) {
+      const target = foe.regiment || foe;
+      this.order(chosen, 'attack', target);
+      game.hud.toast(this.selectionName(chosen) + ' :: ATTACK ' + (foe.regiment ? foe.regiment.name : 'THE RIVAL WIZARD'), '#ff8a70');
+      return;
+    }
+    const g = game.gfx.pickGround(screen);
+    if (!g) {
+      return;
+    }
+    const cx = chosen.reduce((s, r) => s + r.point.x, 0) / chosen.length;
+    const cy = chosen.reduce((s, r) => s + r.point.y, 0) / chosen.length;
+    for (const r of chosen) {
+      r.point = this.clampPoint({ x: g.x + (r.point.x - cx), y: g.y + (r.point.y - cy) });
+    }
+    this.order(chosen, 'hold');
+    game.fx.ring(g.x, g.y, { color: 0x7fb2ff, radius: 60, life: 0.4 });
+  }
+
+  // For an attacking regiment: the closest live orc of the regiment it was
+  // sent against (or the wizard). Null once that target is gone.
+  attackFoe(unit) {
+    const t = unit.regiment.attackTarget;
+    if (!t) {
+      return null;
+    }
+    if (!t.units) {
+      return t.killed || t.dead ? null : t;
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const f of t.units) {
+      if (f.killed) {
+        continue;
+      }
+      const d = unit.distanceTo(f);
+      if (d < bestD) {
+        bestD = d;
+        best = f;
+      }
+    }
+    return best;
   }
 
   selectOnly(id) {
@@ -406,18 +589,18 @@ export class Battle {
       }
     }
     const endangered = pressing >= 3 && rival.hp < rival.maxHp * 0.6;
-    const midY = (this.bounds.top + this.bounds.bottom) / 2;
+    const midX = (this.bounds.left + this.bounds.right) / 2;
     for (const r of this.regiments.enemy) {
       if (r.kind === 'mystics' || (endangered && r.kind === 'shock')) {
         if (r.order !== 'follow') {
-          r.followOffset = { x: -120 * r.dir, y: (r.kind === 'shock' ? 1 : -1) * 90 };
+          r.followOffset = { x: (r.kind === 'shock' ? 1 : -1) * 90, y: -120 * r.dir };
         }
         r.order = 'follow';
       } else if (r.kind === 'knights' && this.fightFrames < 420) {
         r.order = 'hold';
         if (!r.flanking) {
-          const flank = r.point.y < midY ? this.bounds.top + 160 : this.bounds.bottom - 160;
-          r.point = this.clampPoint({ x: (this.bounds.left + this.bounds.right) / 2, y: flank });
+          const flank = r.point.x < midX ? this.bounds.left + 160 : this.bounds.right - 160;
+          r.point = this.clampPoint({ x: flank, y: (this.bounds.top + this.bounds.bottom) / 2 });
           r.flanking = true;
         }
       } else {
@@ -559,7 +742,7 @@ export class Battle {
       const wizard = r.side === 'player' ? this.game.player : this.game.rival;
       if (wizard && !wizard.killed) {
         const w = wizard.center();
-        const off = r.followOffset || { x: r.dir * 120, y: 0 };
+        const off = r.followOffset || { x: 0, y: r.dir * 120 };
         return { x: w.x + off.x + unit.slot.x, y: w.y + off.y + unit.slot.y };
       }
     }
@@ -694,5 +877,10 @@ export class Battle {
 
   dispose() {
     this.clearMarkers();
+    const canvas = this.game.gfx.canvas;
+    for (const [type, fn] of this.listeners) {
+      canvas.removeEventListener(type, fn);
+    }
+    this.listeners = [];
   }
 }

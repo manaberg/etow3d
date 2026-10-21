@@ -900,7 +900,11 @@ export class Game {
       this.army.flush();
     }
     const player = this.player;
-    const focus = player ? player.center() : { x: 0, y: 0 };
+    let focus = player ? player.center() : { x: 0, y: 0 };
+    if (this.battle && this.battle.commander) {
+      // commander mode: the camera roams free of the wizard
+      focus = this.battle.cam;
+    }
     this.updateCursor(time);
     this.gfx.render(this.paused ? 0 : dt, time, focus.x, focus.y, false);
     this.hud.update(dt);
@@ -912,8 +916,10 @@ export class Game {
     const ring = this.cursor.userData.ring;
     const hostile = this.player && this.hoveredHostile();
     const item = !hostile && this.player && this.hoveredItem();
-    ring.material.color.setHex(hostile ? 0xff4040 : (item ? 0xffd060 : 0xffffff));
-    const s = hostile || item ? 1.6 + Math.sin(time * 8) * 0.1 : 1;
+    // commander mode: the cursor lights up blue over your own regiments
+    const own = !hostile && this.battle && this.battle.commander && this.battle.unitAt(this.input.mouse, 'player');
+    ring.material.color.setHex(hostile ? 0xff4040 : (item ? 0xffd060 : (own ? 0x6aa8ff : 0xffffff)));
+    const s = hostile || item || own ? 1.6 + Math.sin(time * 8) * 0.1 : 1;
     ring.scale.set(s, s, s);
     ring.rotation.z = time;
     this.cursor.visible = this.input.mouse.inside && this.state === 'playing';

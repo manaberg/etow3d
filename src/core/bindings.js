@@ -37,7 +37,7 @@ export const Actions = [
   { id: 'polymorph', label: 'Polymorph', group: 'Spells', key: 'KeyU' },
   { id: 'disintegrate', label: 'Disintegrate', group: 'Spells', key: 'Digit9' },
   { id: 'weapon', label: 'Spiritual weapon', group: 'Spells', key: 'Digit0' },
-  { id: 'regiment_next', label: 'Select next regiment', group: 'Battle', key: 'Tab' },
+  { id: 'mode_toggle', label: 'Spell mode / commander mode', group: 'Battle', key: 'Tab' },
   { id: 'regiment_all', label: 'Select all regiments', group: 'Battle', key: 'Backquote' },
   { id: 'order_charge', label: 'Selected: charge', group: 'Battle', key: 'KeyJ' },
   { id: 'order_hold', label: 'Selected: march to cursor and hold', group: 'Battle', key: 'KeyK' },

@@ -71,7 +71,9 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `U` | polymorph (turns an orc under the cursor into a sheep) |
 | `9` | disintegrate (a ray into the first enemy in line) |
 | `0` | spiritual weapon (a spectral sword that fights beside you) |
-| `Tab` / `` ` `` | battle: select the next regiment / all regiments (or click the regiment cards) |
+| `Tab` | battle: switch between spell mode and commander mode |
+| Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans |
+| `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
 | Mouse wheel | zoom |
@@ -85,9 +87,11 @@ Three modes; the main menu explains each in full under **How each mode works**.
 **Battle.** You and a rival wizard each lead an orc army (blue against red) across open
 grassland ringed by cliffs: a best-of-five match whose battles grow from 40 orcs a side to 80,
 120, 160 and 200. Armies are split into regiments by type (infantry, slingers, knights, shock
-troops, mystics), each with a banner, deployed in lines; you rearrange them before the battle
-(Space starts it early) and command them one by one or together: charge, march to the cursor
-and hold, or follow you. The orcs fight by class (brawlers close in, slingers and warlocks
+troops, mystics), each with a banner, deployed in lines with yours along the bottom of the
+screen facing up the field; you rearrange them before the battle (Space starts it early). Tab
+switches between spell mode (you play the wizard) and commander mode (the wizard stands, the
+camera roams, click or drag to select regiments, right-click to march them or to attack an
+enemy regiment); the J/K/L keys (charge, march and hold, follow) work in both. The orcs fight by class (brawlers close in, slingers and warlocks
 keep range, knights charge, shamans heal) and you turn the fight with spells: fireballs and
 blizzards into packed ranks, lightning chaining through them. The rival commands its own
 regiments (line charges, knights flank, mystics guard it). Orcs are drawn instanced
