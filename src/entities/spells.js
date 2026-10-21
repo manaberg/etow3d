@@ -4,6 +4,7 @@ import { buildOrb, buildRock, buildIronshot, buildZone, buildMage } from '../ren
 
 // Projectile kinds, numbers from the 2D game (speed px/s, life s, box px).
 // `light` is a colour for the dynamic light pool, `trail` a particle colour.
+// `simple` bolts can be shot down by the mage's magic missile.
 export const BoltKinds = {
   missile: { speed: 300, life: 2, size: 20, color: 0xb070ff, enemyColor: 0xff5a5a, radius: 0.15, trail: 0xc090ff },
   fireball: { speed: 400, life: 1, size: 30, color: 0xff8a20, radius: 0.28, trail: 0xff6a10, light: 0xff7a20 },
@@ -13,8 +14,8 @@ export const BoltKinds = {
   root: { speed: 900, life: 0.5, size: 26, color: 0x60ff70, radius: 0.13, trail: 0x40d050 },
   rootchain: { speed: 900, life: 0.5, size: 26, color: 0x60ff70, radius: 0.1, trail: 0x40d050 },
   ray: { speed: 1000, life: 0.4, size: 8, color: 0xff3050, radius: 0.07, trail: 0xff2040 },
-  stone: { speed: 225, life: 3, size: 23, rock: true },
-  missile2: { speed: 300, life: 2, size: 20, color: 0x7dff4a, radius: 0.16, trail: 0x50c030 },
+  stone: { speed: 225, life: 3, size: 23, rock: true, simple: true },
+  missile2: { speed: 300, life: 2, size: 20, color: 0x7dff4a, radius: 0.16, trail: 0x50c030, simple: true },
   fireball2: { speed: 400, life: 1, size: 36, color: 0xff3070, radius: 0.3, trail: 0xff2060, light: 0xff2060 },
   ironshot2: { speed: 1000, life: 0.5, size: 26, pierce: true },
   scorch: { speed: 700, life: 0.6, size: 18, color: 0xff5020, radius: 0.12, trail: 0xff4010, light: 0xff5010 },
@@ -95,6 +96,9 @@ export class Projectile extends Entity {
     if (this.killed) {
       return;
     }
+    if (this.team === 'player' && this.kind === 'missile' && this.shootDown()) {
+      return;
+    }
     if (this.team === 'player') {
       for (const enemy of this.game.hostilesOf('player')) {
         if (enemy.killed || !this.touches(enemy)) {
@@ -116,6 +120,20 @@ export class Projectile extends Entity {
         }
       }
     }
+  }
+
+  // Magic missile meets a stone or a simple enemy bolt: both are spent.
+  shootDown() {
+    for (const e of this.game.entities) {
+      if (e instanceof Projectile && !e.killed && e.team === 'enemy' && e.spec.simple && this.touches(e)) {
+        const c = e.center();
+        this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: [0xc090ff, 0xffffff, e.spec.trail || 0xbbbbbb], count: 16, speed: 4, life: 0.35, size: 0.6 });
+        e.kill();
+        this.kill();
+        return true;
+      }
+    }
+    return false;
   }
 
   syncView(time) {
