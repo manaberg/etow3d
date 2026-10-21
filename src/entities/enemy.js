@@ -52,7 +52,8 @@ export class Enemy extends Entity {
 
   takeSpell(p, k) {
     const game = this.game;
-    const player = game.player;
+    // whoever cast it: the player, or in battles the rival hitting the player's orcs
+    const player = p.team === 'player' ? game.player : game.rival;
     const c = this.center();
     const fx = game.fx;
     switch (p.kind) {
@@ -65,7 +66,8 @@ export class Enemy extends Entity {
         this.hurt(110);
         p.kill();
         this.explode(c);
-        for (const other of game.orcs()) {
+        // in battles the blast catches the whole regiment around the hit
+        for (const other of (game.battle ? game.hostilesOf(p.team) : game.orcs())) {
           if (other !== this && other.alive && other.distanceTo(this) < this.fireSplash) {
             other.hurt(101);
           }
@@ -84,7 +86,7 @@ export class Enemy extends Entity {
         this.chainedAt = game.navFrame;
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.25, width: 0.07 });
         game.gfx.flash(c.x, c.y, 2, 0x80d0ff, 30, 0.2);
-        this.spreadChain('chain', 'chainedAt');
+        this.spreadChain('chain', 'chainedAt', p.team);
         break;
       case 'chain':
         if (game.navFrame - this.chainedAt < CHAIN_MEMORY) {
@@ -99,7 +101,7 @@ export class Enemy extends Entity {
         this.stun();
         p.kill();
         this.rootedAt = game.navFrame;
-        this.spreadChain('rootchain', 'rootedAt');
+        this.spreadChain('rootchain', 'rootedAt', p.team);
         break;
       case 'rootchain':
         if (game.navFrame - this.rootedAt < CHAIN_MEMORY) {
@@ -113,7 +115,7 @@ export class Enemy extends Entity {
         this.hurt(15);
         this.vel.x /= 3;
         this.vel.y /= 3;
-        if (player) {
+        if (player && !player.killed) {
           player.hp += 3;
         }
         fx.emit(c.x, c.y, 1.4, { color: 0xff2040, life: 0.4, size: 0.8, vy: 1 });
@@ -135,16 +137,16 @@ export class Enemy extends Entity {
     }
   }
 
-  // Lightning and chain root jump to every orc within 400px.
-  spreadChain(kind, stampKey) {
+  // Lightning and chain root jump to every foe of the caster within 400px.
+  spreadChain(kind, stampKey, team = 'player') {
     const game = this.game;
     const c = this.center();
-    for (const other of game.hostilesOf('player')) {
+    for (const other of game.hostilesOf(team)) {
       if (other === this || !other.alive || !(stampKey in other)) {
         continue;
       }
       if (other.distanceTo(this) < 400 && game.navFrame - other[stampKey] >= CHAIN_MEMORY) {
-        game.spawn(Projectile, c.x, c.y, { kind, angle: this.angleTo(other), team: 'player' });
+        game.spawn(Projectile, c.x, c.y, { kind, angle: this.angleTo(other), team });
       }
     }
   }

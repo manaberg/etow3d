@@ -59,6 +59,7 @@ export class DuelWizard extends Enemy {
     // spells it can cast; null knows them all (classic duels), progressive
     // duels hand it a set (duelLoot.js)
     this.known = null;
+    this.isWizard = true;
   }
 
   init() {
@@ -262,11 +263,12 @@ export class DuelWizard extends Enemy {
     const player = game.player;
     // the brain runs on whole frames, so a time stop slows its thinking too
     this.acc += k;
+    const deploying = game.battle && !game.battle.fighting;
     while (this.acc >= 1) {
       this.acc -= 1;
       this.frame++;
       this.tickTimers();
-      if (player && !player.dead) {
+      if (player && !player.dead && !deploying) {
         this.inSlowZone = game.zoneSlow(this) < 1;
         this.think(player);
       } else {
@@ -326,6 +328,9 @@ export class DuelWizard extends Enemy {
   // ----------------------------------------------------------------- brain
   think(player) {
     this.perceive(player);
+    if (this.game.battle) {
+      this.watchArmy();
+    }
     this.updateLeadModel(player);
     if (this.frame % this.ai.decisionInterval === 0 || this.newThreat) {
       this.chooseTactic(player);
@@ -446,6 +451,60 @@ export class DuelWizard extends Enemy {
     } else {
       this.tactic = 'kite';
     }
+  }
+
+  // Battles: the player's orcs nearby, to keep clear of and to shoot at.
+  watchArmy() {
+    const me = this.center();
+    this.foes = [];
+    for (const u of this.game.battle.units('player')) {
+      const c = u.center();
+      const d = Math.hypot(c.x - me.x, c.y - me.y);
+      if (d < 520) {
+        this.foes.push({ unit: u, x: c.x, y: c.y, d });
+      }
+    }
+    this.foes.sort((a, b) => a.d - b.d);
+  }
+
+  // Battles: with no clean shot at the wizard, or orcs closing in, turn the
+  // spells on the army: fireballs and blizzards into crowds, lightning that
+  // chains through the ranks, missiles at whoever is closest.
+  fightArmy(player, wizardShot) {
+    const foes = (this.foes || []).filter((f) => !f.unit.killed && this.canSee(f.x, f.y));
+    if (!foes.length) {
+      return false;
+    }
+    const near = foes[0];
+    if (wizardShot && near.d > 200) {
+      return false;
+    }
+    const crowd = (f, r) => foes.filter((o) => Math.hypot(o.x - f.x, o.y - f.y) < r).length;
+    const best = foes.slice(0, 8).reduce((a, f) => (crowd(f, 100) > crowd(a, 100) ? f : a), near);
+    const me = this.center();
+    const at = (f) => Math.atan2(f.y - me.y, f.x - me.x);
+    if (this.ready('blizzard') && this.manergy >= 50 && crowd(best, 150) >= 3) {
+      this.game.spawn(Zone, best.x, best.y, { kind: 'blizzard', team: 'enemy', radius: 192, tier: 1, life: 240, timeOwner: this });
+      this.spend('blizzard', true);
+      return true;
+    }
+    if (this.ready('fireball') && this.manergy >= 20 && best.d < 390 && (crowd(best, 100) >= 2 || best.d < 200)) {
+      this.fireBolt('fireball', at(best));
+      this.spend('fireball', true);
+      return true;
+    }
+    if (this.ready('lightning') && this.manergy >= 35 && near.d < 295) {
+      this.fireBolt('lightning', at(near));
+      this.spend('lightning', true);
+      return true;
+    }
+    if (this.ready('missile') && near.d < 480) {
+      this.fireBolt('missile', at(near));
+      this.spend('missile', true);
+      this.castLock = Math.min(this.castLock, 4);
+      return true;
+    }
+    return false;
   }
 
   // Progressive duels: is a scroll or potion worth running for right now?
@@ -646,6 +705,18 @@ export class DuelWizard extends Enemy {
     if (this.navDir) {
       score += (dir.x * this.navDir.x + dir.y * this.navDir.y) * this.navPull;
     }
+    // battles: orcs in melee reach are worse than most bolts
+    if (this.foes) {
+      for (const f of this.foes) {
+        if (f.d > 300) {
+          break;
+        }
+        const d = Math.hypot(f.x - cx, f.y - cy);
+        if (d < 130) {
+          score -= (130 - d) * 0.6;
+        }
+      }
+    }
     // stay out of the player's auto-target range unless we are going in on purpose
     if (this.tactic !== 'engage' && this.tactic !== 'punish' && dist < 315 && this.playerHasAutoThreat(player)) {
       score -= (315 - dist) * 0.5;
@@ -772,6 +843,10 @@ export class DuelWizard extends Enemy {
     }
     const spare = this.manergy - reserve;
 
+    const wizardShot = this.canSee(t.x, t.y) && t.visible && dist < 520;
+    if (game.battle && this.fightArmy(player, wizardShot)) {
+      return;
+    }
     // nothing to shoot at through a wall
     if (!this.canSee(t.x, t.y)) {
       return;

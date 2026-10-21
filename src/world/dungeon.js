@@ -30,6 +30,8 @@ export class DungeonGenerator {
     this.roomGap = 3;
     this.corridorWidth = 3;
     this.extraLoopChance = 0.35;
+    // battle maps: rock outcrops scattered over the middle of the one big field
+    this.outcrops = 0;
     Object.assign(this, options);
   }
 
@@ -49,6 +51,9 @@ export class DungeonGenerator {
     this.assignThemes(rooms, links);
     for (const room of rooms) {
       this.addPillars(cells, room);
+    }
+    if (this.outcrops > 0) {
+      this.addOutcrops(cells, rooms[0]);
     }
     return { cols: this.cols, rows: this.rows, cells, owner, rooms, links };
   }
@@ -309,6 +314,26 @@ export class DungeonGenerator {
       }
       room.themeIndex = DungeonThemeIndex[room.theme];
     });
+  }
+
+  // Small blocks of rock in the middle half of a battlefield, clear of the
+  // deployment zones at either end, to break lines of sight and funnel armies.
+  addOutcrops(cells, room) {
+    const x0 = room.x + Math.floor(room.w * 0.25);
+    const x1 = room.x + Math.floor(room.w * 0.75) - 2;
+    const y0 = room.y + 2;
+    const y1 = room.y + room.h - 4;
+    for (let n = 0; n < this.outcrops; n++) {
+      const x = randInt(x0, x1);
+      const y = randInt(y0, y1);
+      const w = randInt(1, 2);
+      const h = randInt(1, 2);
+      for (let yy = y; yy < y + h; yy++) {
+        for (let xx = x; xx < x + w; xx++) {
+          cells[yy][xx] = 1;
+        }
+      }
+    }
   }
 
   // Single-cell pillars give big themed rooms some cover to fight around.

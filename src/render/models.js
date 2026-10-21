@@ -341,13 +341,20 @@ export function buildOrc(look, o = {}) {
   const champion = !!o.champion;
   const parts = templates.get('orc_' + (ORC_LOOKS[look] ? look : 'grunt'));
   if (parts) {
-    const { rig, mats } = rigFromModel(parts, {}, 0.9);
-    return finishOrc(rig, look, spec, champion, mats.Cloth);
+    // battle armies wear their side's colours
+    const team = TEAM_COLORS[o.team];
+    const { rig, mats } = rigFromModel(parts, team ? { Cloth: team.cloth, Armor: team.armor } : {}, 0.9);
+    return finishOrc(rig, look, spec, champion, mats.Cloth, o.team);
   }
-  return buildPrimitiveOrc(look, spec, champion);
+  return buildPrimitiveOrc(look, spec, champion, o.team);
 }
 
-function buildPrimitiveOrc(look, spec, champion) {
+const TEAM_COLORS = {
+  player: { cloth: 0x2a4fa8, armor: 0x3a62c8, ring: 0x4a8aff },
+  enemy: { cloth: 0x9a1a1a, armor: 0xb02a2a, ring: 0xff4040 }
+};
+
+function buildPrimitiveOrc(look, spec, champion, team) {
   const rig = new Rig();
   const skin = rig.track(mat(spec.skin, { emissive: 0x000000 }));
   const cloth = rig.track(mat(spec.cloth, { emissive: 0x000000 }));
@@ -508,11 +515,25 @@ function buildPrimitiveOrc(look, spec, champion) {
     cape.rotation.x = 0.15;
     torso.add(cape);
   }
-  return finishOrc(rig, look, spec, champion, cloth);
+  if (TEAM_COLORS[team]) {
+    cloth.color.setHex(TEAM_COLORS[team].cloth);
+  }
+  return finishOrc(rig, look, spec, champion, cloth, team);
 }
 
 // Champion aura and tint, shadow and size, shared by both kinds of orc.
-function finishOrc(rig, look, spec, champion, cloth) {
+function finishOrc(rig, look, spec, champion, cloth, team) {
+  if (TEAM_COLORS[team]) {
+    // a thin ring underfoot tells the armies apart from any angle
+    const ring = new THREE.Mesh(
+      geo('team.ring', () => new THREE.RingGeometry(0.62, 0.78, 24)),
+      new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team].ring, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+    );
+    ring.userData.keepOpacity = true;
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.04;
+    rig.root.add(ring);
+  }
   if (champion) {
     const aura = new THREE.Mesh(
       geo('aura', () => new THREE.RingGeometry(0.75, 1.05, 24)),

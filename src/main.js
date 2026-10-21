@@ -6,10 +6,13 @@ import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
 
 // Same URLs as the 2D game: /?mode=duel&ai=hard starts a duel, ?mode=survival
-// the descent. Without a mode the main menu is shown.
+// the descent, ?mode=battle&ai=hard a battle. Without a mode the main menu is shown.
 function resolveMode() {
   const search = (window.location.search || '').toLowerCase();
   const hash = (window.location.hash || '').toLowerCase();
+  if (search.includes('mode=battle')) {
+    return 'battle';
+  }
   if (search.includes('mode=duel') || search.includes('duel=1') || hash.includes('duel')) {
     return 'duel';
   }
@@ -106,7 +109,12 @@ for (const button of menu.querySelectorAll('[data-mode]')) {
   button.addEventListener('click', () => {
     const mode = button.dataset.mode;
     const ai = button.dataset.ai;
-    const query = mode === 'duel' ? '?mode=duel&ai=' + ai + (duelRules === 'classic' ? '&rules=classic' : '') : '?mode=survival';
+    let query = '?mode=survival';
+    if (mode === 'duel') {
+      query = '?mode=duel&ai=' + ai + (duelRules === 'classic' ? '&rules=classic' : '');
+    } else if (mode === 'battle') {
+      query = '?mode=battle&ai=' + ai;
+    }
     history.replaceState(null, '', window.location.pathname + query);
     modelsReady.then(() => start(mode, ai));
   });

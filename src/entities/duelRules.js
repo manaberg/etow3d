@@ -13,7 +13,10 @@ export const DuelRules = {
     ray: 15,
     pwkill: 120,
     root: 0,
-    rootchain: 0
+    rootchain: 0,
+    // battle orcs' stones and warlock bolts
+    stone: 20,
+    missile2: 50
   },
   blizzardDamage: 0.25,
   blizzard2Damage: 0.5,

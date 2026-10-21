@@ -37,6 +37,9 @@ export const Actions = [
   { id: 'polymorph', label: 'Polymorph', group: 'Spells', key: 'KeyU' },
   { id: 'disintegrate', label: 'Disintegrate', group: 'Spells', key: 'Digit9' },
   { id: 'weapon', label: 'Spiritual weapon', group: 'Spells', key: 'Digit0' },
+  { id: 'order_charge', label: 'Army: charge', group: 'Battle', key: 'KeyJ' },
+  { id: 'order_hold', label: 'Army: hold this line', group: 'Battle', key: 'KeyK' },
+  { id: 'order_follow', label: 'Army: follow me', group: 'Battle', key: 'KeyL' },
   { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space' },
   { id: 'map', label: 'Larger map', group: 'Game', key: 'KeyM' },
   { id: 'pause', label: 'Pause', group: 'Game', key: 'KeyP' }

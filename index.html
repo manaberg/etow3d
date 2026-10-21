@@ -16,8 +16,17 @@
   <div id="menu" class="screen">
     <div class="card menu-card">
       <h1>END OF THE WORLDS <span>3D</span></h1>
-      <p class="tagline">Descend ten floors of an orc-held dungeon, learn spells from the scrolls you find, and slay the warlord on his throne.</p>
+      <p class="tagline">A wizard's war against the orcs, and against other wizards. Pick a mode; the full rules of each are below.</p>
       <div class="menu-modes">
+        <div class="mode">
+          <h3>Battle</h3>
+          <p>Lead an orc army against a rival wizard's army. Five battles, each bigger than the last.</p>
+          <div class="buttons">
+            <button data-mode="battle" data-ai="normal" class="secondary">Normal</button>
+            <button data-mode="battle" data-ai="hard">Hard</button>
+            <button data-mode="battle" data-ai="insane" class="danger">Insane</button>
+          </div>
+        </div>
         <div class="mode">
           <h3>Survival</h3>
           <p>Ten floors, seven orc classes, mini-bosses and the warlord.</p>
@@ -37,6 +46,21 @@
           </div>
         </div>
       </div>
+      <details class="mode-guide">
+        <summary>How each mode works</summary>
+        <section>
+          <h4>Battle</h4>
+          <p>You and a rival wizard each lead an army of orcs across an open battlefield scattered with rock outcrops. The match is best of five battles, and the battles grow: 8 orcs a side, then 12, 18, 24 and finally 32, with knights, shamans, berserkers, brutes and warlocks joining the ranks as they get bigger. Your army is blue, the rival's red.</p>
+          <p>The orcs fight on their own: brawlers march on the nearest enemy, slingers and warlocks keep their range and shoot, knights charge, shamans heal the wounded. You steer them with three orders (charge, hold a line just ahead of you, or follow you), and you change the fight with your spells: a fireball or blizzard wrecks a packed regiment, chain lightning jumps through the ranks, fear scatters them. The rival does the same to your army and will come for you.</p>
+          <p>A battle is lost when your wizard falls or your whole army is destroyed. Spells build up as the match goes on: both wizards start with magic missile and one random spell; after every battle you choose one of three new spells while the rival learns one at random. Spells follow the duel rules, including the 3 second global cooldown after every spell except magic missile and lifesteal.</p>
+          <h4>Survival</h4>
+          <p>Descend ten floors of an orc-held dungeon, from The Upper Halls to the Throne of the Warlord. Each floor is a freshly generated maze of themed rooms (great hall, barracks, library, alchemy lab, crypt, throne room) packed with orc packs that guard their rooms until they notice you, then rally and hunt you down. The stairs in the throne room unseal once 40% of the floor is slain.</p>
+          <p>You start with only magic missile and learn the rest from scrolls: the 2D game's fifteen spells plus ten D&amp;D spells, with tier 2 scrolls upgrading some of them. Potions heal or raise your maximum manergy, rings add passive effects, and everything carries down the stairs. Orc clerics and mages appear from depth 4 and 5, and the warlord waits on the tenth floor. No global cooldown here.</p>
+          <h4>Duel</h4>
+          <p>One against one with a rival wizard in a small six-room dungeon, starting in the two rooms farthest apart. Walls block sight and bolts, so you can hide, flank and ambush; the rival reads your bolts in flight, dodges, shields, learns how you move and hunts you through the corridors.</p>
+          <p><strong>Progressive</strong> duels (the default) start both wizards with magic missile and one random spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first learns a spell they lack. <strong>Classic</strong> duels give both every spell from the start. Both use a 3 second global cooldown after every spell except magic missile and lifesteal. Normal, hard and insane differ in how fast the rival reacts, how well it aims and which tricks it knows.</p>
+        </section>
+      </details>
       <div class="controls" id="menu-controls"></div>
       <div class="buttons menu-controls-buttons">
         <button type="button" id="open-controls" class="secondary">Controls</button>

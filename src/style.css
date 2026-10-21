@@ -146,7 +146,7 @@ button.danger {
 }
 
 .menu-card {
-  width: min(760px, 100%);
+  width: min(960px, 100%);
 }
 
 .tagline {
@@ -157,7 +157,7 @@ button.danger {
 
 .menu-modes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   margin-bottom: 18px;
 }
@@ -631,4 +631,47 @@ button.rule.active {
   opacity: 1;
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.hud-battle {
+  margin-bottom: 8px;
+}
+
+.battle-score {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.buttons.draft button {
+  min-width: 150px;
+}
+
+.mode-guide {
+  text-align: left;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mode-guide summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.mode-guide h4 {
+  margin: 14px 0 4px;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.mode-guide p {
+  margin: 0 0 8px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
 }

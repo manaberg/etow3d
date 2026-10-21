@@ -13,6 +13,8 @@ import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage } from './entities/spells.js';
 import { Scroll, Potion, Ring, Stairs } from './entities/items.js';
 import { DuelLoot } from './entities/duelLoot.js';
+import { Battle } from './entities/battle.js';
+import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
 
 const STAT_KEYS = [
@@ -24,10 +26,14 @@ const STAT_KEYS = [
 export class Game {
   constructor({ container, hudRoot, mode, difficulty, rules, onExit }) {
     this.mode = mode;
-    this.duelMode = mode === 'duel';
+    // battles are duels between two wizards with armies: they share the duel
+    // rules (spell damage, global cooldown, the rival's brain and HUD panel)
+    this.battleMode = mode === 'battle';
+    this.duelMode = mode === 'duel' || this.battleMode;
+    this.battle = null;
     this.difficulty = difficulty || 'hard';
     // duels are progressive (start with one spell, loot the rest) unless classic
-    this.progressive = this.duelMode && rules !== 'classic';
+    this.progressive = mode === 'duel' && rules !== 'classic';
     this.duelLoot = null;
     this.onExit = onExit;
     this.gfx = new Gfx(container);
@@ -61,12 +67,18 @@ export class Game {
     this.cursor = buildCursor();
     this.gfx.add(this.cursor);
 
-    if (this.duelMode) {
+    if (this.battleMode) {
+      this.battle = new Battle(this);
+      this.battle.startRound();
+    } else if (this.duelMode) {
       this.startDuel();
     } else {
       this.startFloor(null);
     }
     this.hud.build();
+    if (this.battle) {
+      this.hud.onBattleRound(this.battle);
+    }
 
     this.last = performance.now();
     this.acc = 0;
@@ -76,7 +88,8 @@ export class Game {
 
   // --------------------------------------------------------------- floors
 
-  buildWorld() {
+  // `options` overrides the map size and layout (battlefields).
+  buildWorld(options) {
     for (const e of this.entities) {
       e.dispose();
     }
@@ -85,9 +98,11 @@ export class Game {
     const plan = DungeonLevels.getPlan(this.depth);
     // survival floors grow with depth; duels get a compact dungeon of six
     // rooms, big enough to hide, flank and race for loot
-    const options = this.duelMode
-      ? { cols: 56, rows: 38, roomCount: 6 }
-      : { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
+    if (!options) {
+      options = this.duelMode
+        ? { cols: 56, rows: 38, roomCount: 6 }
+        : { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
+    }
     this.world = new World(options, () => this.navFrame);
     this.gfx.buildLevel(this.world);
     this.currentRoomIndex = -1;
@@ -366,10 +381,12 @@ export class Game {
     if (team === 'player') {
       return this.entities.filter((e) => !e.killed && (
         e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard ||
-        (e instanceof MirrorImage && e.source !== this.player)
+        (e instanceof MirrorImage && e.source !== this.player) || (e instanceof Soldier && e.side === 'enemy')
       ));
     }
-    return this.entities.filter((e) => !e.killed && (e === this.player || (e instanceof MirrorImage && e.source === this.player)));
+    return this.entities.filter((e) => !e.killed && (
+      e === this.player || (e instanceof MirrorImage && e.source === this.player) || (e instanceof Soldier && e.side === 'player')
+    ));
   }
 
   firstImage() {
@@ -671,9 +688,14 @@ export class Game {
     if (this.state !== 'playing') {
       return;
     }
-    this.state = 'over';
     const c = player.center();
     this.deathFx(player);
+    if (this.battle) {
+      // losing your wizard loses this battle, not the match
+      this.battle.onWizardDown('player');
+      return;
+    }
+    this.state = 'over';
     if (this.duelMode) {
       this.hud.showEnd({ title: 'DUEL LOST', text: 'The rival wizard (' + this.difficulty.toUpperCase() + ') defeated you.', stats: this.stats, duel: true });
       return;
@@ -709,6 +731,10 @@ export class Game {
   }
 
   onDuelVictory() {
+    if (this.battle) {
+      this.battle.onWizardDown('enemy');
+      return;
+    }
     if (this.duelWinnerDeclared) {
       return;
     }
@@ -775,6 +801,9 @@ export class Game {
       }
       if (this.duelLoot) {
         this.duelLoot.update();
+      }
+      if (this.battle) {
+        this.battle.update();
       }
       return;
     }

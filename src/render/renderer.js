@@ -30,7 +30,8 @@ export class Gfx {
     this.focus = new THREE.Vector3();
     this.shake = 0;
 
-    this.scene.add(new THREE.HemisphereLight(0x9aa0c0, 0x30241a, 1.9));
+    this.hemisphere = new THREE.HemisphereLight(0x9aa0c0, 0x30241a, 1.9);
+    this.scene.add(this.hemisphere);
     this.ambient = new THREE.AmbientLight(0x505060, 0.9);
     this.scene.add(this.ambient);
 
@@ -109,6 +110,13 @@ export class Gfx {
     this.levelGroup = built.group;
     this.torches = built.torches;
     this.scene.add(this.levelGroup);
+  }
+
+  // Battlefields are open ground under a grey sky rather than torchlit halls.
+  setBattlefield(on) {
+    this.hemisphere.intensity = on ? 3.4 : 1.9;
+    this.ambient.intensity = on ? 1.8 : 0.9;
+    this.zoomTarget = on ? 34 : 26;
   }
 
   zoomBy(steps) {

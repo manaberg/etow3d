@@ -103,6 +103,7 @@ export class Mage extends Entity {
     this.timePlayed = 0;
     this.aim = 0;
     this.dead = false;
+    this.isWizard = true;
   }
 
   init() {
@@ -176,6 +177,13 @@ export class Mage extends Entity {
     const input = game.input;
     this.timePlayed += k / 60;
     this.tickTimers(k);
+    if (game.battle && !game.battle.fighting) {
+      // the armies are still deploying
+      this.vel.x = 0;
+      this.vel.y = 0;
+      this.aim = Math.atan2(input.ground.y - this.center().y, input.ground.x - this.center().x);
+      return;
+    }
 
     // movement
     // the ring of speed adds a fifth, as 100 -> 120 did in the 2D game

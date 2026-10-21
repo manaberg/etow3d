@@ -84,6 +84,13 @@ export class Hud {
       this.rivalMy = this.makeBar(rival, '', 'rival-my');
       this.rivalInfo = el('div', 'rival-info', rival);
     }
+    if (game.battleMode) {
+      const box = el('div', 'hud-battle', right);
+      this.battleScore = el('div', 'battle-score', box);
+      this.battleArmies = el('div', 'map-line', box);
+      this.battleOrders = el('div', 'map-line', box);
+      this.battleKeys = el('div', 'map-line dim', box);
+    }
     // duels are fought in a small dungeon too, so both modes get the map
     const mapBox = el('div', 'hud-map', right);
     this.mapCanvas = el('canvas', 'minimap', mapBox);
@@ -200,7 +207,7 @@ export class Hud {
       el('p', 'dim', card, saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).');
     }
     const buttons = el('div', 'buttons', card);
-    const again = el('button', null, buttons, duel ? 'Duel again' : 'Play again');
+    const again = el('button', null, buttons, this.game.battleMode ? 'Battle again' : (duel ? 'Duel again' : 'Play again'));
     again.onclick = () => this.game.onExit && this.game.onExit('restart');
     const menu = el('button', 'secondary', buttons, 'Main menu');
     menu.onclick = () => this.game.onExit && this.game.onExit('menu');
@@ -217,7 +224,7 @@ export class Hud {
       this.fpsFrames = 0;
       this.fpsTime = 0;
     }
-    const modeLabel = game.duelMode ? 'MODE: DUEL' : 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count;
+    const modeLabel = game.battleMode ? 'MODE: BATTLE' : (game.duelMode ? 'MODE: DUEL' : 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count);
     setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + modeLabel + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
     if (!player) {
       return;
@@ -276,6 +283,9 @@ export class Hud {
     if (game.duelMode) {
       this.updateRival();
     }
+    if (game.battle) {
+      this.updateBattle();
+    }
     this.updateMap();
     this.updateBanner();
     this.updateToasts(dt);
@@ -295,6 +305,48 @@ export class Hud {
     setText(this.rivalMy.text, Math.round(rival.manergy) + '');
     const spells = rival.known ? ' :: SPELLS ' + (rival.known.size + 1) : '';
     setText(this.rivalInfo, 'TACTIC :: ' + rival.tactic.toUpperCase() + spells);
+  }
+
+  updateBattle() {
+    const battle = this.game.battle;
+    setText(this.battleScore, 'BATTLE ' + (battle.round + 1) + ' / 5 :: YOU ' + battle.score.player + ' - ' + battle.score.enemy + ' RIVAL');
+    setText(this.battleArmies, 'ARMIES :: ' + battle.armyCount('player') + ' VS ' + battle.armyCount('enemy'));
+    setText(this.battleOrders, 'ORDERS :: ' + battle.orders.player.toUpperCase());
+    setText(this.battleKeys, actionKeyLabel('order_charge') + ' CHARGE  ' + actionKeyLabel('order_hold') + ' HOLD  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+  }
+
+  // A new battle was deployed: fresh map, banner while the armies form up.
+  onBattleRound(battle) {
+    if (!this.minimap) {
+      return;
+    }
+    this.minimap.render();
+    this.endScreen.classList.add('hidden');
+    this.pauseButton.classList.remove('hidden');
+    this.battleBanner = battle;
+  }
+
+  // Between battles: the result, the score, and three spells to choose from.
+  showBattleDraft({ winner, why, score, next, nextSize, choices, rivalLearns, onPick }) {
+    const screen = this.endScreen;
+    screen.innerHTML = '';
+    screen.classList.remove('hidden');
+    const card = el('div', 'card end' + (winner === 'player' ? ' win' : ''), screen);
+    el('h2', null, card, winner === 'player' ? 'BATTLE WON' : 'BATTLE LOST');
+    el('p', null, card, why + ' Score :: you ' + score.player + ' - ' + score.enemy + ' rival.');
+    el('p', 'dim', card, 'Battle ' + next + ' of 5 is ' + nextSize + ' orcs a side.' + (rivalLearns ? ' The rival learns ' + rivalLearns + '.' : ''));
+    if (choices.length) {
+      el('p', null, card, 'Choose a spell to learn:');
+      const buttons = el('div', 'buttons draft', card);
+      for (const c of choices) {
+        const b = el('button', null, buttons, c.name);
+        b.onclick = () => onPick(c.id);
+      }
+    } else {
+      const buttons = el('div', 'buttons', card);
+      const b = el('button', null, buttons, 'Next battle');
+      b.onclick = () => onPick(null);
+    }
   }
 
   updateMap() {
@@ -328,6 +380,14 @@ export class Hud {
 
   updateBanner() {
     const game = this.game;
+    const battle = game.battle;
+    if (battle && !battle.fighting && game.state === 'playing') {
+      const n = battle.armySize;
+      setText(this.bannerTitle, 'BATTLE ' + (battle.round + 1) + ' OF 5 :: ' + n + ' VS ' + n);
+      setText(this.bannerText, 'THE ARMIES FORM UP :: ' + Math.ceil(battle.deploy / 60));
+      this.banner.style.opacity = '1';
+      return;
+    }
     if (game.duelMode || game.bannerFrames <= 0) {
       this.banner.style.opacity = '0';
       return;
@@ -383,6 +443,18 @@ export class Hud {
     ctx.font = '600 11px "Silkscreen", "Courier New", monospace';
     ctx.textAlign = 'center';
     for (const e of game.entities) {
+      if (e.side && e.rig && !e.killed && e.hp < e.maxHp) {
+        // battle orcs: a small bar in their side's colour once they are hurt
+        const c = e.center();
+        const p = game.gfx.project(c.x, c.y, e.rig.height + 0.3);
+        if (p && p.x > -30 && p.y > -30 && p.x < w + 30 && p.y < h + 30) {
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
+          ctx.fillRect(p.x - 15, p.y - 1, 30, 5);
+          ctx.fillStyle = e.side === 'player' ? '#5a9aff' : '#ff4a4a';
+          ctx.fillRect(p.x - 14, p.y, 28 * Math.max(0, e.hp / e.maxHp), 3);
+        }
+        continue;
+      }
       if (e.killed || !(e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard)) {
         continue;
       }

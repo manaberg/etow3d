@@ -71,12 +71,26 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `U` | polymorph (turns an orc under the cursor into a sheep) |
 | `9` | disintegrate (a ray into the first enemy in line) |
 | `0` | spiritual weapon (a spectral sword that fights beside you) |
+| `J` / `K` / `L` | battle: army charges / holds a line ahead of you / follows you |
 | `Space` | descend the stairs |
 | Mouse wheel | zoom |
 | `M` | larger map |
 | `Esc` / `P` | pause |
 
 ## The game
+
+Three modes; the main menu explains each in full under **How each mode works**.
+
+**Battle.** You and a rival wizard each lead an orc army (blue against red) across an open
+battlefield with rock outcrops: a best-of-five match whose battles grow from 8 orcs a side to
+12, 18, 24 and 32. The orcs fight on their own (brawlers close in, slingers and warlocks keep
+range, knights charge, shamans heal), you give them orders (charge, hold, follow) and turn
+the fight with spells: fireballs and blizzards into packed ranks, lightning chaining through
+them. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
+with magic missile and one random spell; after each battle you draft one of three new spells
+and the rival learns one. Duel rules apply between the wizards, including the 3 s global
+cooldown. Battle orcs have double the dungeon orcs' health (`BattleRules` in
+`src/entities/battle.js`).
 
 **Survival.** Ten floors, from The Upper Halls down to the Throne of the Warlord. Every floor
 is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,

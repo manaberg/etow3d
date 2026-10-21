@@ -84,6 +84,14 @@ export class Minimap {
         }
       }
     }
+    // battle armies: blue and red
+    for (const e of game.entities) {
+      if (e.side && !e.killed) {
+        const c = e.center();
+        ctx.fillStyle = e.side === 'player' ? '#5a9aff' : '#ff4a4a';
+        ctx.fillRect(Math.floor(c.x * scale) - 1, Math.floor(c.y * scale) - 1, 2, 2);
+      }
+    }
     // duel loot: scrolls gold, potions red or blue (the rival stays hidden)
     for (const e of game.entities) {
       if (e.isLoot && !e.killed && game.duelLoot) {
