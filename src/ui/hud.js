@@ -47,6 +47,7 @@ export class Hud {
     root.innerHTML = '';
     root.classList.add('hud');
     const game = this.game;
+    root.classList.toggle('battle', !!game.battleMode);
 
     this.labels = el('canvas', 'hud-labels', root);
     this.vignette = el('div', 'hud-vignette', root);
@@ -88,8 +89,10 @@ export class Hud {
       const box = el('div', 'hud-battle', right);
       this.battleScore = el('div', 'battle-score', box);
       this.battleArmies = el('div', 'map-line', box);
-      this.battleOrders = el('div', 'map-line', box);
       this.battleKeys = el('div', 'map-line dim', box);
+      // the player's regiments as clickable cards along the bottom
+      this.regimentBar = el('div', 'hud-regiments', root);
+      this.regimentCards = [];
     }
     // duels are fought in a small dungeon too, so both modes get the map
     const mapBox = el('div', 'hud-map', right);
@@ -311,8 +314,32 @@ export class Hud {
     const battle = this.game.battle;
     setText(this.battleScore, 'BATTLE ' + (battle.round + 1) + ' / 5 :: YOU ' + battle.score.player + ' - ' + battle.score.enemy + ' RIVAL');
     setText(this.battleArmies, 'ARMIES :: ' + battle.armyCount('player') + ' VS ' + battle.armyCount('enemy'));
-    setText(this.battleOrders, 'ORDERS :: ' + battle.orders.player.toUpperCase());
-    setText(this.battleKeys, actionKeyLabel('order_charge') + ' CHARGE  ' + actionKeyLabel('order_hold') + ' HOLD  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+    setText(this.battleKeys, actionKeyLabel('regiment_next') + ' SELECT  ' + actionKeyLabel('order_charge') + ' CHARGE  ' +
+      actionKeyLabel('order_hold') + ' MARCH  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+    for (const card of this.regimentCards) {
+      const r = card.regiment;
+      card.node.classList.toggle('selected', battle.selected.has(r.id));
+      card.node.classList.toggle('lost', r.alive === 0);
+      setText(card.count, r.alive + ' / ' + r.size);
+      setText(card.order, r.order === 'hold' ? 'HOLD' : (r.order === 'charge' ? 'CHARGE' : 'FOLLOW'));
+      card.fill.style.width = (r.alive / r.size * 100) + '%';
+    }
+  }
+
+  buildRegimentCards(battle) {
+    this.regimentBar.innerHTML = '';
+    this.regimentCards = battle.regiments.player.map((regiment) => {
+      const node = el('button', 'regiment', this.regimentBar);
+      node.type = 'button';
+      node.title = 'Click to select, shift-click to add';
+      el('span', 'regiment-name', node, regiment.name);
+      const count = el('span', 'regiment-count', node, '');
+      const order = el('span', 'regiment-order', node, '');
+      const bar = el('div', 'regiment-bar', node);
+      const fill = el('div', 'regiment-fill', bar);
+      node.onclick = (e) => battle.toggleSelect(regiment.id, e.shiftKey);
+      return { regiment, node, count, order, fill };
+    });
   }
 
   // A new battle was deployed: fresh map, banner while the armies form up.
@@ -323,7 +350,7 @@ export class Hud {
     this.minimap.render();
     this.endScreen.classList.add('hidden');
     this.pauseButton.classList.remove('hidden');
-    this.battleBanner = battle;
+    this.buildRegimentCards(battle);
   }
 
   // Between battles: the result, the score, and three spells to choose from.
@@ -352,7 +379,10 @@ export class Hud {
   updateMap() {
     const game = this.game;
     this.minimap.draw();
-    const room = game.currentRoomIndex >= 0 ? game.world.rooms[game.currentRoomIndex].label : 'CORRIDOR';
+    let room = game.currentRoomIndex >= 0 ? game.world.rooms[game.currentRoomIndex].label : 'CORRIDOR';
+    if (game.battleMode) {
+      room = 'THE BATTLEFIELD';
+    }
     setText(this.roomLabel, room);
     if (game.duelMode) {
       return;
@@ -384,7 +414,7 @@ export class Hud {
     if (battle && !battle.fighting && game.state === 'playing') {
       const n = battle.armySize;
       setText(this.bannerTitle, 'BATTLE ' + (battle.round + 1) + ' OF 5 :: ' + n + ' VS ' + n);
-      setText(this.bannerText, 'THE ARMIES FORM UP :: ' + Math.ceil(battle.deploy / 60));
+      setText(this.bannerText, 'DEPLOY YOUR REGIMENTS :: ' + actionKeyLabel('descend') + ' TO ATTACK NOW :: ' + Math.ceil(battle.deploy / 60));
       this.banner.style.opacity = '1';
       return;
     }

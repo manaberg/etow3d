@@ -71,7 +71,8 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `U` | polymorph (turns an orc under the cursor into a sheep) |
 | `9` | disintegrate (a ray into the first enemy in line) |
 | `0` | spiritual weapon (a spectral sword that fights beside you) |
-| `J` / `K` / `L` | battle: army charges / holds a line ahead of you / follows you |
+| `Tab` / `` ` `` | battle: select the next regiment / all regiments (or click the regiment cards) |
+| `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
 | Mouse wheel | zoom |
 | `M` | larger map |
@@ -81,12 +82,17 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 
 Three modes; the main menu explains each in full under **How each mode works**.
 
-**Battle.** You and a rival wizard each lead an orc army (blue against red) across an open
-battlefield with rock outcrops: a best-of-five match whose battles grow from 8 orcs a side to
-12, 18, 24 and 32. The orcs fight on their own (brawlers close in, slingers and warlocks keep
-range, knights charge, shamans heal), you give them orders (charge, hold, follow) and turn
-the fight with spells: fireballs and blizzards into packed ranks, lightning chaining through
-them. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
+**Battle.** You and a rival wizard each lead an orc army (blue against red) across open
+grassland ringed by cliffs: a best-of-five match whose battles grow from 40 orcs a side to 80,
+120, 160 and 200. Armies are split into regiments by type (infantry, slingers, knights, shock
+troops, mystics), each with a banner, deployed in lines; you rearrange them before the battle
+(Space starts it early) and command them one by one or together: charge, march to the cursor
+and hold, or follow you. The orcs fight by class (brawlers close in, slingers and warlocks
+keep range, knights charge, shamans heal) and you turn the fight with spells: fireballs and
+blizzards into packed ranks, lightning chaining through them. The rival commands its own
+regiments (line charges, knights flank, mystics guard it). Orcs are drawn instanced
+(`src/render/armyRenderer.js`) and find foes and neighbours through a spatial grid, so 400 orcs
+cost about a millisecond a step. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
 with magic missile and one random spell; after each battle you draft one of three new spells
 and the rival learns one. Duel rules apply between the wizards, including the 3 s global
 cooldown. Battle orcs have double the dungeon orcs' health (`BattleRules` in

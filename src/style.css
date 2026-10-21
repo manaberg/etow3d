@@ -675,3 +675,69 @@ button.rule.active {
   line-height: 1.55;
   color: var(--text);
 }
+
+.hud-regiments {
+  position: absolute;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+}
+
+.hud button.regiment {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  min-width: 132px;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 10px;
+  color: var(--text);
+  background: rgba(12, 16, 30, 0.82);
+  border: 1px solid rgba(90, 154, 255, 0.35);
+  border-radius: 6px;
+  text-shadow: none;
+}
+
+.hud button.regiment:hover {
+  transform: translateY(-1px);
+}
+
+.hud button.regiment.selected {
+  border-color: #ffd060;
+  box-shadow: 0 0 0 1px #ffd060 inset;
+}
+
+.hud button.regiment.lost {
+  opacity: 0.35;
+}
+
+.regiment-name {
+  grid-column: 1 / -1;
+  color: #8fb8ff;
+}
+
+.regiment-order {
+  color: var(--accent);
+  text-align: right;
+}
+
+.regiment-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+.regiment-fill {
+  height: 100%;
+  background: #5a9aff;
+  border-radius: 2px;
+}
+
+.hud.battle .hud-toasts {
+  bottom: 120px;
+}

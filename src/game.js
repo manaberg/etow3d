@@ -104,7 +104,7 @@ export class Game {
         : { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
     }
     this.world = new World(options, () => this.navFrame);
-    this.gfx.buildLevel(this.world);
+    this.gfx.buildLevel(this.world, this.battleMode);
     this.currentRoomIndex = -1;
   }
 
@@ -378,6 +378,21 @@ export class Game {
 
   // Bodies a team's spells can hit.
   hostilesOf(team) {
+    // battles call this for every bolt every step: build each list once per step
+    if (this.battle) {
+      if (this._hostileFrame !== this.navFrame) {
+        this._hostileFrame = this.navFrame;
+        this._hostiles = {};
+      }
+      if (!this._hostiles[team]) {
+        this._hostiles[team] = this.listHostiles(team);
+      }
+      return this._hostiles[team];
+    }
+    return this.listHostiles(team);
+  }
+
+  listHostiles(team) {
     if (team === 'player') {
       return this.entities.filter((e) => !e.killed && (
         e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard ||
@@ -861,9 +876,16 @@ export class Game {
   render(dt) {
     const time = this.elapsed;
     for (const e of this.entities) {
-      if (e.view) {
+      // instanced battle orcs have no view of their own but still pose
+      if (e.view || e.instance) {
         e.syncView(time, dt);
       }
+    }
+    if (this.battle) {
+      this.battle.syncMarkers(time);
+    }
+    if (this.army) {
+      this.army.flush();
     }
     const player = this.player;
     const focus = player ? player.center() : { x: 0, y: 0 };
@@ -891,6 +913,12 @@ export class Game {
       e.dispose();
     }
     this.entities = [];
+    if (this.battle) {
+      this.battle.dispose();
+    }
+    if (this.army) {
+      this.army.dispose();
+    }
     this.input.dispose();
     this.hud.dispose();
     this.gfx.dispose();

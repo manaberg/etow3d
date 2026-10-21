@@ -20,6 +20,7 @@ export class Minimap {
       return;
     }
     const dungeon = world.dungeon;
+    this.fitCell();
     const cell = this.cell;
     this.base.width = dungeon.cols * cell;
     this.base.height = dungeon.rows * cell;
@@ -49,8 +50,13 @@ export class Minimap {
 
   setLarge(large) {
     this.large = large;
-    this.cell = large ? 7 : 3;
     this.render();
+  }
+
+  // pixels per dungeon cell: big battlefields get smaller cells
+  fitCell() {
+    const cols = this.game.world.dungeon.cols;
+    this.cell = Math.max(1, Math.min(this.large ? 7 : 3, Math.floor((this.large ? 640 : 200) / cols)));
   }
 
   draw() {

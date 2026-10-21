@@ -349,7 +349,14 @@ export function buildOrc(look, o = {}) {
   return buildPrimitiveOrc(look, spec, champion, o.team);
 }
 
-const TEAM_COLORS = {
+// For the instanced battle armies (armyRenderer.js): an orc look's Blender
+// parts and body scale, or null while the model is missing.
+export function orcTemplate(look) {
+  const parts = templates.get('orc_' + (ORC_LOOKS[look] ? look : 'grunt'));
+  return parts ? { parts, scale: (ORC_LOOKS[look] || ORC_LOOKS.grunt).scale } : null;
+}
+
+export const TEAM_COLORS = {
   player: { cloth: 0x2a4fa8, armor: 0x3a62c8, ring: 0x4a8aff },
   enemy: { cloth: 0x9a1a1a, armor: 0xb02a2a, ring: 0xff4040 }
 };

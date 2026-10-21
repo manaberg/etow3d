@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { UNIT, clamp } from '../core/constants.js';
 import { buildDungeonMesh } from './dungeonMesh.js';
+import { buildFieldMesh } from './fieldMesh.js';
 import { Fx } from './fx.js';
 
 const ROOM_LIGHTS = 6;
@@ -23,9 +24,11 @@ export class Gfx {
     this.scene.background = new THREE.Color(0x07070a);
     this.scene.fog = new THREE.Fog(0x07070a, 26, 58);
 
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 200);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 400);
     this.zoom = 26;
     this.zoomTarget = 26;
+    this.zoomMin = 15;
+    this.zoomMax = 40;
     this.elevation = THREE.MathUtils.degToRad(52);
     this.focus = new THREE.Vector3();
     this.shake = 0;
@@ -96,7 +99,8 @@ export class Gfx {
     }
   }
 
-  buildLevel(world) {
+  // `field` draws an open battlefield instead of dungeon halls.
+  buildLevel(world, field) {
     if (this.levelGroup) {
       this.scene.remove(this.levelGroup);
       this.levelGroup.traverse((o) => {
@@ -106,21 +110,31 @@ export class Gfx {
       });
     }
     this.fx.clear();
-    const built = buildDungeonMesh(world, this.cutaway);
+    const built = field ? buildFieldMesh(world) : buildDungeonMesh(world, this.cutaway);
     this.levelGroup = built.group;
     this.torches = built.torches;
     this.scene.add(this.levelGroup);
   }
 
-  // Battlefields are open ground under a grey sky rather than torchlit halls.
+  // Battlefields are open ground under a grey sky rather than torchlit halls:
+  // brighter, hazy in the distance, and the camera pulls much further back.
   setBattlefield(on) {
-    this.hemisphere.intensity = on ? 3.4 : 1.9;
-    this.ambient.intensity = on ? 1.8 : 0.9;
-    this.zoomTarget = on ? 34 : 26;
+    this.hemisphere.intensity = on ? 2.6 : 1.9;
+    this.hemisphere.color.setHex(on ? 0xd8e0f0 : 0x9aa0c0);
+    this.hemisphere.groundColor.setHex(on ? 0x4a5030 : 0x30241a);
+    this.ambient.intensity = on ? 1.2 : 0.9;
+    const sky = on ? 0x9aa6b0 : 0x07070a;
+    this.scene.background.setHex(sky);
+    this.scene.fog.color.setHex(sky);
+    this.scene.fog.near = on ? 70 : 26;
+    this.scene.fog.far = on ? 190 : 58;
+    this.zoomMax = on ? 90 : 40;
+    this.zoomTarget = on ? 46 : 26;
   }
 
   zoomBy(steps) {
-    this.zoomTarget = clamp(this.zoomTarget + steps * 2.5, 15, 40);
+    const step = this.zoomMax > 40 ? 5 : 2.5;
+    this.zoomTarget = clamp(this.zoomTarget + steps * step, this.zoomMin, this.zoomMax);
   }
 
   addShake(amount) {
