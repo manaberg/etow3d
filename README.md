@@ -94,16 +94,33 @@ src/core/                   constants, input bindings, time stop, entity base cl
 src/world/                  dungeon generator, level plans, pathfinder, collision
 src/entities/               mage (spell book), orcs, mini-bosses and warlord, duel wizard,
                             projectiles and zones, loot and stairs
-src/render/                 Three.js renderer, dungeon meshes, procedural models,
+src/render/                 Three.js renderer, dungeon meshes, character and prop models,
                             textures and particle effects
+public/models/              character models (.glb) built in Blender
+tools/blender/              the Blender scripts that build them
 src/ui/                     HUD, minimap
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 
 The simulation runs at a fixed 60 steps per second and keeps the 2D game's units: positions
 in pixels on the ground plane (a 24px collision tile is one 3D unit) and timers in frames, so
-the original balance carries over unchanged. All models and textures are procedural; there
-are no image assets.
+the original balance carries over unchanged. Textures and props are procedural.
+
+### Character models
+
+The mage and every orc look are modelled in Blender from the 2D game's sprites by
+scripts in `tools/blender/`, and exported to `public/models/`. To rebuild them after
+changing a script (needs Blender 4.2 or newer on the `PATH`):
+
+```sh
+blender --background --python tools/blender/build_mage.py
+blender --background --python tools/blender/build_orcs.py -- --only knight   # or all looks
+```
+
+Pass `-- --preview DIR` to also render front, three-quarter, side and back views. The
+scripts save `.blend` files to `tools/blender/blend/` for editing by hand. Models are
+split into rigid parts on the rig's pivots and animated in code; if one fails to load,
+the game falls back to the older primitive model.
 
 ## Differences from the 2D game
 

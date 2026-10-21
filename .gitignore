@@ -4,3 +4,5 @@ data/*.sqlite
 data/*.sqlite-*
 .DS_Store
 *.log
+__pycache__/
+*.blend1

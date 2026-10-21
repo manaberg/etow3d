@@ -161,113 +161,98 @@ class Rig {
 
 const FLASH = new THREE.Color(0xff3020);
 
-// ---------------------------------------------------------------- mage
+// ---------------------------------------------------------------- Blender models
 
-// The wizard is modelled in Blender from the 2D sprite (tools/blender/build_mage.py
-// writes public/models/mage.glb). Its parts are rigid and their origins are the
-// rig pivots; materials are named by role so they can be recoloured per wizard.
-// Until the model has loaded (or if it fails) the primitive mage below is used.
-let mageParts = null;
+// Characters are modelled in Blender from the 2D sprites (tools/blender writes
+// public/models/*.glb). Each model is a set of rigid parts named after the rig
+// (Body, Head, ArmL, ArmR, LegL, LegR) whose origins are the pivots, with
+// materials named by role so a character can be recoloured. Until a model has
+// loaded (or if it fails) the primitive version below is used.
+const templates = new Map();
+const GLOWING = new Set(['Gem', 'Glow']);
 
 export async function loadModels() {
-  try {
-    const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/mage.glb');
-    const parts = {};
-    for (const node of gltf.scene.children) {
-      const meshes = [];
-      node.traverse((o) => {
-        if (o.isMesh) {
-          meshes.push({ geometry: o.geometry, material: o.material.name });
-        }
-      });
-      parts[node.name] = { position: node.position.clone(), meshes };
-    }
-    mageParts = parts;
-  } catch (err) {
-    console.warn('mage model failed to load, using the primitive mage', err);
-  }
-}
-
-// The sprite's greys, darkened: the player stands in a bright light and the
-// sprite's own values wash out to white.
-const MAGE_COLORS = {
-  Robe: 0x5c5c5e,
-  RobeShade: 0x3a3a3c,
-  Mantle: 0x7a7a7c,
-  Trim: 0xc09a30,
-  Skin: 0xc8845a,
-  Hair: 0x7e7e78,
-  Beard: 0x9a9a94,
-  Eye: 0x1c1d1c,
-  Leather: 0x8a5a30,
-  Boot: 0x4a3020,
-  Wood: 0x7c7553,
-  Gem: 0x9fd8ff
-};
-
-export function buildMage(o = {}) {
-  return mageParts ? buildModelMage(o) : buildPrimitiveMage(o);
-}
-
-function buildModelMage(o) {
-  const rig = new Rig();
-  const colors = {
-    ...MAGE_COLORS,
-    Robe: o.robe ?? MAGE_COLORS.Robe,
-    RobeShade: o.robe !== undefined ? new THREE.Color(o.robe).multiplyScalar(0.65).getHex() : MAGE_COLORS.RobeShade,
-    Mantle: o.hat ?? MAGE_COLORS.Mantle,
-    Trim: o.trim ?? MAGE_COLORS.Trim,
-    Hair: o.beard ?? MAGE_COLORS.Hair,
-    Beard: o.beard ?? MAGE_COLORS.Beard,
-    Gem: o.orb ?? MAGE_COLORS.Gem
-  };
-  // the cloth and skin flash on hits
-  const flashing = new Set(['Robe', 'RobeShade', 'Mantle', 'Skin']);
-  const mats = {};
-  const material = (name) => {
-    if (!mats[name]) {
-      const color = colors[name] ?? 0xff00ff;
-      if (name === 'Gem' || name === 'Eye') {
-        mats[name] = new THREE.MeshBasicMaterial({ color });
-      } else if (flashing.has(name)) {
-        mats[name] = rig.track(mat(color, { emissive: 0x000000, side: THREE.DoubleSide }));
-      } else {
-        mats[name] = mat(color, { side: THREE.DoubleSide });
+  const names = ['mage', ...Object.keys(ORC_LOOKS).map((look) => 'orc_' + look)];
+  const loader = new GLTFLoader();
+  await Promise.all(names.map(async (name) => {
+    try {
+      const gltf = await loader.loadAsync(import.meta.env.BASE_URL + 'models/' + name + '.glb');
+      const parts = {};
+      for (const node of gltf.scene.children) {
+        const meshes = [];
+        node.traverse((o) => {
+          if (o.isMesh) {
+            meshes.push({ geometry: o.geometry, material: o.material.name, color: o.material.color.getHex() });
+          }
+        });
+        parts[node.name] = { position: node.position.clone(), meshes };
       }
+      templates.set(name, parts);
+    } catch (err) {
+      console.warn(name + ' model failed to load, using the primitive one', err);
     }
-    return mats[name];
+  }));
+}
+
+// colors: role -> colour overrides. Returns the rig with its materials by role.
+function rigFromModel(parts, colors = {}, glowScale = 0.8) {
+  const rig = new Rig();
+  const mats = {};
+  const material = (m) => {
+    if (!mats[m.material]) {
+      const color = colors[m.material] ?? m.color;
+      mats[m.material] = GLOWING.has(m.material) || m.material === 'Eye'
+        ? new THREE.MeshBasicMaterial({ color })
+        : rig.track(mat(color, { emissive: 0x000000, side: THREE.DoubleSide }));
+    }
+    return mats[m.material];
   };
   const part = (name) => {
     const g = new THREE.Group();
-    for (const m of mageParts[name].meshes) {
-      g.add(new THREE.Mesh(m.geometry, material(m.material)));
+    for (const m of parts[name].meshes) {
+      g.add(new THREE.Mesh(m.geometry, material(m)));
+      if (GLOWING.has(m.material)) {
+        if (!m.geometry.boundingBox) {
+          m.geometry.computeBoundingBox();
+        }
+        // Gem is a staff focus; Glow marks small accents (eye slits, a belt gem)
+        const glow = glowSprite(material(m).color, m.material === 'Gem' ? glowScale : glowScale * 0.4);
+        m.geometry.boundingBox.getCenter(glow.position);
+        g.add(glow);
+      }
     }
     return g;
   };
-  const at = (name) => mageParts[name].position;
   const pivotPart = (name) => {
-    const p = at(name);
+    const p = parts[name].position;
     return rig.pivot(p.x, p.y, p.z, part(name));
   };
-
   rig.body.add(part('Body'));
   rig.limbs.legL = pivotPart('LegL');
   rig.limbs.legR = pivotPart('LegR');
   rig.limbs.armL = pivotPart('ArmL');
   rig.limbs.armR = pivotPart('ArmR');
+  rig.head = pivotPart('Head');
+  return { rig, mats };
+}
 
-  // the staff hangs off the right hand so it swings with the casting arm
-  const staff = part('Staff');
-  staff.position.copy(at('Staff')).sub(at('ArmR'));
-  const gemY = 1.56;
-  const orbGlow = glowSprite(colors.Gem, 0.8);
-  orbGlow.position.y = gemY;
-  staff.add(orbGlow);
-  rig.limbs.armR.add(staff);
+// ---------------------------------------------------------------- mage
 
-  const head = pivotPart('Head');
-  rig.head = head;
-
+export function buildMage(o = {}) {
+  const parts = templates.get('mage');
+  if (!parts) {
+    return buildPrimitiveMage(o);
+  }
+  // the duel wizard and mirror images recolour the sprite's grey wizard
+  const { rig } = rigFromModel(parts, {
+    Robe: o.robe,
+    RobeShade: o.robe !== undefined ? new THREE.Color(o.robe).multiplyScalar(0.65).getHex() : undefined,
+    Mantle: o.hat,
+    Trim: o.trim,
+    Hair: o.beard,
+    Beard: o.beard,
+    Gem: o.orb
+  });
   rig.root.add(blobShadow(0.85));
   rig.height = 2.7;
   return rig;
@@ -353,8 +338,17 @@ const ORC_LOOKS = {
 
 export function buildOrc(look, o = {}) {
   const spec = ORC_LOOKS[look] || ORC_LOOKS.grunt;
-  const rig = new Rig();
   const champion = !!o.champion;
+  const parts = templates.get('orc_' + (ORC_LOOKS[look] ? look : 'grunt'));
+  if (parts) {
+    const { rig, mats } = rigFromModel(parts, {}, 0.9);
+    return finishOrc(rig, look, spec, champion, mats.Cloth);
+  }
+  return buildPrimitiveOrc(look, spec, champion);
+}
+
+function buildPrimitiveOrc(look, spec, champion) {
+  const rig = new Rig();
   const skin = rig.track(mat(spec.skin, { emissive: 0x000000 }));
   const cloth = rig.track(mat(spec.cloth, { emissive: 0x000000 }));
   const dark = mat(0x2a2018);
@@ -514,6 +508,11 @@ export function buildOrc(look, o = {}) {
     cape.rotation.x = 0.15;
     torso.add(cape);
   }
+  return finishOrc(rig, look, spec, champion, cloth);
+}
+
+// Champion aura and tint, shadow and size, shared by both kinds of orc.
+function finishOrc(rig, look, spec, champion, cloth) {
   if (champion) {
     const aura = new THREE.Mesh(
       geo('aura', () => new THREE.RingGeometry(0.75, 1.05, 24)),
@@ -524,7 +523,9 @@ export function buildOrc(look, o = {}) {
     aura.position.y = 0.05;
     rig.root.add(aura);
     rig.aura = aura;
-    cloth.color.lerp(new THREE.Color(0xd8a838), 0.6);
+    if (cloth) {
+      cloth.color.lerp(new THREE.Color(0xd8a838), 0.6);
+    }
   }
 
   rig.root.add(blobShadow(look === 'boss' ? 1.0 : 0.95));
