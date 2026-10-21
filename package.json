@@ -1,0 +1,25 @@
+{
+  "name": "etow3d",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End of the Worlds in 3D: a Three.js remake of eotw",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node backend/server.mjs",
+    "serve": "npm run build && node backend/server.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7"
+  }
+}

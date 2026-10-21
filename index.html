@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>End of the Worlds 3D</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M16 2 L25 26 H7 Z%22 fill=%22%232a4fa8%22/%3E%3Ccircle cx=%2216%22 cy=%2226%22 r=%224%22 fill=%22%23ffb85a%22/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="viewport"></div>
+  <div id="hud"></div>
+
+  <div id="menu" class="screen">
+    <div class="card menu-card">
+      <h1>END OF THE WORLDS <span>3D</span></h1>
+      <p class="tagline">Descend ten floors of an orc-held dungeon, learn spells from the scrolls you find, and slay the warlord on his throne.</p>
+      <div class="menu-modes">
+        <div class="mode">
+          <h3>Survival</h3>
+          <p>Ten floors, seven orc classes, mini-bosses and the warlord.</p>
+          <button data-mode="survival">Descend</button>
+        </div>
+        <div class="mode">
+          <h3>Duel</h3>
+          <p>Every spell against a rival wizard who learns how you dodge.</p>
+          <div class="buttons">
+            <button data-mode="duel" data-ai="normal" class="secondary">Normal</button>
+            <button data-mode="duel" data-ai="hard">Hard</button>
+            <button data-mode="duel" data-ai="insane" class="danger">Insane</button>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</div>
+        <div><kbd>LMB</kbd> magic missile (hold)</div>
+        <div><kbd>RMB</kbd> blink to cursor</div>
+        <div><kbd>Q</kbd> fireball</div>
+        <div><kbd>E</kbd> iron shot</div>
+        <div><kbd>F</kbd> chain lightning</div>
+        <div><kbd>R</kbd> time stop</div>
+        <div><kbd>G</kbd> lifesteal (hold)</div>
+        <div><kbd>1</kbd> haste <kbd>2</kbd> image</div>
+        <div><kbd>3</kbd> chain root <kbd>4</kbd> shield</div>
+        <div><kbd>5</kbd> blizzard at cursor</div>
+        <div><kbd>T</kbd> invisibility <kbd>C</kbd> fear</div>
+        <div><kbd>X</kbd> power word kill (hover)</div>
+        <div><kbd>V</kbd> telekinesis (hover loot)</div>
+        <div><kbd>Space</kbd> descend the stairs</div>
+        <div><kbd>Wheel</kbd> zoom <kbd>M</kbd> map <kbd>Esc</kbd> pause</div>
+      </div>
+      <p class="dim">A 3D remake of <em>eotw</em> :: pre-alpha</p>
+    </div>
+  </div>
+
+  <div id="nogl" class="screen hidden">
+    <div class="card">
+      <h2>WebGL is not available</h2>
+      <p>End of the Worlds 3D needs a browser with WebGL enabled.</p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
