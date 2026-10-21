@@ -66,6 +66,12 @@ export class Hud {
     this.spellRows = SpellBook.map((spell) => {
       const row = el('div', 'spell', list);
       const key = el('span', 'spell-key', row, actionKeyLabel(spell.action || spell.id));
+      const school = DuelRules.schools[DuelRules.schoolOf(spell.id)];
+      if (school) {
+        const tag = el('span', 'spell-school', row, school.tag);
+        tag.style.color = school.color;
+        tag.title = school.name;
+      }
       const name = el('span', 'spell-name', row, spell.name);
       const tier = el('span', 'spell-tier', row, 'T2');
       const cd = el('div', 'spell-cd', row);
@@ -262,11 +268,11 @@ export class Hud {
       r.tier.style.display = spell.tier && player[spell.tier] ? '' : 'none';
       let left = player.cd[spell.id];
       let frac = spell.cd > 0 ? 1 - left / spell.cd : 1;
-      // the duel's global cooldown holds back spells that are otherwise ready
-      const gcd = player.gcdLeft(spell.id);
-      if (gcd > left) {
-        left = gcd;
-        frac = Math.min(frac, 1 - gcd / DuelRules.gcd);
+      // in duels a cast locks the rest of its school for a moment
+      const lock = player.lockLeft(spell.id);
+      if (lock > left) {
+        left = lock;
+        frac = Math.min(frac, 1 - lock / DuelRules.schools[DuelRules.schoolOf(spell.id)].lockout);
       }
       r.fill.style.width = (frac * 100) + '%';
       const affordable = player.manergy > spell.need && !(spell.id === 'ironshot' && player.is2Charges <= 0 && left > 0);

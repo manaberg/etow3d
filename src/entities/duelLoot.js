@@ -24,7 +24,18 @@ export const DuelSpells = [
   { id: 'ray', flag: 'hasRay' },
   { id: 'invis', flag: 'hasInvis' },
   { id: 'fear', flag: 'hasFear' },
-  { id: 'pwkill', flag: 'hasPwkill', tier: 'hasPwk2' }
+  { id: 'pwkill', flag: 'hasPwkill', tier: 'hasPwk2' },
+  // the D&D spells (arcana.js)
+  { id: 'scorch', flag: 'hasScorch' },
+  { id: 'cone', flag: 'hasCone' },
+  { id: 'thunder', flag: 'hasThunder' },
+  { id: 'meteor', flag: 'hasMeteor' },
+  { id: 'guardians', flag: 'hasGuardians' },
+  { id: 'cloud', flag: 'hasCloud' },
+  { id: 'heal', flag: 'hasHeal' },
+  { id: 'polymorph', flag: 'hasPolymorph' },
+  { id: 'disintegrate', flag: 'hasDisintegrate' },
+  { id: 'weapon', flag: 'hasWeapon' }
 ];
 
 function spellName(entry) {

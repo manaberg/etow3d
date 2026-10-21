@@ -58,7 +58,8 @@ export class Enemy extends Entity {
     const fx = game.fx;
     switch (p.kind) {
       case 'missile':
-        this.hurt(player && player.hasMsring ? 76 : 51);
+        // one of three darts: a third of the 2D game's single missile each
+        this.hurt(player && player.hasMsring ? 25 : 17);
         fx.burst(c.x, c.y, 1.4, { color: [0xb070ff, 0xffffff], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
@@ -247,20 +248,26 @@ export class Enemy extends Entity {
     }
   }
 
+  // Carries a shove (thunderwave) on by one step.
+  stepKnock(k) {
+    if (!this.knock) {
+      return;
+    }
+    const res = this.game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
+    this.pos.x = res.x;
+    this.pos.y = res.y;
+    this.knock.frames -= k;
+    if (this.knock.frames <= 0) {
+      this.knock = null;
+    }
+  }
+
   // Moves with the floor's slow zones applied.
   moveBody(k) {
     const slow = this.game.zoneSlow(this);
     this.vel.x *= slow;
     this.vel.y *= slow;
-    if (this.knock) {
-      const res = this.game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
-      this.pos.x = res.x;
-      this.pos.y = res.y;
-      this.knock.frames -= k;
-      if (this.knock.frames <= 0) {
-        this.knock = null;
-      }
-    }
+    this.stepKnock(k);
     if (this.chillFrames > 0) {
       // chilled: crawl this step without losing the heading
       const vx = this.vel.x;

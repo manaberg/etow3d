@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
-import { buildMage, glowMap } from '../render/models.js';
-import { Projectile, Zone, MirrorImage } from './spells.js';
+import { buildMage, buildSheep, glowMap } from '../render/models.js';
+import { Projectile, Zone, MirrorImage, castMissiles } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { DungeonLevels } from '../world/levels.js';
-import { castArcana } from './arcana.js';
+import { castArcana, arcanaZoneDamage } from './arcana.js';
 
 // The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
 // manergy that must be exceeded and `cost` what a cast spends; `flag` is the
@@ -54,8 +54,29 @@ export const RingEffects = [
   { flag: 'hasMsring', label: 'INCREASED MISSILE DAMAGE' }
 ];
 
+// share of its speed a chilled or polymorphed wizard keeps
+const CHILL_SLOW = 0.4;
+const SHEEP_SLOW = 0.7;
+
 // Damage the player takes from enemy bolts outside duels.
 const ENEMY_BOLT_DAMAGE = { stone: 20, missile2: 50, fireball2: 75, ironshot2: 200 };
+
+// Polymorphed wizards: the body is hidden and a sheep trots in its place.
+export function syncSheep(wizard, time) {
+  const sheep = wizard.sheepFrames > 0;
+  if (sheep && !wizard.sheep) {
+    wizard.sheep = buildSheep();
+    wizard.rig.root.add(wizard.sheep);
+  }
+  if (wizard.sheep) {
+    wizard.sheep.visible = sheep;
+    wizard.rig.body.visible = !sheep;
+    if (sheep) {
+      const speed = Math.hypot(wizard.vel.x, wizard.vel.y);
+      wizard.sheep.position.y = Math.abs(Math.sin(time * 8)) * 0.08 * Math.min(1, speed / 20);
+    }
+  }
+}
 
 export class Mage extends Entity {
   defaults() {
@@ -69,8 +90,8 @@ export class Mage extends Entity {
     for (const spell of SpellBook) {
       this.cd[spell.id] = 0;
     }
-    // duel global cooldown (frames left), see DuelRules.gcd
-    this.gcd = 0;
+    // duels: frames each school stays locked after a cast (DuelRules.schools)
+    this.schoolLock = {};
     // the 2D game started a few spells on cooldown
     this.is2Charges = 1;
     // buffs (frames left) and debuffs
@@ -89,6 +110,11 @@ export class Mage extends Entity {
     this.fearFrames = 0;
     this.fearDuration = 120;
     this.fearVel = { x: 0, y: 0 };
+    // the rival's D&D spells: chill (cone of cold), knockback (thunderwave)
+    // and polymorph (a sheep cannot cast)
+    this.chillFrames = 0;
+    this.knock = null;
+    this.sheepFrames = 0;
     // spellbook and rings
     for (const spell of SpellBook) {
       if (spell.flag) {
@@ -144,24 +170,26 @@ export class Mage extends Entity {
 
   // Lets the duel loadout start every spell on cooldown like the 2D game.
   ready(id) {
-    return this.cd[id] <= 0 && this.gcdLeft(id) <= 0;
+    return this.cd[id] <= 0 && this.lockLeft(id) <= 0;
   }
 
-  // Frames of duel global cooldown still holding back this spell.
-  gcdLeft(id) {
-    return this.game.duelMode && DuelRules.onGcd(id) ? this.gcd : 0;
+  // Frames the duel's school lockout still holds back this spell.
+  lockLeft(id) {
+    const school = this.game.duelMode ? DuelRules.lockedSchool(id) : null;
+    return school ? this.schoolLock[school] || 0 : 0;
   }
 
   spend(id, extraCost) {
     const spell = SpellById[id];
     this.cd[id] = spell.cd;
     this.manergy -= spell.cost + (extraCost || 0);
-    this.startGcd(id);
+    this.lockSchool(id);
   }
 
-  startGcd(id) {
-    if (this.game.duelMode && DuelRules.onGcd(id)) {
-      this.gcd = DuelRules.gcd;
+  lockSchool(id) {
+    const school = this.game.duelMode ? DuelRules.lockedSchool(id) : null;
+    if (school) {
+      this.schoolLock[school] = DuelRules.schools[school].lockout;
     }
   }
 
@@ -187,6 +215,12 @@ export class Mage extends Entity {
     let speed = this.hasSpring ? this.desiredVel * 1.2 : this.desiredVel;
     if (this.hasted) {
       speed *= 2.5;
+    }
+    if (this.chillFrames > 0) {
+      speed *= CHILL_SLOW;
+    }
+    if (this.sheepFrames > 0) {
+      speed *= SHEEP_SLOW;
     }
     if (this.isStunned || standing) {
       this.vel.x = 0;
@@ -219,10 +253,19 @@ export class Mage extends Entity {
       this.manergy = Math.min(this.maxManergy, this.manergy + (this.hasMrring ? 0.5 : 0.4) * k);
     }
 
-    if (!standing) {
+    if (!standing && this.sheepFrames <= 0) {
       this.castSpells();
     }
     this.move(k);
+    if (this.knock) {
+      const res = game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
+      this.pos.x = res.x;
+      this.pos.y = res.y;
+      this.knock.frames -= k;
+      if (this.knock.frames <= 0) {
+        this.knock = null;
+      }
+    }
 
     if (this.hp <= 0 && !this.dead) {
       this.dead = true;
@@ -239,7 +282,17 @@ export class Mage extends Entity {
     if (this.cd.ironshot <= 0 && this.is2Charges <= 0) {
       this.is2Charges = this.hasIs2 ? 2 : 1;
     }
-    this.gcd = Math.max(0, this.gcd - k);
+    for (const school in this.schoolLock) {
+      this.schoolLock[school] = Math.max(0, this.schoolLock[school] - k);
+    }
+    this.chillFrames = Math.max(0, this.chillFrames - k);
+    if (this.sheepFrames > 0) {
+      this.sheepFrames = Math.max(0, this.sheepFrames - k);
+      if (this.sheepFrames === 0) {
+        const c = this.center();
+        this.game.fx.burst(c.x, c.y, 1.2, { color: [0xff80e0, 0xffffff], count: 30, speed: 5, life: 0.5, size: 0.9 });
+      }
+    }
     this.shieldFrames = Math.max(0, this.shieldFrames - k);
     this.hasteFrames = Math.max(0, this.hasteFrames - k);
     this.invisFrames = Math.max(0, this.invisFrames - k);
@@ -271,7 +324,9 @@ export class Mage extends Entity {
     const fire = (kind, angle, x = c.x, y = c.y) => game.spawn(Projectile, x, y, { kind, angle, team: 'player', timeOwner: this });
 
     if (input.state('missile') && this.ready('missile')) {
-      fire('missile', aim);
+      // the darts home in on the foe under (or near) the cursor, else on the spot
+      const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
+      castMissiles(game, this, 'player', aim, target);
       this.cd.missile = SpellById.missile.cd;
       stats.micount++;
       this.rig.swing();
@@ -290,11 +345,11 @@ export class Mage extends Entity {
       this.spend('fireball', extra);
       this.rig.swing();
     }
-    if (input.pressed('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.gcdLeft('ironshot') <= 0 && this.manergy > 40) {
+    if (input.pressed('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.lockLeft('ironshot') <= 0 && this.manergy > 40) {
       fire('ironshot', aim);
       stats.iscount++;
       this.manergy -= 40;
-      this.startGcd('ironshot');
+      this.lockSchool('ironshot');
       if (this.is2Charges === 1) {
         this.cd.ironshot = SpellById.ironshot.cd;
       }
@@ -442,6 +497,8 @@ export class Mage extends Entity {
     } else if (zone.kind === 'blizzard') {
       const scale = this.game.duelMode ? 1 : DungeonLevels.wizard.hitScale;
       this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k * scale, true);
+    } else if (zone.kind === 'guardians' || zone.kind === 'cloud') {
+      this.hurt(arcanaZoneDamage(zone, k), true);
     }
   }
 
@@ -474,6 +531,19 @@ export class Mage extends Entity {
     }
   }
 
+  chill(frames) {
+    this.chillFrames = Math.max(this.chillFrames, frames);
+  }
+
+  // pushed away over a few frames; walls stop it
+  shove(angle, distance) {
+    this.knock = { x: Math.cos(angle) * distance / 12, y: Math.sin(angle) * distance / 12, frames: 12 };
+  }
+
+  polymorph(frames) {
+    this.sheepFrames = Math.max(this.sheepFrames, frames);
+  }
+
   syncView(time, dt) {
     const c = this.center();
     this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
@@ -499,5 +569,9 @@ export class Mage extends Entity {
     if (this.hasMrring && Math.random() < 0.04) {
       fx.column(c.x, c.y, 18, { color: 0x4080ff, count: 1, rise: 1.2, life: 0.8, size: 0.4 });
     }
+    if (this.chillFrames > 0 && Math.random() < 0.3) {
+      fx.emit(c.x + (Math.random() - 0.5) * 30, c.y + (Math.random() - 0.5) * 30, Math.random() * 2.5, { color: 0xbfe8ff, life: 0.5, size: 0.4, vy: -0.5 });
+    }
+    syncSheep(this, time);
   }
 }

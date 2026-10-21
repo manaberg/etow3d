@@ -25,6 +25,28 @@ export const BoltKinds = {
 
 const FLY_HEIGHT = 1.45;
 
+// Magic missile looses three darts. Each leaves on its own random arc
+// (`spread` radians off the aim), curves in on the target while it homes
+// (`homeFrames`, turning faster as it goes, from `turn[0]` to `turn[1]`
+// radians a frame) and then flies straight on, so a late sidestep dodges.
+export const MissileVolley = { count: 3, spread: [0.35, 1.0], homeFrames: 40, turn: [0.03, 0.11], wobble: 0.04 };
+
+// `target` is the body to home in on, or a point {x, y}.
+export function castMissiles(game, caster, team, angle, target, settings = {}) {
+  const c = caster.center();
+  const { count, spread } = MissileVolley;
+  for (let i = 0; i < count; i++) {
+    const side = i - (count - 1) / 2;
+    const off = side === 0
+      ? (Math.random() - 0.5) * spread[0] * 2
+      : Math.sign(side) * (spread[0] + Math.random() * (spread[1] - spread[0]));
+    game.spawn(Projectile, c.x, c.y, {
+      kind: 'missile', angle: angle + off, team, timeOwner: caster,
+      homing: target, homeFrames: MissileVolley.homeFrames, phase: Math.random() * Math.PI * 2, ...settings
+    });
+  }
+}
+
 // Anything that flies and hurts the other side. `team` is 'player' or
 // 'enemy'; a shield turns a bolt around and hands it to the other team.
 export class Projectile extends Entity {
@@ -33,6 +55,10 @@ export class Projectile extends Entity {
     this.team = 'player';
     this.angle = 0;
     this.duel = false;
+    // homing missiles: the body or point they curve toward, and for how long
+    this.homing = null;
+    this.homeFrames = 0;
+    this.phase = 0;
   }
 
   init() {
@@ -73,6 +99,7 @@ export class Projectile extends Entity {
 
   reflect(newTeam) {
     this.team = newTeam;
+    this.homing = null;
     this.aimAt(this.angle + Math.PI);
     this.life = this.spec.life * 60;
     this._seenFrame = undefined;
@@ -92,6 +119,9 @@ export class Projectile extends Entity {
     if (this.life <= 0) {
       this.kill();
       return;
+    }
+    if (this.homing) {
+      this.steer(k);
     }
     this.move(k);
     if (this.killed) {
@@ -121,6 +151,33 @@ export class Projectile extends Entity {
         }
       }
     }
+  }
+
+  // Curve toward the homing target, a little more sharply every frame, with
+  // a slight weave so no two darts fly the same path.
+  steer(k) {
+    const h = this.homing;
+    this.homeFrames -= k;
+    if (this.homeFrames <= 0 || h.killed) {
+      this.homing = null;
+      return;
+    }
+    const t = h.center ? h.center() : h;
+    const c = this.center();
+    const dx = t.x - c.x;
+    const dy = t.y - c.y;
+    // a point is only a waypoint: once there, fly straight on
+    if (!h.center && dx * dx + dy * dy < 30 * 30) {
+      this.homing = null;
+      return;
+    }
+    const v = MissileVolley;
+    const age = 1 - this.homeFrames / v.homeFrames;
+    const turn = (v.turn[0] + (v.turn[1] - v.turn[0]) * age) * k;
+    let diff = Math.atan2(dy, dx) - this.angle;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    const weave = Math.sin(this.phase + age * 9) * v.wobble * k;
+    this.aimAt(this.angle + Math.max(-turn, Math.min(turn, diff)) + weave);
   }
 
   // Magic missile meets a simple bolt of the other side (a stone, a green
@@ -346,6 +403,19 @@ export class MirrorImage extends Entity {
     p.kill();
     this.pop();
   }
+
+  // any real blow (cone, thunder, a spiritual weapon...) dispels the decoy
+  hurt() {
+    this.pop();
+  }
+
+  polymorph() {
+    this.pop();
+  }
+
+  chill() {}
+
+  shove() {}
 
   inZone(zone, k) {
     this.hp -= 0.5 * k;

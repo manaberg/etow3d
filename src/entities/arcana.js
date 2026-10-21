@@ -3,9 +3,12 @@ import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildOrb, buildSpectralBlade } from '../render/models.js';
 import { Projectile, Zone } from './spells.js';
+import { DuelRules } from './duelRules.js';
 
-// The ten spells from D&D that the 2D game never had. They are dungeon-only:
-// the duel loadout leaves them out, so duels keep the 2D game's balance.
+// The ten spells from D&D that the 2D game never had. Either wizard can
+// cast them: the player from the keys, the rival (duels, battles) and the
+// dark wizards (survival) from their brain. Against orcs they deal the
+// dungeon numbers below; between wizards they use DuelRules.arcana.
 // Numbers are in the game's units: pixels (24 to a tile) and 60 frames a second.
 export const Arcana = {
   scorch: { damage: 60, spread: 0.16 },
@@ -15,40 +18,64 @@ export const Arcana = {
   guardians: { radius: 130, life: 480, dps: 60 },
   cloud: { radius: 110, life: 600, dps: 42, drift: 22 },
   heal: { amount: 40 },
-  polymorph: { frames: 360 },
+  polymorph: { frames: 360, range: 560 },
   disintegrate: { damage: 320, range: 640 },
   weapon: { life: 600, damage: 45, every: 45, reach: 420 }
 };
 
-// Called from the mage's spell casting each step.
-export function castArcana(mage) {
-  const game = mage.game;
-  const input = game.input;
-  const fx = game.fx;
-  const c = mage.center();
-  const mouse = input.ground;
-  const aim = mage.aim;
-  const cast = (id) => input.pressed(id) && mage.canCast(id);
+// The side whose spells a caster throws ('player' or 'enemy').
+export function teamOf(caster) {
+  return caster.isDuelWizard ? 'enemy' : 'player';
+}
 
-  if (cast('scorch')) {
-    // three rays fanned around the aim
-    for (const offset of [-Arcana.scorch.spread, 0, Arcana.scorch.spread]) {
-      game.spawn(Projectile, c.x, c.y, { kind: 'scorch', angle: aim + offset, team: 'player', timeOwner: mage });
+// One of these spells lands on `target`: wizards take the duel number,
+// scaled by the caster's hitScale (dark wizards on survival floors), and
+// everything else the dungeon number.
+export function arcanaHit(caster, target, key, dungeonDamage) {
+  if (target.isWizard) {
+    const dmg = DuelRules.arcana[key].damage * (caster.hitScale || 1);
+    target.hurt(dmg);
+    if (target.onDuelDamage) {
+      target.onDuelDamage(dmg, key);
     }
-    mage.spend('scorch');
-    mage.rig.swing();
+    return;
   }
-  if (cast('cone')) {
+  target.hurt(dungeonDamage);
+}
+
+// Damage per frame of a guardians or cloudkill zone on a wizard.
+export function arcanaZoneDamage(zone, k) {
+  const caster = zone.timeOwner;
+  return DuelRules.arcana[zone.kind].dps / 60 * k * ((caster && caster.hitScale) || 1);
+}
+
+// The casts themselves, for any caster. Each returns whether it went off
+// (the caller spends the spell).
+export const ArcanaCast = {
+  // three rays fanned around the aim
+  scorch(caster, aim) {
+    const c = caster.center();
+    for (const offset of [-Arcana.scorch.spread, 0, Arcana.scorch.spread]) {
+      caster.game.spawn(Projectile, c.x, c.y, { kind: 'scorch', angle: aim + offset, team: teamOf(caster), duel: !!caster.isDuelWizard, timeOwner: caster });
+    }
+    caster.rig.swing();
+    return true;
+  },
+
+  cone(caster, aim) {
+    const game = caster.game;
+    const fx = game.fx;
     const spec = Arcana.cone;
-    for (const enemy of game.hostilesOf('player')) {
-      if (mage.distanceTo(enemy) > spec.range || !game.hasRoomLineOfSight(mage, enemy)) {
+    const c = caster.center();
+    for (const enemy of game.hostilesOf(teamOf(caster))) {
+      if (caster.distanceTo(enemy) > spec.range || !game.hasRoomLineOfSight(caster, enemy)) {
         continue;
       }
-      let off = mage.angleTo(enemy) - aim;
+      let off = caster.angleTo(enemy) - aim;
       off = Math.atan2(Math.sin(off), Math.cos(off));
       if (Math.abs(off) <= spec.halfAngle) {
-        enemy.hurt(spec.damage);
-        enemy.chill(spec.chill);
+        arcanaHit(caster, enemy, 'cone', spec.damage);
+        enemy.chill(enemy.isWizard ? DuelRules.arcana.cone.chill : spec.chill);
       }
     }
     for (let i = 0; i < 70; i++) {
@@ -59,16 +86,20 @@ export function castArcana(mage) {
       });
     }
     game.gfx.flash(c.x + Math.cos(aim) * 80, c.y + Math.sin(aim) * 80, 1.5, 0x80d0ff, 30, 0.25);
-    mage.spend('cone');
-    mage.rig.swing();
-  }
-  if (cast('thunder')) {
+    caster.rig.swing();
+    return true;
+  },
+
+  thunder(caster) {
+    const game = caster.game;
+    const fx = game.fx;
     const spec = Arcana.thunder;
-    for (const enemy of game.hostilesOf('player')) {
-      const d = mage.distanceTo(enemy);
+    const c = caster.center();
+    for (const enemy of game.hostilesOf(teamOf(caster))) {
+      const d = caster.distanceTo(enemy);
       if (d < spec.radius) {
-        enemy.hurt(spec.damage);
-        enemy.shove(mage.angleTo(enemy), spec.push * (1 - d / spec.radius * 0.5));
+        arcanaHit(caster, enemy, 'thunder', spec.damage);
+        enemy.shove(caster.angleTo(enemy), spec.push * (1 - d / spec.radius * 0.5));
       }
     }
     fx.ring(c.x, c.y, { color: 0x9ab8ff, radius: spec.radius, life: 0.35 });
@@ -76,110 +107,150 @@ export function castArcana(mage) {
     fx.burst(c.x, c.y, 0.6, { color: [0xc0d8ff, 0xffffff], count: 40, speed: 9, life: 0.35, size: 0.8, flat: true });
     game.gfx.flash(c.x, c.y, 2, 0xa0c0ff, 50, 0.3);
     game.gfx.addShake(0.5);
-    mage.spend('thunder');
-  }
-  if (cast('meteor')) {
+    return true;
+  },
+
+  meteor(caster, point) {
     const spec = Arcana.meteor;
     for (let i = 0; i < spec.count; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = i === 0 ? 0 : Math.sqrt(Math.random()) * spec.scatter;
-      game.spawn(Meteor, mouse.x + Math.cos(a) * r, mouse.y + Math.sin(a) * r, { delay: 20 + i * 12, timeOwner: mage });
+      caster.game.spawn(Meteor, point.x + Math.cos(a) * r, point.y + Math.sin(a) * r, {
+        delay: 20 + i * 12, caster, team: teamOf(caster), timeOwner: caster
+      });
     }
-    mage.spend('meteor');
-    mage.rig.swing();
-  }
-  if (cast('guardians')) {
-    game.spawn(Zone, c.x, c.y, { kind: 'guardians', team: 'player', radius: Arcana.guardians.radius, life: Arcana.guardians.life, follow: mage, timeOwner: mage });
-    fx.column(c.x, c.y, Arcana.guardians.radius, { color: [0xffe8a0, 0xffffff], count: 40, rise: 3, life: 0.8, size: 0.8 });
-    mage.spend('guardians');
-  }
-  if (cast('cloud')) {
-    // the cloud rolls away from the caster
-    const a = Math.atan2(mouse.y - c.y, mouse.x - c.x);
-    const spec = Arcana.cloud;
-    game.spawn(Zone, mouse.x, mouse.y, {
-      kind: 'cloud', team: 'player', radius: spec.radius, life: spec.life, drift: { x: Math.cos(a) * spec.drift, y: Math.sin(a) * spec.drift }, timeOwner: mage
+    caster.rig.swing();
+    return true;
+  },
+
+  guardians(caster) {
+    const game = caster.game;
+    const c = caster.center();
+    game.spawn(Zone, c.x, c.y, {
+      kind: 'guardians', team: teamOf(caster), radius: Arcana.guardians.radius, life: Arcana.guardians.life, follow: caster, timeOwner: caster
     });
-    mage.spend('cloud');
-  }
-  if (cast('heal')) {
-    const before = mage.hp;
-    mage.hp = Math.max(mage.hp, Math.min(mage.maxHp, mage.hp + Arcana.heal.amount));
-    game.healFx(mage);
-    game.hud.toast('HEALING WORD :: +' + Math.round(mage.hp - before) + ' HP', '#9dffb0');
-    mage.spend('heal');
-  }
-  if (cast('polymorph')) {
-    const target = game.hoveredHostile() || hostileNear(game, mouse, 80);
-    if (target) {
-      const tc = target.center();
-      if (target.canPolymorph) {
-        target.polymorph(Arcana.polymorph.frames);
-        fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
-      } else {
+    game.fx.column(c.x, c.y, Arcana.guardians.radius, { color: [0xffe8a0, 0xffffff], count: 40, rise: 3, life: 0.8, size: 0.8 });
+    return true;
+  },
+
+  // the cloud rolls away from the caster
+  cloud(caster, point) {
+    const c = caster.center();
+    const a = Math.atan2(point.y - c.y, point.x - c.x);
+    const spec = Arcana.cloud;
+    caster.game.spawn(Zone, point.x, point.y, {
+      kind: 'cloud', team: teamOf(caster), radius: spec.radius, life: spec.life,
+      drift: { x: Math.cos(a) * spec.drift, y: Math.sin(a) * spec.drift }, timeOwner: caster
+    });
+    return true;
+  },
+
+  // duelists (and dark wizards, who have duel hit points) heal the duel amount
+  heal(caster) {
+    const game = caster.game;
+    const amount = caster.isDuelWizard || game.duelMode ? DuelRules.arcana.heal.amount : Arcana.heal.amount;
+    const before = caster.hp;
+    caster.hp = Math.max(caster.hp, Math.min(caster.maxHp, caster.hp + amount));
+    game.healFx(caster);
+    if (caster === game.player) {
+      game.hud.toast('HEALING WORD :: +' + Math.round(caster.hp - before) + ' HP', '#9dffb0');
+    }
+    return true;
+  },
+
+  // turns an orc (or a wizard, briefly) into a sheep; needs sight and range
+  polymorph(caster, target) {
+    const game = caster.game;
+    const fx = game.fx;
+    if (!target || caster.distanceTo(target) > Arcana.polymorph.range || !game.hasRoomLineOfSight(caster, target)) {
+      return false;
+    }
+    const tc = target.center();
+    if (target.canPolymorph || target.isWizard) {
+      target.polymorph(target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames);
+      fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
+    } else {
+      if (caster === game.player) {
         game.hud.toast('IT RESISTS THE POLYMORPH', '#ff80e0');
-        fx.burst(tc.x, tc.y, 1.6, { color: 0xff80e0, count: 12, speed: 3, life: 0.4, size: 0.7 });
       }
-      mage.spend('polymorph');
-      mage.rig.swing();
+      fx.burst(tc.x, tc.y, 1.6, { color: 0xff80e0, count: 12, speed: 3, life: 0.4, size: 0.7 });
     }
-  }
-  if (cast('disintegrate')) {
-    disintegrate(mage, aim);
-    mage.spend('disintegrate');
-    mage.rig.swing();
-  }
-  if (cast('weapon')) {
-    game.spawn(SpiritualWeapon, c.x, c.y, { owner: mage, timeOwner: mage });
-    mage.spend('weapon');
-  }
-}
+    caster.rig.swing();
+    return true;
+  },
 
-function hostileNear(game, point, range) {
-  let best = null;
-  let bestD = range;
-  for (const e of game.hostilesOf('player')) {
-    const d = Math.hypot(e.center().x - point.x, e.center().y - point.y);
-    if (d < bestD) {
-      bestD = d;
-      best = e;
+  // a thin green ray to the first foe in line (walls stop it, a shield soaks it)
+  disintegrate(caster, aim) {
+    const game = caster.game;
+    const spec = Arcana.disintegrate;
+    const c = caster.center();
+    const dx = Math.cos(aim);
+    const dy = Math.sin(aim);
+    const wall = game.world.trace(c.x - 2, c.y - 2, 4, 4, dx * spec.range, dy * spec.range);
+    const reach = Math.hypot(wall.x + 2 - c.x, wall.y + 2 - c.y);
+    const hostiles = game.hostilesOf(teamOf(caster));
+    let hit = null;
+    let end = reach;
+    for (let t = 20; t <= reach && !hit; t += 10) {
+      for (const e of hostiles) {
+        if (e.containsPoint(c.x + dx * t, c.y + dy * t, 6)) {
+          hit = e;
+          end = t;
+          break;
+        }
+      }
     }
-  }
-  return best;
-}
+    const ex = c.x + dx * end;
+    const ey = c.y + dy * end;
+    const fx = game.fx;
+    const color = caster.isDuelWizard ? 0xff6060 : 0x60ff60;
+    fx.bolt(c.x, c.y, ex, ey, { color, life: 0.35, width: 0.12, jag: 0.02 });
+    fx.bolt(c.x, c.y, ex, ey, { color: 0xe0ffe0, life: 0.25, width: 0.04, jag: 0.0 });
+    game.gfx.flash(ex, ey, 1.5, color, 40, 0.3);
+    if (hit && hit.shielded) {
+      fx.ring(ex, ey, { color: 0x60b0ff, radius: 50, life: 0.3 });
+    } else if (hit) {
+      arcanaHit(caster, hit, 'disintegrate', spec.damage);
+      fx.burst(ex, ey, 1.2, { color: [color, 0x203020, 0xc0ffc0], count: 40, speed: 6, life: 0.7, size: 0.9, gravity: 3 });
+      game.gfx.addShake(0.3);
+    }
+    caster.rig.swing();
+    return true;
+  },
 
-// A thin green ray to the first enemy in line (walls stop it).
-function disintegrate(mage, aim) {
+  weapon(caster) {
+    const c = caster.center();
+    caster.game.spawn(SpiritualWeapon, c.x, c.y, { owner: caster, timeOwner: caster });
+    return true;
+  }
+};
+
+// The player's casts, from the keys, each step.
+export function castArcana(mage) {
   const game = mage.game;
-  const spec = Arcana.disintegrate;
-  const c = mage.center();
-  const dx = Math.cos(aim);
-  const dy = Math.sin(aim);
-  // how far the ray gets before a wall
-  const wall = game.world.trace(c.x - 2, c.y - 2, 4, 4, dx * spec.range, dy * spec.range);
-  const reach = Math.hypot(wall.x + 2 - c.x, wall.y + 2 - c.y);
-  const hostiles = game.hostilesOf('player');
-  let hit = null;
-  let end = reach;
-  for (let t = 20; t <= reach && !hit; t += 10) {
-    for (const e of hostiles) {
-      if (e.containsPoint(c.x + dx * t, c.y + dy * t, 6)) {
-        hit = e;
-        end = t;
-        break;
-      }
+  const input = game.input;
+  const mouse = input.ground;
+  const aim = mage.aim;
+  const cast = (id) => input.pressed(id) && mage.canCast(id);
+  const point = { x: mouse.x, y: mouse.y };
+
+  for (const id of ['scorch', 'cone', 'disintegrate']) {
+    if (cast(id) && ArcanaCast[id](mage, aim)) {
+      mage.spend(id);
     }
   }
-  const ex = c.x + dx * end;
-  const ey = c.y + dy * end;
-  const fx = game.fx;
-  fx.bolt(c.x, c.y, ex, ey, { color: 0x60ff60, life: 0.35, width: 0.12, jag: 0.02 });
-  fx.bolt(c.x, c.y, ex, ey, { color: 0xe0ffe0, life: 0.25, width: 0.04, jag: 0.0 });
-  game.gfx.flash(ex, ey, 1.5, 0x60ff60, 40, 0.3);
-  if (hit) {
-    hit.hurt(spec.damage);
-    fx.burst(ex, ey, 1.2, { color: [0x60ff60, 0x203020, 0xc0ffc0], count: 40, speed: 6, life: 0.7, size: 0.9, gravity: 3 });
-    game.gfx.addShake(0.3);
+  for (const id of ['meteor', 'cloud']) {
+    if (cast(id) && ArcanaCast[id](mage, point)) {
+      mage.spend(id);
+    }
+  }
+  for (const id of ['thunder', 'guardians', 'heal', 'weapon']) {
+    if (cast(id) && ArcanaCast[id](mage)) {
+      mage.spend(id);
+    }
+  }
+  if (cast('polymorph') && ArcanaCast.polymorph(mage, game.hoveredHostile() || game.hostileNear(mouse, 80))) {
+    mage.spend('polymorph');
   }
 }
 
@@ -188,6 +259,8 @@ export class Meteor extends Entity {
   defaults() {
     this.delay = 30;
     this.fall = 24;
+    this.caster = null;
+    this.team = 'player';
   }
 
   init() {
@@ -225,9 +298,10 @@ export class Meteor extends Entity {
     const game = this.game;
     const c = this.center();
     const spec = Arcana.meteor;
-    for (const enemy of game.hostilesOf('player')) {
-      if (Math.hypot(enemy.center().x - c.x, enemy.center().y - c.y) < spec.blast + enemy.size.x / 2) {
-        enemy.hurt(spec.damage);
+    for (const enemy of game.hostilesOf(this.team)) {
+      // a shield turns a falling rock, as it does the warlord's
+      if (!enemy.shielded && Math.hypot(enemy.center().x - c.x, enemy.center().y - c.y) < spec.blast + enemy.size.x / 2) {
+        arcanaHit(this.caster || game.player, enemy, 'meteor', spec.damage);
       }
     }
     const fx = game.fx;
@@ -285,7 +359,7 @@ export class SpiritualWeapon extends Entity {
     this.strike = Math.max(0, this.strike - k);
     this.swing = Math.max(0, this.swing - k);
     if (!this.target || !this.target.alive || owner.distanceTo(this.target) > Arcana.weapon.reach) {
-      this.target = game.nearestHostile(owner, Arcana.weapon.reach);
+      this.target = game.nearestHostile(owner, Arcana.weapon.reach, teamOf(owner));
     }
     // glide (through walls, it is a spirit) to the target or beside the caster
     const oc = owner.center();
@@ -301,7 +375,7 @@ export class SpiritualWeapon extends Entity {
     this.pos.x += (gx - c.x) * step;
     this.pos.y += (gy - c.y) * step;
     if (this.target && this.strike <= 0 && Math.hypot(gx - c.x, gy - c.y) < 40) {
-      this.target.hurt(Arcana.weapon.damage);
+      arcanaHit(owner, this.target, 'weapon', Arcana.weapon.damage);
       this.strike = Arcana.weapon.every;
       this.swing = 14;
       game.fx.burst(gx, gy, 1.4, { color: [0x80e0ff, 0xffffff], count: 14, speed: 5, life: 0.35, size: 0.7 });

@@ -16,7 +16,7 @@ import { TEAM_COLORS } from '../render/models.js';
 // Both wizards start with magic missile and one random spell; after every
 // battle the player picks one of three new spells and the rival learns one.
 // A battle is lost when your wizard falls or your army is wiped out. Wizards
-// follow the duel rules (damage between them, 3 s global cooldown); orcs take
+// follow the duel rules (damage between them, school lockouts); orcs take
 // the dungeon damage, so a fireball wrecks a regiment.
 export const BattleRules = {
   // orcs per side in each battle

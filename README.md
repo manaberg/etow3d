@@ -45,7 +45,7 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | --- | --- |
 | `W` `A` `S` `D` | move |
 | Mouse | aim |
-| `LMB` (hold) | magic missile (also shoots down stones, warlock bolts and, in duels, the rival's missiles) |
+| `LMB` (hold) | magic missile: three darts that curve in on the foe nearest the cursor (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
 | `RMB` | blink to the cursor |
 | `Q` | fireball |
 | `E` | iron shot |
@@ -68,7 +68,7 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `7` | spirit guardians (a damaging, slowing aura that follows you) |
 | `8` | cloudkill at the cursor (a poison cloud that rolls away from you) |
 | `Y` | healing word |
-| `U` | polymorph (turns an orc under the cursor into a sheep) |
+| `U` | polymorph (turns an orc under the cursor into a sheep; a wizard only briefly, and a sheep cannot cast) |
 | `9` | disintegrate (a ray into the first enemy in line) |
 | `0` | spiritual weapon (a spectral sword that fights beside you) |
 | `Tab` | battle: switch between spell mode and commander mode |
@@ -109,8 +109,19 @@ and unseal once 40% of the floor's enemies are slain. Spells are learnt from scr
 scrolls upgrade fireball, lightning, iron shot, blink and blizzard. Potions heal or raise
 maximum manergy, and rings add passive effects. Spells, rings and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
-to spiritual weapon in the table above). They are survival-only; duels keep the original
-spell book.
+to spiritual weapon in the table above). Duels and battles use them too.
+
+Every spell belongs to a school of magic, shown beside it in the spell list:
+
+| School | Spells | Lockout |
+| --- | --- | --- |
+| Evocation | magic missile, fireball, chain lightning, scorching ray, cone of cold, thunderwave, meteor swarm | 3 s |
+| Conjuration | iron shot, blink, blizzard, cloudkill, spiritual weapon | 2.5 s |
+| Abjuration | shield, spirit guardians, healing word | 4 s |
+| Transmutation | haste, time stop, polymorph, disintegrate, telekinesis | 4 s |
+| Enchantment | chain root, fear | 3.3 s |
+| Illusion | mirror image, invisibility | 3.3 s |
+| Necromancy | lifesteal, power word kill | 4 s |
 
 Orcs guard their rooms until they see, hear or get hit by the player, then rally the pack
 and hunt through the dungeon on flow-field paths. Classes: grunt, slinger, knight (charges),
@@ -130,8 +141,10 @@ In **progressive** duels (the default) each wizard starts with magic missile and
 spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first
 learns a spell they lack (potions heal or restore manergy). The rival runs for loot when it
 is worth it and tells you what it learned. **Classic** duels (`?rules=classic`, or the toggle
-on the menu) give both wizards every spell from the start. A 3 s global cooldown follows
-every spell except magic missile and lifesteal, for both wizards (`DuelRules.gcd`). The rival wizard reads the
+on the menu) give both wizards every spell from the start, the ten D&D spells included.
+Instead of a global cooldown, a cast locks the rest of its school for the school's lockout
+(table above), so spells of different schools can be woven back to back; magic missile and
+lifesteal never lock (`DuelRules.schools`). Survival has no lockouts. The rival wizard reads the
 bolts in flight, scores escape directions, shields or blinks out of hits it cannot dodge,
 picks tactics (kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its
 shots from how you dodge. Normal, hard and insane differ in reaction time, aim and tricks.

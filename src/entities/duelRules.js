@@ -5,7 +5,8 @@ export const DuelRules = {
   fearFrames: 120,
   rayHeal: 3,
   damage: {
-    missile: 55,
+    // per missile: a cast looses three
+    missile: 20,
     fireball: 75,
     ironshot: 180,
     lightning: 70,
@@ -14,20 +15,62 @@ export const DuelRules = {
     pwkill: 120,
     root: 0,
     rootchain: 0,
+    // per ray: a cast fans three
+    scorch: 30,
     // battle orcs' stones and warlock bolts
     stone: 20,
     missile2: 50
   },
   blizzardDamage: 0.25,
   blizzard2Damage: 0.5,
-  // global cooldown: after any spell, every other spell waits this many frames,
-  // except the ones listed as free (magic missile and the lifesteal channel)
-  gcd: 180,
-  gcdFree: ['missile', 'ray'],
-
-  onGcd(spell) {
-    return !this.gcdFree.includes(spell);
+  // The D&D spells between wizards: damage, chill and polymorph in frames,
+  // zone damage per second. Against orcs they use the dungeon numbers
+  // (Arcana in arcana.js).
+  arcana: {
+    cone: { damage: 80, chill: 90 },
+    thunder: { damage: 50 },
+    meteor: { damage: 60 },
+    guardians: { dps: 22 },
+    cloud: { dps: 16 },
+    heal: { amount: 110 },
+    polymorph: { frames: 120 },
+    disintegrate: { damage: 170 },
+    weapon: { damage: 22 }
   },
+  // Schools of magic. Casting a spell locks the rest of its school for the
+  // school's `lockout` frames (spells of other schools stay free), except
+  // the free spells: magic missile and the lifesteal channel.
+  schools: {
+    evocation: { name: 'EVOCATION', tag: 'EVO', color: '#ff8a40', lockout: 180 },
+    conjuration: { name: 'CONJURATION', tag: 'CON', color: '#e0c050', lockout: 150 },
+    abjuration: { name: 'ABJURATION', tag: 'ABJ', color: '#60b0ff', lockout: 240 },
+    transmutation: { name: 'TRANSMUTATION', tag: 'TRA', color: '#c0e070', lockout: 240 },
+    enchantment: { name: 'ENCHANTMENT', tag: 'ENC', color: '#ff80e0', lockout: 200 },
+    illusion: { name: 'ILLUSION', tag: 'ILL', color: '#b090ff', lockout: 200 },
+    necromancy: { name: 'NECROMANCY', tag: 'NEC', color: '#ff4060', lockout: 240 }
+  },
+  // every spell's school, by the player's spell id and the rival's (root)
+  spellSchools: {
+    missile: 'evocation', fireball: 'evocation', lightning: 'evocation', scorch: 'evocation',
+    cone: 'evocation', thunder: 'evocation', meteor: 'evocation',
+    ironshot: 'conjuration', blink: 'conjuration', blizzard: 'conjuration', cloud: 'conjuration', weapon: 'conjuration',
+    shield: 'abjuration', guardians: 'abjuration', heal: 'abjuration',
+    haste: 'transmutation', timestop: 'transmutation', polymorph: 'transmutation', disintegrate: 'transmutation', tele: 'transmutation',
+    stun: 'enchantment', root: 'enchantment', fear: 'enchantment',
+    image: 'illusion', invis: 'illusion',
+    ray: 'necromancy', pwkill: 'necromancy'
+  },
+  lockFree: ['missile', 'ray'],
+
+  schoolOf(spell) {
+    return this.spellSchools[spell] || null;
+  },
+
+  // the school a cast locks, or null for the free spells
+  lockedSchool(spell) {
+    return this.lockFree.includes(spell) ? null : this.schoolOf(spell);
+  },
+
   // progressive duels (see duelLoot.js): frames until the first scroll and
   // potion, frames between drops, how many may lie around at once, and what
   // potions give

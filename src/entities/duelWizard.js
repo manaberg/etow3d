@@ -1,6 +1,8 @@
 import { Enemy } from './enemy.js';
-import { Projectile, Zone, MirrorImage, BoltKinds } from './spells.js';
+import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles } from './spells.js';
 import { DuelRules } from './duelRules.js';
+import { Arcana, ArcanaCast, Meteor, arcanaZoneDamage } from './arcana.js';
+import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { TILE, UNIT } from '../core/constants.js';
 
@@ -47,7 +49,18 @@ export class DuelWizard extends Enemy {
       blizzard: { cd: 600, cost: 50, need: 40 },
       fear: { cd: 400, cost: 50, need: 50 },
       pwkill: { cd: 300, cost: 30, need: 50 },
-      ray: { cd: 0, cost: 10, need: 10 }
+      ray: { cd: 0, cost: 10, need: 10 },
+      // the D&D spells (arcana.js)
+      scorch: { cd: 90, cost: 25, need: 25 },
+      cone: { cd: 240, cost: 35, need: 35 },
+      thunder: { cd: 300, cost: 30, need: 30 },
+      meteor: { cd: 900, cost: 70, need: 70 },
+      guardians: { cd: 1000, cost: 60, need: 60 },
+      cloud: { cd: 700, cost: 50, need: 50 },
+      heal: { cd: 600, cost: 40, need: 40 },
+      polymorph: { cd: 500, cost: 40, need: 40 },
+      disintegrate: { cd: 360, cost: 50, need: 50 },
+      weapon: { cd: 900, cost: 50, need: 50 }
     };
     this.shieldDuration = 125;
     this.hasteDuration = 250;
@@ -77,8 +90,8 @@ export class DuelWizard extends Enemy {
     this.acc = 0;
     // short grace period at the start of the duel
     this.castLock = 45;
-    // global cooldown frames left (DuelRules.gcd)
-    this.gcd = 0;
+    // frames each school stays locked after a cast (DuelRules.schools)
+    this.schoolLock = {};
     this.tactic = 'kite';
     this.strafeSign = 1;
     this.strafeTimer = 0;
@@ -140,18 +153,28 @@ export class DuelWizard extends Enemy {
 
   ready(spell) {
     const book = this.spellBook[spell];
-    if (!this.knows(spell) || this.cdLeft[spell] > 0 || this.manergy <= book.need || (this.gcd > 0 && DuelRules.onGcd(spell))) {
+    if (!this.knows(spell) || this.cdLeft[spell] > 0 || this.manergy <= book.need || this.lockLeft(spell) > 0) {
       return false;
     }
     return !(spell === 'ironshot' && this.ironCharges <= 0);
   }
 
+  lockLeft(spell) {
+    const school = DuelRules.lockedSchool(spell);
+    return school ? this.schoolLock[school] || 0 : 0;
+  }
+
+  lockSchool(spell) {
+    const school = DuelRules.lockedSchool(spell);
+    if (school) {
+      this.schoolLock[school] = DuelRules.schools[school].lockout;
+    }
+  }
+
   spend(spell, offensive) {
     this.cdLeft[spell] = this.spellBook[spell].cd;
     this.manergy -= this.spellBook[spell].cost;
-    if (DuelRules.onGcd(spell)) {
-      this.gcd = DuelRules.gcd;
-    }
+    this.lockSchool(spell);
     if (offensive) {
       this.castLock = this.ai.castLock;
       // attacking breaks invisibility
@@ -203,6 +226,12 @@ export class DuelWizard extends Enemy {
     if (this.inSlowZone) {
       speed *= 0.5;
     }
+    if (this.chillFrames > 0) {
+      speed *= 0.4;
+    }
+    if (this.sheepFrames > 0) {
+      speed *= 0.7;
+    }
     return speed;
   }
 
@@ -235,7 +264,7 @@ export class DuelWizard extends Enemy {
       p.reflect('enemy');
       return;
     }
-    // survival-only spells (scorch...) land as they do on any monster
+    // bolts with no duel number land as they do on any monster
     if (!(p.kind in DuelRules.damage)) {
       super.takeSpell(p, k);
       return;
@@ -251,7 +280,17 @@ export class DuelWizard extends Enemy {
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
       this.hp -= (zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k;
+    } else if (zone.kind === 'guardians' || zone.kind === 'cloud') {
+      const dmg = arcanaZoneDamage(zone, k);
+      this.hp -= dmg;
+      this.onDuelDamage(dmg);
     }
+  }
+
+  // a sheep for a moment: it still runs, but casts nothing
+  polymorph(frames) {
+    this.sheepFrames = Math.max(this.sheepFrames, frames);
+    this.isFeared = false;
   }
 
   stun(frames) {
@@ -289,6 +328,7 @@ export class DuelWizard extends Enemy {
       }
     }
     this.move(k);
+    this.stepKnock(k);
     if (this.hp <= 0) {
       this.die();
     }
@@ -314,8 +354,10 @@ export class DuelWizard extends Enemy {
     if (this.castLock > 0) {
       this.castLock--;
     }
-    if (this.gcd > 0) {
-      this.gcd--;
+    for (const school in this.schoolLock) {
+      if (this.schoolLock[school] > 0) {
+        this.schoolLock[school]--;
+      }
     }
     if (this.rayFrames > 0) {
       this.rayFrames--;
@@ -357,6 +399,10 @@ export class DuelWizard extends Enemy {
     }
     this.planRoute();
     this.decideMovement(player);
+    // a sheep can only run
+    if (this.sheepFrames > 0) {
+      return false;
+    }
     this.decideDefense(player);
     if (this.castLock <= 0) {
       this.decideOffense(player);
@@ -382,6 +428,12 @@ export class DuelWizard extends Enemy {
       }
       if (e instanceof Zone && e.team === 'player') {
         this.zones.push({ x: e.pos.x, y: e.pos.y, w: e.size.x, h: e.size.y });
+        continue;
+      }
+      if (e instanceof Meteor && e.team === 'player') {
+        const mc = e.center();
+        const r = Arcana.meteor.blast;
+        this.zones.push({ x: mc.x - r, y: mc.y - r, w: r * 2, h: r * 2 });
         continue;
       }
       const kind = this.hostileKind(e);
@@ -515,8 +567,23 @@ export class DuelWizard extends Enemy {
       this.spend('lightning', true);
       return true;
     }
+    if (this.ready('thunder') && this.manergy >= 30 && near.d < Arcana.thunder.radius - 20) {
+      ArcanaCast.thunder(this);
+      this.spend('thunder', true);
+      return true;
+    }
+    if (this.ready('meteor') && this.manergy >= 70 && best.d < 650 && crowd(best, 120) >= 4) {
+      ArcanaCast.meteor(this, best);
+      this.spend('meteor', true);
+      return true;
+    }
+    if (this.ready('cone') && this.manergy >= 35 && near.d < Arcana.cone.range - 30 && crowd(near, 120) >= 2) {
+      ArcanaCast.cone(this, at(near));
+      this.spend('cone', true);
+      return true;
+    }
     if (this.ready('missile') && near.d < 480) {
-      this.fireBolt('missile', at(near));
+      this.fireBolt('missile', at(near), near.unit);
       this.spend('missile', true);
       this.castLock = Math.min(this.castLock, 4);
       return true;
@@ -854,12 +921,19 @@ export class DuelWizard extends Enemy {
     const feared = real && player.isFeared;
     const helpless = rooted || feared;
     // keep enough manergy to answer the next big spell with a shield or blink
-    let reserve = (this.cdLeft.shield < 30 || this.cdLeft.blink < 30) ? 40 : 0;
+    let reserve = ((this.knows('shield') && this.cdLeft.shield < 30) || (this.knows('blink') && this.cdLeft.blink < 30)) ? 40 : 0;
     if (rooted || this.tactic === 'pressure') {
       reserve = 0;
     }
     const spare = this.manergy - reserve;
 
+    // healing word: patch up out of the line of fire, or when losing
+    if (this.ready('heal') && this.maxHp - this.hp >= DuelRules.arcana.heal.amount * 0.8 &&
+      (!t.visible || this.tactic === 'retreat' || this.hp / this.maxHp < 0.45)) {
+      ArcanaCast.heal(this);
+      this.spend('heal', false);
+      return;
+    }
     const wizardShot = this.canSee(t.x, t.y) && t.visible && dist < 520;
     if (game.battle && this.fightArmy(player, wizardShot)) {
       return;
@@ -899,11 +973,30 @@ export class DuelWizard extends Enemy {
         return;
       }
     }
+    // thunderwave: shove off a player who got too close
+    if (real && dist < Arcana.thunder.radius - 20 && this.ready('thunder') && spare >= 30) {
+      ArcanaCast.thunder(this);
+      this.spend('thunder', true);
+      return;
+    }
+    // polymorph: a sheep cannot cast, so use it to get away or to go in
+    if (real && !helpless && player.sheepFrames <= 0 && dist < Arcana.polymorph.range - 40 && this.ready('polymorph') && spare >= 40 &&
+      (this.tactic === 'retreat' || this.tactic === 'engage' || this.recentDamage > 60) && ArcanaCast.polymorph(this, player)) {
+      this.spend('polymorph', true);
+      return;
+    }
     // root: sets up everything else
     if (real && !player.isStunned && dist < 290 && this.ready('root') && spare >= 30 && this.clearOfShield(player, 'root', dist)) {
       this.fireBolt('root', this.aimAngle('root', t, true));
       this.spend('root', true);
       this.castLock = 2;
+      return;
+    }
+    // disintegrate is instant: only the aim can miss, and a shield soaks it
+    if (real && dist < Arcana.disintegrate.range - 40 && this.ready('disintegrate') && spare >= 50 && !player.shielded) {
+      const noise = (Math.random() - 0.5) * 2 * this.ai.aimNoise;
+      ArcanaCast.disintegrate(this, Math.atan2(dy, dx) + noise);
+      this.spend('disintegrate', true);
       return;
     }
     // iron shot: only when it will land
@@ -917,11 +1010,25 @@ export class DuelWizard extends Enemy {
         }
         this.ironCharges--;
         this.manergy -= this.spellBook.ironshot.cost;
-        this.gcd = DuelRules.gcd;
+        this.lockSchool('ironshot');
         this.castLock = helpless ? 2 : this.ai.castLock;
         this.invisFrames = 0;
         return;
       }
+    }
+    // scorching ray: three fanned rays cover a dodge either way
+    // (evocation shares one lockout, so mix it up with the fireball)
+    if (this.ready('scorch') && spare >= 25 && dist < 420 && (helpless || this.hitChance('scorch', dist) > 0.35) &&
+      this.clearOfShield(player, 'scorch', dist) && (!this.ready('fireball') || Math.random() < 0.5)) {
+      ArcanaCast.scorch(this, this.aimAngle('scorch', t, true));
+      this.spend('scorch', true);
+      return;
+    }
+    // cone of cold: up close it hurts and slows the player for what follows
+    if (real && dist < Arcana.cone.range - 30 && this.ready('cone') && spare >= 35) {
+      ArcanaCast.cone(this, Math.atan2(dy, dx));
+      this.spend('cone', true);
+      return;
     }
     // fireball: two orbs, one at the best lead and one at the runner-up to cover both dodges
     if (this.ready('fireball') && spare >= 20 && dist < 390 && (helpless || dist < 320 || this.hitChance('fireball', dist) > 0.45) &&
@@ -944,6 +1051,31 @@ export class DuelWizard extends Enemy {
       const spot = this.clampToArena({ x: t.x + t.vx * lead, y: t.y + t.vy * lead }, 60);
       game.spawn(Zone, spot.x, spot.y, { kind: 'blizzard', team: 'enemy', radius: 192, tier: 1, life: 240, timeOwner: this });
       this.spend('blizzard', true);
+      return;
+    }
+    // meteor swarm: the rocks land late, so drop them where the player will be
+    // (it costs more than the shield reserve leaves, so it waits for near-full manergy)
+    if (this.ready('meteor') && this.manergy >= 90 && dist < 650 && t.visible) {
+      const lead = helpless ? 0 : 0.8;
+      ArcanaCast.meteor(this, this.clampToArena({ x: t.x + t.vx * lead, y: t.y + t.vy * lead }, 60));
+      this.spend('meteor', true);
+      return;
+    }
+    // cloudkill: roll a cloud over the player
+    if (this.ready('cloud') && spare >= 50 && dist < 600 && t.visible) {
+      ArcanaCast.cloud(this, this.clampToArena({ x: t.x + t.vx * 0.4, y: t.y + t.vy * 0.4 }, 60));
+      this.spend('cloud', true);
+      return;
+    }
+    // spirit guardians when the fight is close, a spiritual weapon whenever the player is in reach
+    if (this.ready('guardians') && spare >= 60 && dist < 300) {
+      ArcanaCast.guardians(this);
+      this.spend('guardians', false);
+      return;
+    }
+    if (this.ready('weapon') && spare >= 50 && real && dist < Arcana.weapon.reach) {
+      ArcanaCast.weapon(this);
+      this.spend('weapon', false);
       return;
     }
     // fear: scramble the player before the next combo, or push them off when they crowd us
@@ -975,7 +1107,7 @@ export class DuelWizard extends Enemy {
     // magic missile is free: keep the pressure on
     if (this.ready('missile') && dist < 590 && this.clearOfShield(player, 'missile', dist)) {
       if (t.visible) {
-        this.fireBolt('missile', this.aimAngle('missile', t, true));
+        this.fireBolt('missile', this.aimAngle('missile', t, true), t.entity);
       } else {
         // blind fire around where the player probably is
         this.fireBolt('missile', Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.35);
@@ -1093,7 +1225,14 @@ export class DuelWizard extends Enemy {
     }
   }
 
-  fireBolt(kind, angle) {
+  // `target`: what magic missiles home in on (the body, else the aim spot)
+  fireBolt(kind, angle, target) {
+    if (kind === 'missile') {
+      const t = this.target;
+      castMissiles(this.game, this, 'enemy', angle, target || { x: t.x, y: t.y }, { duel: true });
+      this.rig.swing();
+      return;
+    }
     const me = this.center();
     this.game.spawn(Projectile, me.x, me.y, { kind, angle, team: 'enemy', duel: true, timeOwner: this });
     this.rig.swing();
@@ -1121,5 +1260,9 @@ export class DuelWizard extends Enemy {
     if (this.isFeared && Math.random() < 0.3) {
       fx.emit(c.x, c.y, 3.2, { color: 0xc040ff, life: 0.5, size: 0.6, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2 });
     }
+    if (this.chillFrames > 0 && Math.random() < 0.3) {
+      fx.emit(c.x + (Math.random() - 0.5) * 30, c.y + (Math.random() - 0.5) * 30, Math.random() * 2.5, { color: 0xbfe8ff, life: 0.5, size: 0.4, vy: -0.5 });
+    }
+    syncSheep(this, time);
   }
 }

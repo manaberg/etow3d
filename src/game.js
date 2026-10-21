@@ -172,7 +172,9 @@ export class Game {
     const flags = [
       'hasFireball', 'hasFb2', 'hasLightning', 'hasLg2', 'hasIronshot', 'hasIs2', 'hasBlink', 'hasBk2', 'hasTimestop',
       'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasBz2', 'hasRay', 'hasInvis', 'hasFear',
-      'hasPwkill', 'hasPwk2', 'hasTele', 'hasMrring', 'hasSpring', 'hasFrring', 'hasElring', 'hasMsring'
+      'hasPwkill', 'hasPwk2', 'hasTele', 'hasMrring', 'hasSpring', 'hasFrring', 'hasElring', 'hasMsring',
+      'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph',
+      'hasDisintegrate', 'hasWeapon'
     ];
     for (const flag of flags) {
       player[flag] = true;
@@ -438,13 +440,29 @@ export class Game {
     return this.entities.find((e) => e instanceof MirrorImage && !e.killed && e.source === this.player) || null;
   }
 
-  nearestHostile(from, range) {
+  // The nearest foe of `team` within range of a body.
+  nearestHostile(from, range, team = 'player') {
     let best = null;
     let bestDistance = range;
-    for (const e of this.hostilesOf('player')) {
+    for (const e of this.hostilesOf(team)) {
       const d = from.distanceTo(e);
       if (d < bestDistance) {
         bestDistance = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  // The foe of `team` whose centre is nearest a point, within range.
+  hostileNear(point, range, team = 'player') {
+    let best = null;
+    let bestD = range;
+    for (const e of this.hostilesOf(team)) {
+      const c = e.center();
+      const d = Math.hypot(c.x - point.x, c.y - point.y);
+      if (d < bestD) {
+        bestD = d;
         best = e;
       }
     }
