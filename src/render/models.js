@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { glowTexture, runeTexture } from './textures.js';
 
 // Low-poly characters and props built from primitives. Geometries are shared;
@@ -162,7 +163,117 @@ const FLASH = new THREE.Color(0xff3020);
 
 // ---------------------------------------------------------------- mage
 
+// The wizard is modelled in Blender from the 2D sprite (tools/blender/build_mage.py
+// writes public/models/mage.glb). Its parts are rigid and their origins are the
+// rig pivots; materials are named by role so they can be recoloured per wizard.
+// Until the model has loaded (or if it fails) the primitive mage below is used.
+let mageParts = null;
+
+export async function loadModels() {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/mage.glb');
+    const parts = {};
+    for (const node of gltf.scene.children) {
+      const meshes = [];
+      node.traverse((o) => {
+        if (o.isMesh) {
+          meshes.push({ geometry: o.geometry, material: o.material.name });
+        }
+      });
+      parts[node.name] = { position: node.position.clone(), meshes };
+    }
+    mageParts = parts;
+  } catch (err) {
+    console.warn('mage model failed to load, using the primitive mage', err);
+  }
+}
+
+// The sprite's greys, darkened: the player stands in a bright light and the
+// sprite's own values wash out to white.
+const MAGE_COLORS = {
+  Robe: 0x5c5c5e,
+  RobeShade: 0x3a3a3c,
+  Mantle: 0x7a7a7c,
+  Trim: 0xc09a30,
+  Skin: 0xc8845a,
+  Hair: 0x7e7e78,
+  Beard: 0x9a9a94,
+  Eye: 0x1c1d1c,
+  Leather: 0x8a5a30,
+  Boot: 0x4a3020,
+  Wood: 0x7c7553,
+  Gem: 0x9fd8ff
+};
+
 export function buildMage(o = {}) {
+  return mageParts ? buildModelMage(o) : buildPrimitiveMage(o);
+}
+
+function buildModelMage(o) {
+  const rig = new Rig();
+  const colors = {
+    ...MAGE_COLORS,
+    Robe: o.robe ?? MAGE_COLORS.Robe,
+    RobeShade: o.robe !== undefined ? new THREE.Color(o.robe).multiplyScalar(0.65).getHex() : MAGE_COLORS.RobeShade,
+    Mantle: o.hat ?? MAGE_COLORS.Mantle,
+    Trim: o.trim ?? MAGE_COLORS.Trim,
+    Hair: o.beard ?? MAGE_COLORS.Hair,
+    Beard: o.beard ?? MAGE_COLORS.Beard,
+    Gem: o.orb ?? MAGE_COLORS.Gem
+  };
+  // the cloth and skin flash on hits
+  const flashing = new Set(['Robe', 'RobeShade', 'Mantle', 'Skin']);
+  const mats = {};
+  const material = (name) => {
+    if (!mats[name]) {
+      const color = colors[name] ?? 0xff00ff;
+      if (name === 'Gem' || name === 'Eye') {
+        mats[name] = new THREE.MeshBasicMaterial({ color });
+      } else if (flashing.has(name)) {
+        mats[name] = rig.track(mat(color, { emissive: 0x000000, side: THREE.DoubleSide }));
+      } else {
+        mats[name] = mat(color, { side: THREE.DoubleSide });
+      }
+    }
+    return mats[name];
+  };
+  const part = (name) => {
+    const g = new THREE.Group();
+    for (const m of mageParts[name].meshes) {
+      g.add(new THREE.Mesh(m.geometry, material(m.material)));
+    }
+    return g;
+  };
+  const at = (name) => mageParts[name].position;
+  const pivotPart = (name) => {
+    const p = at(name);
+    return rig.pivot(p.x, p.y, p.z, part(name));
+  };
+
+  rig.body.add(part('Body'));
+  rig.limbs.legL = pivotPart('LegL');
+  rig.limbs.legR = pivotPart('LegR');
+  rig.limbs.armL = pivotPart('ArmL');
+  rig.limbs.armR = pivotPart('ArmR');
+
+  // the staff hangs off the right hand so it swings with the casting arm
+  const staff = part('Staff');
+  staff.position.copy(at('Staff')).sub(at('ArmR'));
+  const gemY = 1.56;
+  const orbGlow = glowSprite(colors.Gem, 0.8);
+  orbGlow.position.y = gemY;
+  staff.add(orbGlow);
+  rig.limbs.armR.add(staff);
+
+  const head = pivotPart('Head');
+  rig.head = head;
+
+  rig.root.add(blobShadow(0.85));
+  rig.height = 2.7;
+  return rig;
+}
+
+function buildPrimitiveMage(o) {
   const rig = new Rig();
   const robe = rig.track(mat(o.robe || 0x2a4fa8, { emissive: 0x000000 }));
   const trim = mat(o.trim || 0xd8c070);

@@ -249,8 +249,9 @@ export class MirrorImage extends Entity {
     this.life = 300;
     this.source = null;
     this.desiredVel = 100;
-    this.robe = 0x2a4fa8;
-    this.hat = 0x223c86;
+    // no colours: the decoy looks like the player's wizard
+    this.robe = undefined;
+    this.hat = undefined;
     this.wander = null;
   }
 

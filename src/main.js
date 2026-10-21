@@ -1,6 +1,7 @@
 import './style.css';
 import { Game } from './game.js';
 import { resolveDifficulty } from './entities/duelWizard.js';
+import { loadModels } from './render/models.js';
 
 // Same URLs as the 2D game: /?mode=duel&ai=hard starts a duel, ?mode=survival
 // the descent. Without a mode the main menu is shown.
@@ -29,6 +30,7 @@ const menu = document.getElementById('menu');
 const container = document.getElementById('viewport');
 const hudRoot = document.getElementById('hud');
 let game = null;
+const modelsReady = loadModels();
 
 function start(mode, difficulty) {
   menu.classList.add('hidden');
@@ -60,7 +62,7 @@ for (const button of menu.querySelectorAll('[data-mode]')) {
     const ai = button.dataset.ai;
     const query = mode === 'duel' ? '?mode=duel&ai=' + ai : '?mode=survival';
     history.replaceState(null, '', window.location.pathname + query);
-    start(mode, ai);
+    modelsReady.then(() => start(mode, ai));
   });
 }
 
@@ -69,6 +71,6 @@ if (!supportsWebGL()) {
 } else {
   const mode = resolveMode();
   if (mode) {
-    start(mode, resolveDifficulty());
+    modelsReady.then(() => start(mode, resolveDifficulty()));
   }
 }
