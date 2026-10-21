@@ -4,9 +4,10 @@ import { buildOrb, buildRock, buildIronshot, buildZone, buildMage } from '../ren
 
 // Projectile kinds, numbers from the 2D game (speed px/s, life s, box px).
 // `light` is a colour for the dynamic light pool, `trail` a particle colour.
-// `simple` bolts can be shot down by the mage's magic missile.
+// `simple` bolts can be shot down by a magic missile of the other side
+// (which makes two magic missiles cancel out in duels).
 export const BoltKinds = {
-  missile: { speed: 300, life: 2, size: 20, color: 0xb070ff, enemyColor: 0xff5a5a, radius: 0.15, trail: 0xc090ff },
+  missile: { speed: 300, life: 2, size: 20, color: 0xb070ff, enemyColor: 0xff5a5a, radius: 0.15, trail: 0xc090ff, simple: true },
   fireball: { speed: 400, life: 1, size: 30, color: 0xff8a20, radius: 0.28, trail: 0xff6a10, light: 0xff7a20 },
   ironshot: { speed: 1000, life: 0.5, size: 26, pierce: true },
   lightning: { speed: 900, life: 0.5, size: 30, color: 0x9ae8ff, radius: 0.16, trail: 0x80d8ff, light: 0x80d0ff, arcs: true },
@@ -96,7 +97,7 @@ export class Projectile extends Entity {
     if (this.killed) {
       return;
     }
-    if (this.team === 'player' && this.kind === 'missile' && this.shootDown()) {
+    if (this.kind === 'missile' && this.shootDown()) {
       return;
     }
     if (this.team === 'player') {
@@ -122,10 +123,11 @@ export class Projectile extends Entity {
     }
   }
 
-  // Magic missile meets a stone or a simple enemy bolt: both are spent.
+  // Magic missile meets a simple bolt of the other side (a stone, a green
+  // bolt, the duel rival's missile): both are spent.
   shootDown() {
     for (const e of this.game.entities) {
-      if (e instanceof Projectile && !e.killed && e.team === 'enemy' && e.spec.simple && this.touches(e)) {
+      if (e instanceof Projectile && e !== this && !e.killed && e.team !== this.team && e.spec.simple && this.touches(e)) {
         const c = e.center();
         this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: [0xc090ff, 0xffffff, e.spec.trail || 0xbbbbbb], count: 16, speed: 4, life: 0.35, size: 0.6 });
         e.kill();

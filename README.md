@@ -45,7 +45,7 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | --- | --- |
 | `W` `A` `S` `D` | move |
 | Mouse | aim |
-| `LMB` (hold) | magic missile (also shoots down slingers' stones and warlock bolts) |
+| `LMB` (hold) | magic missile (also shoots down stones, warlock bolts and, in duels, the rival's missiles) |
 | `RMB` | blink to the cursor |
 | `Q` | fireball |
 | `E` | iron shot |
