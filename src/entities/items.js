@@ -44,7 +44,7 @@ class Item extends Entity {
 // spells new to the 3D game.
 const SCROLL_SPELLS = [null, 'hasFireball', 'hasLightning', 'hasIronshot', 'hasBlink', 'hasTimestop', 'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasRay', 'hasInvis', 'hasFear', 'hasPwkill', 'hasTele',
   'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph', 'hasDisintegrate', 'hasWeapon'];
-const SCROLL_UPGRADES = { 1: 'hasFb2', 2: 'hasLg2', 3: 'hasIs2', 4: 'hasBk2', 10: 'hasBz2' };
+const SCROLL_UPGRADES = { 1: 'hasFb2', 2: 'hasLg2', 3: 'hasIs2', 4: 'hasBk2', 10: 'hasBz2', 14: 'hasPwk2' };
 
 function spellName(flag) {
   const spell = SpellBook.find((s) => s.flag === flag || s.tier === flag);

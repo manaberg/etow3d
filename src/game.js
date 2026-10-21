@@ -17,6 +17,13 @@ import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
 
+// Power word kill: damage to the target (at least its own pwkillDamage) and to
+// every orc within the splash radius around it.
+const PWKILL = {
+  tier1: { target: 175, splash: 175, radius: 150 },
+  tier2: { target: 300, splash: 230, radius: 230 }
+};
+
 const STAT_KEYS = [
   'wincount', 'killcount', 'bosscount', 'micount', 'fbcount', 'lgcount', 'iscount', 'bzcount', 'bkcount',
   'hscount', 'tscount', 'shcount', 'lscount', 'imcount', 'fecount', 'incount', 'crcount', 'tlcount', 'pwkcount',
@@ -457,23 +464,28 @@ export class Game {
     return slow;
   }
 
+  // The word kills around its target too: every orc within the splash takes
+  // the splash damage (battle armies included). Tier 2 widens and deepens it.
   powerWordKill(target) {
+    const tier2 = !!(this.player && this.player.hasPwk2);
+    const spec = tier2 ? PWKILL.tier2 : PWKILL.tier1;
     const c = target.center();
-    this.skullFx(c.x, c.y);
+    this.skullFx(c.x, c.y, spec.radius);
     if (target instanceof MirrorImage) {
       target.pop();
       return;
+    }
+    const pool = this.battle ? this.battle.units('enemy') : this.orcs();
+    for (const orc of pool) {
+      if (orc !== target && !orc.killed && orc.distanceTo(target) < spec.radius) {
+        orc.hurt(spec.splash);
+      }
     }
     if (target instanceof DuelWizard) {
       DuelRules.applyHit(target, 'pwkill', this.player);
       return;
     }
-    for (const orc of this.orcs()) {
-      if (orc !== target && orc.distanceTo(target) < 150) {
-        orc.hurt(175);
-      }
-    }
-    target.hurt(target.pwkillDamage);
+    target.hurt(Math.max(target.pwkillDamage, spec.target));
   }
 
   // --------------------------------------------------------------- awareness & navigation
@@ -686,9 +698,9 @@ export class Game {
     this.fx.ring(c.x, c.y, { color, radius: 40, life: 0.4 });
   }
 
-  skullFx(x, y) {
+  skullFx(x, y, radius = 150) {
     this.fx.burst(x, y, 1.6, { color: [0x9a0a2a, 0xff2050, 0x200008], count: 50, speed: 6, life: 0.8, size: 1.3 });
-    this.fx.ring(x, y, { color: 0xff2050, radius: 150, life: 0.5 });
+    this.fx.ring(x, y, { color: 0xff2050, radius, life: 0.5 });
     this.gfx.flash(x, y, 2, 0xff1040, 60, 0.4);
     this.gfx.addShake(0.35);
   }
