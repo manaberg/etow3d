@@ -85,8 +85,8 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 Three modes; the main menu explains each in full under **How each mode works**.
 
 **Battle.** You and a rival wizard each lead an orc army (blue against red) across open
-grassland ringed by cliffs: a best-of-five match whose battles grow from 40 orcs a side to 80,
-120, 160 and 200. Armies are split into regiments by type (infantry, slingers, knights, shock
+grassland ringed by cliffs: a best-of-five match in which every battle is 500 orcs a side.
+Armies are split into regiments by type (infantry, slingers, knights, shock
 troops, mystics), each with a banner, deployed in lines with yours along the bottom of the
 screen facing up the field; you rearrange them before the battle (Space starts it early). Tab
 switches between spell mode (you play the wizard) and commander mode (the wizard stands, the

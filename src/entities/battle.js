@@ -9,7 +9,7 @@ import { ArmyRenderer } from '../render/armyRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 
 // Battle mode: a best-of-five match between two wizards, each leading an orc
-// army across open country. The battles grow from 40 orcs a side to 200, and
+// army across open country. Every battle is 500 orcs a side, and
 // the armies are split into regiments by unit type (infantry, slingers,
 // knights, shock troops, mystics) that the player commands one by one or
 // together: charge, march to a point and hold it, or follow the wizard.
@@ -20,7 +20,7 @@ import { TEAM_COLORS } from '../render/models.js';
 // the dungeon damage, so a fireball wrecks a regiment.
 export const BattleRules = {
   // orcs per side in each battle
-  armies: [40, 80, 120, 160, 200],
+  armies: [500, 500, 500, 500, 500],
   winsNeeded: 3,
   draftChoices: 3,
   // battle orcs are hardier than dungeon orcs, so wizards shape a battle
@@ -56,7 +56,7 @@ export const RegimentKinds = {
   mystics: { name: 'MYSTICS', classes: { shaman: 1, warlock: 1 } }
 };
 
-const NUMERALS = ['', ' I', ' II', ' III', ' IV'];
+const NUMERALS = ['', ' I', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
 const GRID = 128;
 
 function pickWeighted(weights) {
