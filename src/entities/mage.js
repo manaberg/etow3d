@@ -8,35 +8,36 @@ import { castArcana } from './arcana.js';
 
 // The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
 // manergy that must be exceeded and `cost` what a cast spends; `flag` is the
-// spellbook entry a scroll unlocks and `tier` its tier 2 upgrade.
+// spellbook entry a scroll unlocks and `tier` its tier 2 upgrade. Keys live in
+// core/bindings.js under the spell's id (or `action` where they differ).
 export const SpellBook = [
-  { id: 'missile', key: 'LMB', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null },
-  { id: 'fireball', key: 'Q', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2' },
-  { id: 'lightning', key: 'F', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2' },
-  { id: 'ironshot', key: 'E', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2' },
-  { id: 'blink', key: 'RMB', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2' },
-  { id: 'timestop', key: 'R', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop' },
-  { id: 'haste', key: '1', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste' },
-  { id: 'image', key: '2', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage' },
-  { id: 'stun', key: '3', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun' },
-  { id: 'shield', key: '4', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield' },
-  { id: 'blizzard', key: '5', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2' },
-  { id: 'ray', key: 'G', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay' },
-  { id: 'invis', key: 'T', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis' },
-  { id: 'fear', key: 'C', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear' },
-  { id: 'pwkill', key: 'X', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2' },
-  { id: 'tele', key: 'V', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele' },
+  { id: 'missile', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null },
+  { id: 'fireball', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2' },
+  { id: 'lightning', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2' },
+  { id: 'ironshot', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2' },
+  { id: 'blink', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2' },
+  { id: 'timestop', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop' },
+  { id: 'haste', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste' },
+  { id: 'image', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage' },
+  { id: 'stun', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun' },
+  { id: 'shield', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield' },
+  { id: 'blizzard', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2' },
+  { id: 'ray', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay' },
+  { id: 'invis', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis' },
+  { id: 'fear', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear' },
+  { id: 'pwkill', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2' },
+  { id: 'tele', action: 'telekinesis', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele' },
   // D&D spells new to the 3D game (see arcana.js)
-  { id: 'scorch', key: 'H', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch' },
-  { id: 'cone', key: 'Z', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone' },
-  { id: 'thunder', key: 'B', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder' },
-  { id: 'meteor', key: '6', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor' },
-  { id: 'guardians', key: '7', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians' },
-  { id: 'cloud', key: '8', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud' },
-  { id: 'heal', key: 'Y', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal' },
-  { id: 'polymorph', key: 'U', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph' },
-  { id: 'disintegrate', key: '9', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate' },
-  { id: 'weapon', key: '0', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon' }
+  { id: 'scorch', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch' },
+  { id: 'cone', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone' },
+  { id: 'thunder', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder' },
+  { id: 'meteor', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor' },
+  { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians' },
+  { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud' },
+  { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal' },
+  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph' },
+  { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate' },
+  { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon' }
 ];
 
 export const SpellById = {};

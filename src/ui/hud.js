@@ -4,6 +4,8 @@ import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
 import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
+import { openControls } from './controls.js';
+import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -61,12 +63,12 @@ export class Hud {
     const list = el('div', 'hud-spells', left);
     this.spellRows = SpellBook.map((spell) => {
       const row = el('div', 'spell', list);
-      el('span', 'spell-key', row, spell.key);
+      const key = el('span', 'spell-key', row, actionKeyLabel(spell.action || spell.id));
       const name = el('span', 'spell-name', row, spell.name);
       const tier = el('span', 'spell-tier', row, 'T2');
       const cd = el('div', 'spell-cd', row);
       const fill = el('div', 'spell-cd-fill', cd);
-      return { spell, row, name, tier, fill, shown: null };
+      return { spell, row, key, name, tier, fill, shown: null };
     });
     this.hint = el('div', 'hud-hint', left, 'Find scrolls to learn spells.');
     this.ringHeading = el('div', 'hud-heading', left, 'RING EFFECTS');
@@ -100,10 +102,12 @@ export class Hud {
     this.pauseScreen = el('div', 'screen hidden', root);
     const pauseCard = el('div', 'card', this.pauseScreen);
     el('h2', null, pauseCard, 'PAUSED');
-    el('p', null, pauseCard, 'Press ESC or P to resume.');
+    this.pauseHint = el('p', null, pauseCard, '');
     const pauseButtons = el('div', 'buttons', pauseCard);
     const resume = el('button', null, pauseButtons, 'Resume');
     resume.onclick = () => game.setPaused(false);
+    const controls = el('button', 'secondary', pauseButtons, 'Controls');
+    controls.onclick = () => openControls();
     const menu = el('button', 'secondary', pauseButtons, 'Main menu');
     menu.onclick = () => game.onExit && game.onExit('menu');
 
@@ -161,6 +165,7 @@ export class Hud {
 
   showPause(paused) {
     this.pauseScreen.classList.toggle('hidden', !paused);
+    this.pauseHint.textContent = 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
   }
 
   showEnd({ title, text, stats, saved, time, win, duel }) {
@@ -222,8 +227,13 @@ export class Hud {
     this.myBar.fill.style.width = Math.max(0, Math.min(1, player.manergy / player.maxManergy) * 100) + '%';
     setText(this.myBar.text, Math.max(0, Math.round(player.manergy)) + ' / ' + player.maxManergy);
 
+    const keysChanged = this.keysVersion !== bindingsVersion();
+    this.keysVersion = bindingsVersion();
     let known = 0;
     for (const r of this.spellRows) {
+      if (keysChanged) {
+        setText(r.key, actionKeyLabel(r.spell.action || r.spell.id));
+      }
       const spell = r.spell;
       const has = !spell.flag || player[spell.flag];
       if (r.shown !== has) {

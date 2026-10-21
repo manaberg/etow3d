@@ -548,3 +548,68 @@ button.danger {
     max-width: 40vw;
   }
 }
+
+/* ------------------------------------------------------------ controls screen */
+
+.controls-screen {
+  z-index: 60;
+}
+
+.controls-card {
+  width: min(620px, 100%);
+}
+
+.controls-status {
+  min-height: 18px;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.controls-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 18px;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding: 4px 6px 4px 0;
+  text-align: left;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.controls-group {
+  grid-column: 1 / -1;
+  margin: 10px 0 2px;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+button.controls-key {
+  min-width: 70px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+button.controls-key.capturing {
+  color: #1a1206;
+  background: var(--accent);
+}
+
+.menu-controls-buttons {
+  margin: 0 0 10px;
+}
+
+@media (max-width: 640px) {
+  .controls-list {
+    grid-template-columns: 1fr;
+  }
+}

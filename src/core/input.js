@@ -1,50 +1,9 @@
-// Keyboard and mouse bindings, kept identical to the 2D game. `pressed` is
-// edge-triggered per simulation step: presses queue up until a step consumes
-// them, so nothing is lost when a render frame runs no step.
-const KEY_BINDINGS = {
-  KeyW: 'up',
-  KeyS: 'down',
-  KeyA: 'left',
-  KeyD: 'right',
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  KeyQ: 'fireball',
-  KeyE: 'ironshot',
-  KeyF: 'lightning',
-  KeyR: 'timestop',
-  Digit1: 'haste',
-  Digit2: 'image',
-  Digit3: 'stun',
-  Digit4: 'shield',
-  Digit5: 'blizzard',
-  KeyG: 'ray',
-  KeyT: 'invis',
-  KeyC: 'fear',
-  KeyX: 'pwkill',
-  KeyV: 'telekinesis',
-  KeyH: 'scorch',
-  KeyZ: 'cone',
-  KeyB: 'thunder',
-  Digit6: 'meteor',
-  Digit7: 'guardians',
-  Digit8: 'cloud',
-  KeyY: 'heal',
-  KeyU: 'polymorph',
-  Digit9: 'disintegrate',
-  Digit0: 'weapon',
-  Space: 'descend',
-  Escape: 'pause',
-  KeyP: 'pause',
-  KeyM: 'map'
-};
+import { actionFor } from './bindings.js';
 
-const MOUSE_BINDINGS = {
-  0: 'missile',
-  2: 'blink'
-};
-
+// Keyboard and mouse input, mapped to actions through the rebindable bindings
+// (bindings.js). `pressed` is edge-triggered per simulation step: presses
+// queue up until a step consumes them, so nothing is lost when a render frame
+// runs no step.
 export class Input {
   constructor(element) {
     this.element = element;
@@ -58,34 +17,34 @@ export class Input {
     this.listeners = [];
 
     this.on(window, 'keydown', (e) => {
-      const action = KEY_BINDINGS[e.code];
-      if (!action) {
+      const action = actionFor(e.code);
+      if (!action || e.metaKey || e.ctrlKey) {
         return;
       }
-      if (e.code === 'Space' || e.code.startsWith('Arrow')) {
-        e.preventDefault();
-      }
+      // keep bound keys from scrolling the page or opening quick find
+      e.preventDefault();
       if (!e.repeat) {
         this.queued.add(action);
       }
       this.held.add(action);
     });
     this.on(window, 'keyup', (e) => {
-      const action = KEY_BINDINGS[e.code];
+      const action = actionFor(e.code);
       if (action) {
         this.held.delete(action);
       }
     });
     this.on(window, 'blur', () => this.held.clear());
     this.on(element, 'mousedown', (e) => {
-      const action = MOUSE_BINDINGS[e.button];
+      const action = actionFor('Mouse' + e.button);
       if (action) {
+        e.preventDefault();
         this.queued.add(action);
         this.held.add(action);
       }
     });
     this.on(window, 'mouseup', (e) => {
-      const action = MOUSE_BINDINGS[e.button];
+      const action = actionFor('Mouse' + e.button);
       if (action) {
         this.held.delete(action);
       }

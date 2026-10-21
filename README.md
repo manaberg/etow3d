@@ -37,6 +37,10 @@ starts a duel, and `/` shows the main menu.
 
 ## Controls
 
+These are the default keys. Every action can be moved to another key or mouse button from
+**Controls** on the main menu or the pause screen (binding a key that is taken swaps the
+two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys always move.
+
 | Key | Action |
 | --- | --- |
 | `W` `A` `S` `D` | move |
@@ -103,7 +107,7 @@ game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 ```
 index.html, src/main.js     menu and start-up
 src/game.js                 game state, floors, spawning, aggro and navigation helpers
-src/core/                   constants, input bindings, time stop, entity base class
+src/core/                   constants, rebindable input bindings, time stop, entity base class
 src/world/                  dungeon generator, level plans, pathfinder, collision
 src/entities/               mage (spell book), orcs, mini-bosses and warlord, duel wizard,
                             projectiles and zones, loot and stairs
@@ -111,7 +115,7 @@ src/render/                 Three.js renderer, dungeon meshes, character and pro
                             textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
-src/ui/                     HUD, minimap
+src/ui/                     HUD, minimap, controls screen
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 
