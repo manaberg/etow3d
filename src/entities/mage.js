@@ -49,7 +49,7 @@ export class Mage extends Entity {
     this.manergy = 100;
     this.hp = 100;
     this.maxHp = 100;
-    this.desiredVel = 100;
+    this.desiredVel = 115;
     // cooldown frames left per spell (0 = ready)
     this.cd = {};
     for (const spell of SpellBook) {
@@ -151,7 +151,8 @@ export class Mage extends Entity {
     this.tickTimers(k);
 
     // movement
-    let speed = this.hasSpring ? 120 : this.desiredVel;
+    // the ring of speed adds a fifth, as 100 -> 120 did in the 2D game
+    let speed = this.hasSpring ? this.desiredVel * 1.2 : this.desiredVel;
     if (this.hasted) {
       speed *= 2.5;
     }
