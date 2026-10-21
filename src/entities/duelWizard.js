@@ -16,7 +16,9 @@ export function resolveDifficulty() {
 // player actually went. Duels are fought in a small dungeon: it only sees and
 // shoots along clear lines of sight, follows the corridors (flow fields) to
 // hunt a player it cannot see, and in progressive duels runs for scrolls and
-// potions when they are worth the trip.
+// potions when they are worth the trip. On survival floors it is the dark
+// wizard: it waits in its lair like the orcs until it notices the player, its
+// hits are scaled down (hitScale) and it leaves an upgrade scroll when slain.
 export class DuelWizard extends Enemy {
   defaults() {
     super.defaults();
@@ -60,6 +62,8 @@ export class DuelWizard extends Enemy {
     // duels hand it a set (duelLoot.js)
     this.known = null;
     this.isWizard = true;
+    // share of duel damage its spells deal to the player (survival floors)
+    this.hitScale = 1;
   }
 
   init() {
@@ -105,7 +109,8 @@ export class DuelWizard extends Enemy {
     // lead model: how far ahead of the player to aim, learnt from where the player actually went
     this.leadModel = [{ k: 0, err: 30 }, { k: 0.5, err: 30 }, { k: 1, err: 30 }];
     this.pendingShots = [];
-    this.aggro = true;
+    // duel rivals hunt from the start; dark wizards wait to notice the player
+    this.aggro = !!this.game.duelMode;
     this.rig = buildMage({ robe: 0x8a1a1a, hat: 0x2a0a0a, trim: 0xb0b0b0, orb: 0xff5040, beard: 0x404040 });
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -222,12 +227,17 @@ export class DuelWizard extends Enemy {
   }
 
   // ----------------------------------------------------------------- hits
-  takeSpell(p) {
+  takeSpell(p, k) {
     const game = this.game;
     if (this.shielded) {
       // reflect it straight back as one of our own bolts
       p.duel = true;
       p.reflect('enemy');
+      return;
+    }
+    // survival-only spells (scorch...) land as they do on any monster
+    if (!(p.kind in DuelRules.damage)) {
+      super.takeSpell(p, k);
       return;
     }
     p.kill();
@@ -268,7 +278,9 @@ export class DuelWizard extends Enemy {
       this.acc -= 1;
       this.frame++;
       this.tickTimers();
-      if (player && !player.dead && !deploying) {
+      if (player && !player.dead && !game.duelMode && !game.updateAggro(this, player, game.hasRoomLineOfSight(this, player))) {
+        game.idleEntity(this);
+      } else if (player && !player.dead && !deploying) {
         this.inSlowZone = game.zoneSlow(this) < 1;
         this.think(player);
       } else {
@@ -322,6 +334,11 @@ export class DuelWizard extends Enemy {
     game.stats.killcount++;
     game.deathFx(this);
     this.kill();
+    if (!game.duelMode) {
+      game.stats.bosscount++;
+      game.dropScroll(this, 1);
+      return;
+    }
     game.onDuelVictory();
   }
 
@@ -436,7 +453,7 @@ export class DuelWizard extends Enemy {
 
   chooseTactic(player) {
     const hpRatio = this.hp / this.maxHp;
-    const playerRatio = player.hp / DuelRules.hp;
+    const playerRatio = player.hp / player.maxHp;
     const t = this.target;
     if (player.isStunned && t.real && t.visible) {
       this.tactic = 'punish';
@@ -856,17 +873,17 @@ export class DuelWizard extends Enemy {
       return;
     }
     // power word kill cannot be dodged or reflected
-    if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill) &&
+    if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill * this.hitScale) &&
       Math.random() < this.ai.pwkillRate) {
       const pc = player.center();
       game.skullFx(pc.x, pc.y);
-      DuelRules.applyHit(player, 'pwkill', this);
+      DuelRules.applyHit(player, 'pwkill', this, this.hitScale);
       this.spend('pwkill', true);
       return;
     }
     // time stop: everyone crawls except us, then unload
     if (this.ai.advanced && real && dist < 420 && !player.shielded && this.ready('timestop') && this.manergy >= 90 &&
-      !game.time.active && player.hp > 150) {
+      !game.time.active && player.hp / player.maxHp > 150 / DuelRules.hp) {
       game.time.alterTimeScale(0.2, 0, 4, 0.2, this);
       this.timestopFrames = this.timestopDuration;
       this.spend('timestop', false);

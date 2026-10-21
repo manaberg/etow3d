@@ -4,6 +4,7 @@ import { UNIT } from '../core/constants.js';
 import { buildMage, glowMap } from '../render/models.js';
 import { Projectile, Zone, MirrorImage } from './spells.js';
 import { DuelRules } from './duelRules.js';
+import { DungeonLevels } from '../world/levels.js';
 import { castArcana } from './arcana.js';
 
 // The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
@@ -417,7 +418,10 @@ export class Mage extends Entity {
     }
     const c = this.center();
     if (p.duel) {
-      DuelRules.applyHit(this, p.kind, this.game.duelRival());
+      // on survival floors every duel bolt comes from (or off) a dark wizard
+      const game = this.game;
+      const caster = game.duelRival() || (p.timeOwner && p.timeOwner.isDuelWizard ? p.timeOwner : null);
+      DuelRules.applyHit(this, p.kind, caster, game.duelMode ? 1 : DungeonLevels.wizard.hitScale);
     } else if (p.kind === 'shadowbolt') {
       this.stun();
     } else {
@@ -436,7 +440,8 @@ export class Mage extends Entity {
       this.hurt(10);
       zone.kill();
     } else if (zone.kind === 'blizzard') {
-      this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k, true);
+      const scale = this.game.duelMode ? 1 : DungeonLevels.wizard.hitScale;
+      this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k * scale, true);
     }
   }
 

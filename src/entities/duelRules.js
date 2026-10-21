@@ -55,16 +55,17 @@ export const DuelRules = {
     insane: { reaction: 3, castLock: 3, decisionInterval: 1, aimNoise: 0, learnRate: 0.22, decoyFoolChance: 0.25, pwkillRate: 1, advanced: true }
   },
 
-  // Apply one spell hit to either duelist.
-  applyHit(target, kind, attacker) {
+  // Apply one spell hit to either duelist. `scale` shrinks the damage for
+  // survival floors, where the player has far fewer hit points.
+  applyHit(target, kind, attacker, scale = 1) {
     if (kind === 'root' || kind === 'rootchain') {
       target.stun(this.stunFrames);
       return;
     }
-    const dmg = this.damage[kind] || 0;
+    const dmg = (this.damage[kind] || 0) * scale;
     target.hurt(dmg);
     if (kind === 'ray' && attacker) {
-      attacker.hp = Math.min(this.hp, attacker.hp + this.rayHeal);
+      attacker.hp = Math.min(attacker.maxHp, attacker.hp + this.rayHeal);
     }
     if (target.onDuelDamage) {
       target.onDuelDamage(dmg, kind);

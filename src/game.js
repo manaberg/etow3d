@@ -306,6 +306,7 @@ export class Game {
         total++;
       }
     }
+    total += this.spawnFloorWizard(lairs);
     if (plan.boss) {
       const spot = world.getRoomSpawnPoint(rooms[stairsRoom], 4, 96);
       this.spawn(Boss, spot.x, spot.y, { homeRoom: stairsRoom });
@@ -331,13 +332,35 @@ export class Game {
     this.levelEnemyTotal = total;
   }
 
-  // Deeper orcs drop more; champions always drop something.
+  // The floor's dark wizard, in a lair room, with a fresh random spellbook.
+  spawnFloorWizard(lairs) {
+    const rules = DungeonLevels.wizard;
+    const roomIndex = this.pickLairRoom(lairs, 'library');
+    const spot = this.world.getRoomSpawnPoint(this.world.rooms[roomIndex], 3);
+    const hp = rules.hp(this.depth);
+    const wizard = this.spawn(DuelWizard, spot.x, spot.y, {
+      difficulty: rules.difficulty(this.depth),
+      hp,
+      maxHp: hp,
+      hitScale: rules.hitScale,
+      homeRoom: roomIndex,
+      label: 'DARK WIZARD'
+    });
+    const pool = Object.keys(wizard.spellBook).filter((s) => s !== 'missile');
+    wizard.known = new Set();
+    for (let n = Math.min(pool.length, rules.spells(this.depth)); n > 0; n--) {
+      wizard.known.add(pool.splice(randInt(0, pool.length - 1), 1)[0]);
+    }
+    return 1;
+  }
+
+  // Deeper orcs drop more; champions drop the most. Potions stay scarce.
   rollOrcLoot(orc) {
     if (this.duelMode) {
       return;
     }
     const plan = DungeonLevels.getPlan(this.depth);
-    const potionChance = orc.isChampion ? 1 : 0.05 + this.depth * 0.012;
+    const potionChance = orc.isChampion ? 0.35 : 0.02 + this.depth * 0.005;
     const scrollChance = orc.isChampion ? 0.5 : 0.015 + this.depth * 0.007;
     if (Math.random() < potionChance) {
       this.dropPotion(orc);
@@ -376,7 +399,7 @@ export class Game {
   }
 
   floorEnemies() {
-    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss));
+    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard));
   }
 
   duelRival() {

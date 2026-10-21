@@ -115,8 +115,13 @@ spell book.
 Orcs guard their rooms until they see, hear or get hit by the player, then rally the pack
 and hunt through the dungeon on flow-field paths. Classes: grunt, slinger, knight (charges),
 shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orcs are tougher
-and champions always drop loot. Orc clerics and orc mages appear from depth 4 and 5, and the
-warlord waits on the tenth floor.
+and champions, which grow more common with depth, drop the most loot. Potions are scarce: a
+few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 4 and grow in
+number further down, and the warlord waits on the tenth floor.
+
+Every floor also hides a dark wizard with the duel rival's brain. It waits in its lair until it
+notices you, knows magic missile plus one random spell per floor below the first (nine on the
+tenth), fights as a hard rival from depth 6, and leaves a tier 2 scroll when slain.
 
 **Duel.** You against a rival wizard in a small dungeon of six themed rooms and corridors (no
 stairs); you start in the two rooms farthest apart. Walls block sight and bolts, so you can
