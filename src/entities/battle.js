@@ -3,13 +3,15 @@ import { Mage, SpellBook } from './mage.js';
 import { DuelWizard } from './duelWizard.js';
 import { Soldier } from './soldier.js';
 import { DuelSpells } from './duelLoot.js';
-import { OrcClasses } from '../world/levels.js';
+import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 
-// Battle mode: a best-of-five match between two wizards, each leading an orc
-// army across open country. Every battle is 500 orcs a side, and
+// Battle mode: a best-of-five match between two wizards, each leading an
+// army across open country. The player picks their army's race (orcs,
+// dwarves, humans or elves); the rival fields a different race every
+// battle. Every battle is 500 a side, and
 // the armies are split into regiments by unit type (infantry, slingers,
 // knights, shock troops, mystics) that the player commands one by one or
 // together: charge, march to a point and hold it, or follow the wizard.
@@ -88,6 +90,9 @@ export class Battle {
     this.game = game;
     this.round = 0;
     this.score = { player: 0, enemy: 0 };
+    const playerRace = Races[game.race] ? game.race : pick(Object.keys(Races));
+    this.races = { player: playerRace, enemy: null };
+    this.rollRivalRace();
     this.playerSpells = new Set([pick(DuelSpells).id]);
     this.rivalSpells = new Set([pick(DuelSpells).id]);
     this.fighting = false;
@@ -107,6 +112,14 @@ export class Battle {
     this.drag = null;
     this.listeners = [];
     this.attachMouse();
+  }
+
+  // The rival's army for the next battle: any race but the player's, and not
+  // the one it just fielded.
+  rollRivalRace() {
+    const last = this.races.enemy;
+    const options = Object.keys(Races).filter((r) => r !== this.races.player && r !== last);
+    this.races.enemy = pick(options);
   }
 
   get armySize() {
@@ -220,7 +233,8 @@ export class Battle {
       }
       lineY -= dir * (deepest + 110);
     }
-    // reserve instanced slots per look, then spawn every orc in its slot
+    // reserve instanced slots per look, then spawn every soldier in its slot
+    const race = this.races[side];
     const looks = {};
     const plan = [];
     for (const r of regiments) {
@@ -230,7 +244,7 @@ export class Battle {
       }
       plan.push(classes);
       for (const c of classes) {
-        const look = OrcClasses[c].look;
+        const look = raceLook(race, c);
         looks[look] = (looks[look] || 0) + 1;
       }
     }
@@ -266,7 +280,7 @@ export class Battle {
         if (!game.world.canStandAt(spot.x, spot.y, 48, 48)) {
           spot = game.world.getRoomSpawnPoint(game.world.getMainRoom(), 3);
         }
-        regiment.units.push(game.spawn(Soldier, spot.x, spot.y, { side, orcClass, regiment, slot }));
+        regiment.units.push(game.spawn(Soldier, spot.x, spot.y, { side, race, orcClass, regiment, slot }));
       });
       this.regiments[side].push(regiment);
     });
@@ -322,7 +336,7 @@ export class Battle {
   beginFight() {
     this.fighting = true;
     this.deploy = 0;
-    this.game.hud.toast('BATTLE ' + (this.round + 1) + ' :: FIGHT!', '#ffb85a');
+    this.game.hud.toast('BATTLE ' + (this.round + 1) + ' :: YOUR ' + Races[this.races.player].name + ' AGAINST THE ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
   }
 
   // Backquote selects all; the order keys apply to whatever is selected (in
@@ -853,12 +867,14 @@ export class Battle {
     }
     const rivalMissing = DuelSpells.filter((s) => !this.rivalSpells.has(s.id));
     const rivalPick = rivalMissing.length ? pick(rivalMissing) : null;
+    this.rollRivalRace();
     game.hud.showBattleDraft({
       winner,
       why,
       score: this.score,
       next: this.round + 2,
       nextSize: BattleRules.armies[this.round + 1],
+      nextFoe: Races[this.races.enemy].name,
       choices: choices.map((c) => ({ id: c.id, name: spellLabel(c) })),
       rivalLearns: rivalPick ? spellLabel(rivalPick) : null,
       onPick: (id) => {

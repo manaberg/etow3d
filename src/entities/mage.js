@@ -6,6 +6,8 @@ import { Projectile, Zone, MirrorImage, castMissiles } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { DungeonLevels } from '../world/levels.js';
 import { castArcana, arcanaZoneDamage } from './arcana.js';
+import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
+import { dressRig } from '../render/gearModels.js';
 
 // The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
 // manergy that must be exceeded and `cost` what a cast spends; `flag` is the
@@ -46,20 +48,17 @@ for (const spell of SpellBook) {
   SpellById[spell.id] = spell;
 }
 
-export const RingEffects = [
-  { flag: 'hasSpring', label: 'INCREASED SPEED' },
-  { flag: 'hasMrring', label: 'INCREASED MANERGY REGEN' },
-  { flag: 'hasFrring', label: 'REDUCED FIREBALL MANERGY COST' },
-  { flag: 'hasElring', label: 'REDUCED LIGHTNING MANERGY COST' },
-  { flag: 'hasMsring', label: 'INCREASED MISSILE DAMAGE' }
-];
+// The duel loadout's built-in bonuses: the 2D game gave duellists all five
+// rings (gear.js ClassicRings), which here are properties of the wizard
+// rather than items, so both duellists keep them whatever they wear.
+export const DuelInnate = { speed: 0.2, regen: 0.25, fireballCost: -10, lightningCost: -10, missileDamage: 25 };
 
 // share of its speed a chilled or polymorphed wizard keeps
 const CHILL_SLOW = 0.4;
 const SHEEP_SLOW = 0.7;
 
 // Damage the player takes from enemy bolts outside duels.
-const ENEMY_BOLT_DAMAGE = { stone: 20, missile2: 50, fireball2: 75, ironshot2: 200 };
+const ENEMY_BOLT_DAMAGE = { iceshard: 16, stormbolt: 30, acidbolt: 26, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
 
 // Polymorphed wizards: the body is hidden and a sheep trots in its place.
 export function syncSheep(wizard, time) {
@@ -115,7 +114,7 @@ export class Mage extends Entity {
     this.chillFrames = 0;
     this.knock = null;
     this.sheepFrames = 0;
-    // spellbook and rings
+    // spellbook
     for (const spell of SpellBook) {
       if (spell.flag) {
         this[spell.flag] = false;
@@ -124,9 +123,11 @@ export class Mage extends Entity {
         this[spell.tier] = false;
       }
     }
-    for (const ring of RingEffects) {
-      this[ring.flag] = false;
-    }
+    // gear (gear.js): what it carries and wears, the summed properties of the
+    // worn gear, and bonuses that come with the mode rather than with items
+    this.inventory = null;
+    this.gearStats = {};
+    this.innate = {};
     this.timePlayed = 0;
     this.aim = 0;
     this.dead = false;
@@ -137,6 +138,9 @@ export class Mage extends Entity {
     this.rig = buildMage();
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
+    if (!this.inventory) {
+      this.inventory = new Inventory(this);
+    }
     this.shieldBubble = new THREE.Mesh(
       new THREE.SphereGeometry(1.45, 20, 14),
       new THREE.MeshBasicMaterial({ color: 0x60b0ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })
@@ -160,6 +164,35 @@ export class Mage extends Entity {
     return this.shieldFrames > 0;
   }
 
+  // A gear property plus the mode's innate bonus, within the caps.
+  bonus(key) {
+    const value = (this.innate[key] || 0) + gearStat(this, key);
+    const cap = StatCaps[key];
+    if (cap === undefined) {
+      return value;
+    }
+    return cap < 0 ? Math.max(cap, value) : Math.min(cap, value);
+  }
+
+  // Cooldown frames for a spell after gear that speeds cooldowns up.
+  cooldownOf(frames) {
+    return frames * (1 - this.bonus('cooldown'));
+  }
+
+  // The inventory changed: resize the pools and redress the model.
+  onGearChanged() {
+    applyGearPools(this);
+    dressRig(this.rig, this.inventory);
+  }
+
+  // Wears an inventory carried down from the floor above (its properties
+  // already counted in the carried pools).
+  takeInventory(inventory) {
+    this.inventory = inventory;
+    inventory.owner = this;
+    dressRig(this.rig, inventory);
+  }
+
   get hasted() {
     return this.hasteFrames > 0;
   }
@@ -181,7 +214,7 @@ export class Mage extends Entity {
 
   spend(id, extraCost) {
     const spell = SpellById[id];
-    this.cd[id] = spell.cd;
+    this.cd[id] = this.cooldownOf(spell.cd);
     this.manergy -= spell.cost + (extraCost || 0);
     this.lockSchool(id);
   }
@@ -211,8 +244,8 @@ export class Mage extends Entity {
     const standing = !!game.battle && (!game.battle.fighting || game.battle.commander);
 
     // movement
-    // the ring of speed adds a fifth, as 100 -> 120 did in the 2D game
-    let speed = this.hasSpring ? this.desiredVel * 1.2 : this.desiredVel;
+    // gear speeds it up (the ring of speed adds a fifth, as 100 -> 120 did in the 2D game)
+    let speed = this.desiredVel * (1 + this.bonus('speed'));
     if (this.hasted) {
       speed *= 2.5;
     }
@@ -250,7 +283,12 @@ export class Mage extends Entity {
 
     // manergy
     if (this.manergy < this.maxManergy) {
-      this.manergy = Math.min(this.maxManergy, this.manergy + (this.hasMrring ? 0.5 : 0.4) * k);
+      this.manergy = Math.min(this.maxManergy, this.manergy + 0.4 * (1 + this.bonus('regen')) * k);
+    }
+    // gear that mends wounds
+    const mend = this.bonus('mend');
+    if (mend > 0 && this.hp > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + mend / 60 * k);
     }
 
     if (!standing && this.sheepFrames <= 0) {
@@ -327,14 +365,14 @@ export class Mage extends Entity {
       // the darts home in on the foe under (or near) the cursor, else on the spot
       const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
       castMissiles(game, this, 'player', aim, target);
-      this.cd.missile = SpellById.missile.cd;
+      this.cd.missile = this.cooldownOf(SpellById.missile.cd);
       stats.micount++;
       this.rig.swing();
     }
     if (input.pressed('fireball') && this.canCast('fireball')) {
       fire('fireball', aim);
       stats.fbcount++;
-      let extra = this.hasFrring ? -10 : 0;
+      let extra = this.bonus('fireballCost');
       if (this.hasFb2) {
         // tier 2 throws a second orb a little apart
         const ox = Math.cos(aim + Math.PI / 2) * 14;
@@ -351,7 +389,7 @@ export class Mage extends Entity {
       this.manergy -= 40;
       this.lockSchool('ironshot');
       if (this.is2Charges === 1) {
-        this.cd.ironshot = SpellById.ironshot.cd;
+        this.cd.ironshot = this.cooldownOf(SpellById.ironshot.cd);
       }
       this.is2Charges--;
       game.gfx.addShake(0.25);
@@ -367,7 +405,7 @@ export class Mage extends Entity {
       if (target) {
         fire('lightning', this.angleTo(target));
         stats.lgcount++;
-        this.spend('lightning', (this.hasElring ? -10 : 0) + (this.hasLg2 ? 15 : 0));
+        this.spend('lightning', this.bonus('lightningCost') + (this.hasLg2 ? 15 : 0));
         this.rig.swing();
       }
     }
@@ -408,11 +446,11 @@ export class Mage extends Entity {
       stats.bkcount++;
       this.spend('blink');
       if (this.hasBk2) {
-        this.cd.blink = 200;
+        this.cd.blink = this.cooldownOf(200);
       }
     }
     if (input.pressed('shield') && this.canCast('shield')) {
-      this.shieldFrames = this.shieldDuration;
+      this.shieldFrames = this.shieldDuration * (1 + this.bonus('ward'));
       stats.shcount++;
       this.spend('shield');
       game.fx.ring(c.x, c.y, { color: 0x60b0ff, radius: 50, life: 0.4 });
@@ -497,8 +535,16 @@ export class Mage extends Entity {
     } else if (zone.kind === 'blizzard') {
       const scale = this.game.duelMode ? 1 : DungeonLevels.wizard.hitScale;
       this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k * scale, true);
-    } else if (zone.kind === 'guardians' || zone.kind === 'cloud') {
+    } else if ((zone.kind === 'guardians' || zone.kind === 'cloud') && zone.timeOwner) {
+      // a wizard's spirit guardians or cloudkill
       this.hurt(arcanaZoneDamage(zone, k), true);
+    } else if (zone.kind === 'cloud') {
+      // a green dragon's poison
+      this.hurt(0.25 * k, true);
+    } else if (zone.kind === 'acid') {
+      this.hurt(0.35 * k, true);
+    } else if (zone.kind === 'gloom') {
+      this.manergy = Math.max(0, this.manergy - 0.5 * k);
     }
   }
 
@@ -515,12 +561,25 @@ export class Mage extends Entity {
   }
 
   hurt(dmg, quiet) {
+    // armour from gear takes a share off every hit
+    dmg *= 1 - this.bonus('armor');
     this.hp -= dmg;
     if (!quiet) {
       this.rig.hit();
       this.game.gfx.addShake(Math.min(0.6, dmg / 60));
       this.game.hud.damageFlash();
     }
+  }
+
+  // A dragon's frightful presence: the mage flees in a panic for a while.
+  frighten(frames) {
+    if (this.shielded || this.isFeared) {
+      return;
+    }
+    this.isFeared = true;
+    this.fearFrames = 0;
+    this.fearDuration = frames;
+    this.fearVel = { x: 0, y: 0 };
   }
 
   stun(frames) {
@@ -566,7 +625,7 @@ export class Mage extends Entity {
     if (this.isStunned && Math.random() < 0.3) {
       fx.column(c.x, c.y, 20, { color: 0x40ff60, count: 1, rise: 0.8, life: 0.6, size: 0.5 });
     }
-    if (this.hasMrring && Math.random() < 0.04) {
+    if (this.bonus('regen') > 0 && Math.random() < 0.04) {
       fx.column(c.x, c.y, 18, { color: 0x4080ff, count: 1, rise: 1.2, life: 0.8, size: 0.4 });
     }
     if (this.chillFrames > 0 && Math.random() < 0.3) {

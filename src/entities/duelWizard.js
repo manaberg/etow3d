@@ -4,6 +4,7 @@ import { DuelRules } from './duelRules.js';
 import { Arcana, ArcanaCast, Meteor, arcanaZoneDamage } from './arcana.js';
 import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
+import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
 
 export function resolveDifficulty() {
@@ -127,6 +128,8 @@ export class DuelWizard extends Enemy {
     this.rig = buildMage({ robe: 0x8a1a1a, hat: 0x2a0a0a, trim: 0xb0b0b0, orb: 0xff5040, beard: 0x404040 });
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
+    // the Red Order's kit: the player's apprentice gear in red, same properties
+    outfit(this, Kits.rival);
   }
 
   get shielded() {

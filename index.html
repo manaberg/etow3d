@@ -20,7 +20,14 @@
       <div class="menu-modes">
         <div class="mode">
           <h3>Battle</h3>
-          <p>Command regiments of orcs against a rival wizard's army on open fields. Five battles, up to 200 a side.</p>
+          <p>Command regiments of orcs, dwarves, humans or elves against a rival wizard's army on open fields. Five battles, up to 200 a side.</p>
+          <div class="duel-rules" role="group" aria-label="Your army">
+            <button type="button" data-race="orc" class="secondary rule" title="Orcs: the balanced horde">Orcs</button>
+            <button type="button" data-race="dwarf" class="secondary rule" title="Dwarves: slow, armoured, hard to kill">Dwarves</button>
+            <button type="button" data-race="human" class="secondary rule" title="Humans: steady and well armed">Humans</button>
+            <button type="button" data-race="elf" class="secondary rule" title="Elves: quick and deadly at range, but frail">Elves</button>
+            <button type="button" data-race="random" class="secondary rule" title="A random race">Random</button>
+          </div>
           <div class="buttons">
             <button data-mode="battle" data-ai="normal" class="secondary">Normal</button>
             <button data-mode="battle" data-ai="hard">Hard</button>
@@ -29,15 +36,19 @@
         </div>
         <div class="mode">
           <h3>Survival</h3>
-          <p>Ten floors, seven orc classes, mini-bosses and the warlord.</p>
+          <p>Twenty floors: orcs and warbands of dwarves, humans and elves, the warlord, then down through the dragons' lairs to the great golden wyrm.</p>
           <button data-mode="survival">Descend</button>
         </div>
         <div class="mode">
           <h3>Duel</h3>
-          <p>A rival wizard who learns how you dodge, in a small dungeon of its own.</p>
+          <p>A rival wizard who learns how you dodge, in a small dungeon or an open arena.</p>
           <div class="duel-rules" role="group" aria-label="Duel rules">
             <button type="button" data-rules="progressive" class="secondary rule" title="Start with one spell; race for scrolls and potions">Progressive</button>
             <button type="button" data-rules="classic" class="secondary rule" title="Every spell from the start">Classic</button>
+          </div>
+          <div class="duel-rules" role="group" aria-label="Duel map">
+            <button type="button" data-map="rooms" class="secondary rule" title="A small six-room dungeon to hide, flank and race for loot">Rooms</button>
+            <button type="button" data-map="arena" class="secondary rule" title="One open hall, face to face">Arena</button>
           </div>
           <div class="buttons">
             <button data-mode="duel" data-ai="normal" class="secondary">Normal</button>
@@ -50,17 +61,19 @@
         <summary>How each mode works</summary>
         <section>
           <h4>Battle</h4>
-          <p>You and a rival wizard each lead an orc army across open country: grassland ringed by cliffs and broken by rock outcrops. The match is best of five battles, each 500 orcs a side. Your army is blue, the rival's red.</p>
-          <p>Armies are split into regiments by unit type, each with its own banner: infantry (grunts), slingers, knights, shock troops (berserkers and brutes) and mystics (shamans and warlocks), with big regiments split in two. Your army deploys along the bottom of the field facing the rival's at the top, in lines (infantry and shock troops in front with knights on the flanks, slingers behind, mystics at the back), and you get fifteen seconds to rearrange them before the horns sound (Space attacks at once).</p>
+          <p>You and a rival wizard each lead an army across open country: grassland ringed by cliffs and broken by rock outcrops. The match is best of five battles, each 500 a side. Your army is blue, the rival's red.</p>
+          <p>Pick your army's race on the menu; the rival fields a different one every battle. All four field the same seven classes under their own names and gear, but fight differently: <strong>orcs</strong> are the balanced horde; <strong>dwarves</strong> are slow but take 30% more killing, and their crossbows hit harder; <strong>humans</strong> are a little tougher, harder hitting and longer ranged than orcs; <strong>elves</strong> are quick and shoot a quarter further and straighter, but are frail.</p>
+          <p>Armies are split into regiments by unit type, each with its own banner: infantry, missile troops (orc slingers, human and elf archers, dwarf crossbowmen, all under the slingers banner), knights, shock troops (berserkers and brutes, or their kin: zealots and champions, slayers and ironbreakers, wardancers and sentinels) and mystics (healers and casters), with big regiments split in two. Your army deploys along the bottom of the field facing the rival's at the top, in lines (infantry and shock troops in front with knights on the flanks, slingers behind, mystics at the back), and you get fifteen seconds to rearrange them before the horns sound (Space attacks at once).</p>
           <p>Tab switches between <strong>commander mode</strong> and <strong>spell mode</strong>. Battles open in commander mode: your wizard stands still, WASD pans the camera and the wheel zooms; left-click an orc to select its regiment (shift-click adds, drag a box to select several), right-click the ground to march the selection there and hold it, or right-click an enemy regiment (or the rival wizard) to send the selection against it. In spell mode you are the wizard again: WASD moves, the mouse casts. In either mode the regiment cards at the bottom select (shift-click adds), backquote selects all, and J, K and L order the selection to charge, march to the cursor and hold, or follow you.</p>
           <p> Holding regiments fight anything that comes into reach; charging ones seek the nearest enemy. Brawlers close in, slingers and warlocks keep their range and shoot, knights charge, shamans heal the wounded.</p>
           <p>Your spells change the fight: a fireball or blizzard wrecks a packed regiment, chain lightning jumps through the ranks, fear scatters them. The rival commands its own regiments (its line charges, its knights swing round a flank, its mystics guard it), turns its spells on your army and will come for you.</p>
           <p>A battle is lost when your wizard falls or your whole army is destroyed. Spells build up as the match goes on: both wizards start with magic missile and one random spell; after every battle you choose one of three new spells while the rival learns one at random. Spells follow the duel rules, including the 3 second global cooldown after every spell except magic missile and lifesteal.</p>
           <h4>Survival</h4>
-          <p>Descend ten floors of an orc-held dungeon, from The Upper Halls to the Throne of the Warlord. Each floor is a freshly generated maze of themed rooms (great hall, barracks, library, alchemy lab, crypt, throne room) packed with orc packs that guard their rooms until they notice you, then rally and hunt you down. The stairs in the throne room unseal once 40% of the floor is slain.</p>
-          <p>You start with only magic missile and learn the rest from scrolls: the 2D game's fifteen spells plus ten D&amp;D spells, with tier 2 scrolls upgrading some of them. Potions heal or raise your maximum manergy, rings add passive effects, and everything carries down the stairs. Potions are scarce. Champion orcs and orc clerics and mages grow more common the deeper you go, and every floor hides a dark wizard who knows more random spells the deeper it lives. The warlord waits on the tenth floor. No school lockouts here.</p>
+          <p>Descend twenty floors: ten of an orc-held dungeon from The Upper Halls to the Throne of the Warlord, then ten more, ever harder, down through the dragons' lairs to The Golden Hoard. Each floor is a freshly generated maze of themed rooms (great hall, barracks, library, alchemy lab, crypt, throne room) packed with orc packs that guard their rooms until they notice you, then rally and hunt you down. From the first floor down, warbands of humans, then dwarves and elves, come hunting the dungeon's treasure too: each pack is one race, fighting with its own missiles and strengths, and all of them hunt you. The stairs in the throne room unseal once 40% of the floor is slain.</p>
+          <p>You start with only magic missile and learn the rest from scrolls: the 2D game's fifteen spells plus ten D&amp;D spells, with tier 2 scrolls upgrading some of them. Potions heal or raise your maximum manergy, and hats, robes, staffs and rings (I opens the inventory) change your stats and your look; orcs wear gear too and drop it when they fall. Everything carries down the stairs. Potions are scarce. Champion orcs and orc clerics and mages grow more common the deeper you go, and every floor hides a dark wizard who knows more random spells the deeper it lives. The warlord waits on the tenth floor; slaying him opens the stairs to the deep. No school lockouts here.</p>
+          <p>Below the warlord the foes grow tougher faster, and dragons lair in the largest rooms: wyrmlings from depth 11, then young, adult and ancient dragons. Each colour breathes its own weapon and shrugs off its own element: <strong>red</strong> breathes fire (immune to fire, weak to cold), <strong>white</strong> frost that slows (immune to cold, weak to fire), <strong>blue</strong> a line of lightning that stuns (immune to lightning, weak to poison), <strong>green</strong> a poison cloud (immune to poison, weak to fire) and <strong>black</strong> a line of acid that pools (immune to necrotic, weak to radiant and lightning). Every dragon bites and flies over walls to reach you; adults also sweep their tails at whoever stands behind them and roar you into a panic; ancients beat their wings to hurl you back, cast a spell of their colour and shake off roots. A dragon rears and its mouth glows before it breathes: step out of the cone or raise your shield. On the twentieth floor the great golden wyrm breathes fire and weakening gas by turns and calls its brood as it weakens. Slay it to win.</p>
           <h4>Duel</h4>
-          <p>One against one with a rival wizard in a small six-room dungeon, starting in the two rooms farthest apart. Walls block sight and bolts, so you can hide, flank and ambush; the rival reads your bolts in flight, dodges, shields, learns how you move and hunts you through the corridors.</p>
+          <p>One against one with a rival wizard. Pick the map: <strong>Rooms</strong> (the default) is a small six-room dungeon, the wizards starting in the two rooms farthest apart; walls block sight and bolts, so you can hide, flank and ambush. <strong>Arena</strong> is a single open hall with no cover, the wizards starting face to face from opposite ends. The rival reads your bolts in flight, dodges, shields, learns how you move and hunts you through the corridors.</p>
           <p><strong>Progressive</strong> duels (the default) start both wizards with magic missile and one random spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first learns a spell they lack. <strong>Classic</strong> duels give both every spell from the start. Every spell belongs to a school of magic (the tag beside it in the spell list): a cast locks the rest of its school for a few seconds, so weave spells from different schools. Magic missile and lifesteal never lock. Normal, hard and insane differ in how fast the rival reacts, how well it aims and which tricks it knows.</p>
         </section>
       </details>

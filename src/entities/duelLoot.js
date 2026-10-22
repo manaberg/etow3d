@@ -111,7 +111,7 @@ export class DuelLoot {
         this.game.hud.toast('MANERGY POTION :: +' + p.blueManergy + ' MANERGY', '#6aa8ff');
       }
     } else {
-      duelist.hp = Math.min(DuelRules.hp, duelist.hp + p.redHeal);
+      duelist.hp = Math.min(duelist.maxHp, duelist.hp + p.redHeal);
       if (mine) {
         this.game.hud.toast('HEALTH POTION :: +' + p.redHeal + ' HP', '#ff6a70');
       } else {

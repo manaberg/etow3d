@@ -1,6 +1,8 @@
 import { Enemy } from './enemy.js';
 import { Projectile, Zone } from './spells.js';
 import { buildOrc } from '../render/models.js';
+import { DungeonLevels } from '../world/levels.js';
+import { outfit, rollGear } from './gear.js';
 
 // Orc cleric: a tanky healer that pelts the player with stones and keeps the
 // orcs around it on their feet.
@@ -26,6 +28,8 @@ export class Clericorc extends Enemy {
     this.rig = buildOrc('cleric');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
+    // the mitre it wears is yours once it falls
+    outfit(this, ['mitre']);
   }
 
   update(k) {
@@ -98,6 +102,7 @@ export class Clericorc extends Enemy {
     game.stats.bosscount++;
     game.dropScroll(this, 1);
     game.dropRing(this);
+    this.dropGear();
     game.deathFx(this);
     this.kill();
   }
@@ -125,6 +130,8 @@ export class Mageorc extends Enemy {
     this.rig = buildOrc('mage');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
+    // a rare hat or better, worn until it is taken
+    outfit(this, []).add(rollGear(this.game.depth, { slots: ['hat'], minRarity: 'rare' }));
   }
 
   update(k) {
@@ -187,6 +194,7 @@ export class Mageorc extends Enemy {
     game.stats.bosscount++;
     game.dropScroll(this, 1);
     game.dropRing(this);
+    this.dropGear();
     game.deathFx(this);
     this.kill();
   }
@@ -347,6 +355,11 @@ export class Boss extends Enemy {
     game.stats.bosscount++;
     game.deathFx(this);
     this.kill();
-    game.onVictory();
+    // below his throne the dragons wait; the run ends only if he is the last floor
+    if (game.depth < DungeonLevels.count) {
+      game.onWarlordSlain(this);
+    } else {
+      game.onVictory();
+    }
   }
 }

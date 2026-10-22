@@ -39,7 +39,7 @@ export class Gfx {
     this.scene.add(this.ambient);
 
     // the mage's staff lights the way
-    this.playerLight = new THREE.PointLight(0xffd9a8, 40, 16, 1.6);
+    this.playerLight = new THREE.PointLight(0xffd9a8, 40, 18, 1.6);
     this.scene.add(this.playerLight);
 
     // a fixed pool of lights handed to the torches closest to the camera, so
@@ -192,8 +192,9 @@ export class Gfx {
     this.cutaway.center.value.set(fx, 0, fz);
     this.cutaway.strength.value = playerHidden ? 0 : 1;
 
-    this.playerLight.position.set(fx, 3.2, fz + 0.4);
-    this.playerLight.intensity = 34 + Math.sin(time * 7) * 2 + Math.sin(time * 13.3) * 1.5;
+    // high enough to clear a pointed hat; brighter to light the floor as before
+    this.playerLight.position.set(fx, 4.4, fz + 0.4);
+    this.playerLight.intensity = 56 + Math.sin(time * 7) * 3.3 + Math.sin(time * 13.3) * 2.5;
 
     this.assignTorchLights(time);
     this.assignFxLights(dt);

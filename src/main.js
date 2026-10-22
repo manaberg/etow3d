@@ -37,21 +37,33 @@ const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
 
-// Duel rules: progressive (one spell, loot the rest) unless ?rules=classic.
-let duelRules = /[?&]rules=classic/i.test(window.location.search) ? 'classic' : 'progressive';
-function showDuelRules() {
-  for (const b of document.querySelectorAll('[data-rules]')) {
-    b.classList.toggle('active', b.dataset.rules === duelRules);
-    b.setAttribute('aria-pressed', b.dataset.rules === duelRules ? 'true' : 'false');
+// Duel options: progressive rules (one spell, loot the rest) unless
+// ?rules=classic, fought in the rooms dungeon unless ?map=arena. Battle
+// armies are orcs unless ?race=dwarf|human|elf|random.
+const raceParam = (window.location.search.match(/[?&]race=(orc|dwarf|human|elf|random)/i) || [])[1];
+const duelOptions = {
+  rules: /[?&]rules=classic/i.test(window.location.search) ? 'classic' : 'progressive',
+  map: /[?&]map=arena/i.test(window.location.search) ? 'arena' : 'rooms',
+  race: raceParam ? raceParam.toLowerCase() : 'orc'
+};
+function showDuelOptions() {
+  for (const key of Object.keys(duelOptions)) {
+    for (const b of document.querySelectorAll('[data-' + key + ']')) {
+      const on = b.dataset[key] === duelOptions[key];
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
   }
 }
-for (const b of document.querySelectorAll('[data-rules]')) {
-  b.addEventListener('click', () => {
-    duelRules = b.dataset.rules;
-    showDuelRules();
-  });
+for (const key of Object.keys(duelOptions)) {
+  for (const b of document.querySelectorAll('[data-' + key + ']')) {
+    b.addEventListener('click', () => {
+      duelOptions[key] = b.dataset[key];
+      showDuelOptions();
+    });
+  }
 }
-showDuelRules();
+showDuelOptions();
 
 function start(mode, difficulty) {
   menu.classList.add('hidden');
@@ -63,7 +75,9 @@ function start(mode, difficulty) {
     hudRoot,
     mode,
     difficulty,
-    rules: duelRules,
+    rules: duelOptions.rules,
+    map: duelOptions.map,
+    race: duelOptions.race,
     onExit(action) {
       if (action === 'restart') {
         start(mode, difficulty);
@@ -111,9 +125,10 @@ for (const button of menu.querySelectorAll('[data-mode]')) {
     const ai = button.dataset.ai;
     let query = '?mode=survival';
     if (mode === 'duel') {
-      query = '?mode=duel&ai=' + ai + (duelRules === 'classic' ? '&rules=classic' : '');
+      query = '?mode=duel&ai=' + ai + (duelOptions.rules === 'classic' ? '&rules=classic' : '') +
+        (duelOptions.map === 'arena' ? '&map=arena' : '');
     } else if (mode === 'battle') {
-      query = '?mode=battle&ai=' + ai;
+      query = '?mode=battle&ai=' + ai + (duelOptions.race !== 'orc' ? '&race=' + duelOptions.race : '');
     }
     history.replaceState(null, '', window.location.pathname + query);
     modelsReady.then(() => start(mode, ai));

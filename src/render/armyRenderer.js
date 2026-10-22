@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { UNIT } from '../core/constants.js';
 import { orcTemplate, glowMap, TEAM_COLORS } from './models.js';
 
-// Draws battle armies with instancing: for every orc look and side, one
-// InstancedMesh per part and material of the Blender model, plus one for all
-// shadows and one per side for the team rings. Hundreds of orcs cost a few
-// hundred draw calls instead of tens of thousands. Units keep a light
+// Draws battle armies with instancing: for every look (orcs, dwarves, humans,
+// elves) and side, one InstancedMesh per part and material of the Blender
+// model, plus one for all shadows and one per side for the team rings.
+// Hundreds of soldiers cost a few hundred draw calls instead of tens of
+// thousands. Units keep a light
 // UnitAnim (the same walk, swing and hit flash as the dungeon Rig) and the
 // renderer turns it into matrices every frame.
 
@@ -16,9 +17,9 @@ const GLOWING = new Set(['Gem', 'Glow']);
 
 // Animation state of one instanced unit (mirrors Rig.animate).
 export class UnitAnim {
-  constructor(scale) {
+  constructor(scale, height) {
     this.scale = scale;
-    this.height = 2.6 * scale;
+    this.height = height || 2.6 * scale;
     this.phase = Math.random() * 10;
     this.speed = 0;
     this.facing = 0;
@@ -145,7 +146,7 @@ export class ArmyRenderer {
       this.group.add(extra);
       this.materials.push(extra.material);
     }
-    return { look, side, capacity, parts, shadow, ring, scale: template.scale };
+    return { look, side, capacity, parts, shadow, ring, scale: template.scale, height: template.height };
   }
 
   dropBatch(key) {
@@ -177,7 +178,7 @@ export class ArmyRenderer {
     }
     this.used.set(key, used + 1);
     unit.instance = { batch, index: used };
-    return new UnitAnim(batch.scale);
+    return new UnitAnim(batch.scale, batch.height);
   }
 
   hide(unit) {

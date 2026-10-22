@@ -31,6 +31,9 @@ export function teamOf(caster) {
 // One of these spells lands on `target`: wizards take the duel number,
 // scaled by the caster's hitScale (dark wizards on survival floors), and
 // everything else the dungeon number.
+// The element each spell's hit carries (resistances, enemy.js Elements).
+const ARCANA_ELEMENTS = { scorch: 'fire', cone: 'cold', thunder: 'thunder', meteor: 'fire', guardians: 'radiant', cloud: 'poison', disintegrate: 'force', weapon: 'radiant' };
+
 export function arcanaHit(caster, target, key, dungeonDamage) {
   if (target.isWizard) {
     const dmg = DuelRules.arcana[key].damage * (caster.hitScale || 1);
@@ -40,7 +43,7 @@ export function arcanaHit(caster, target, key, dungeonDamage) {
     }
     return;
   }
-  target.hurt(dungeonDamage);
+  target.hurt(dungeonDamage, ARCANA_ELEMENTS[key]);
 }
 
 // Damage per frame of a guardians or cloudkill zone on a wizard.

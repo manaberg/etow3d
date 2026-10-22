@@ -3,15 +3,24 @@ import { UNIT } from '../core/constants.js';
 import { Projectile } from './spells.js';
 import { Arcana } from './arcana.js';
 import { buildSheep } from '../render/models.js';
+import { dressRig } from '../render/gearModels.js';
+import { applyGearPools, gearStat, statOf } from './gear.js';
 
 // Damage reflected enemy bolts deal when a shield sends them back.
-const REFLECTED_DAMAGE = { stone: 20, missile2: 50, fireball2: 75, ironshot2: 200 };
+const REFLECTED_DAMAGE = { iceshard: 30, stormbolt: 60, acidbolt: 50, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
 const CHAIN_MEMORY = 45;
 // share of its speed a chilled monster keeps
 const CHILL_SLOW = 0.4;
 
 // Shared parts of every dungeon monster: hit points, the player's spells
-// landing on it, stun and fear, and the 3D rig.
+// landing on it, stun and fear, and the 3D rig. Every hit carries an element
+// (Elements below) and a monster may resist some: `resist` maps an element
+// to a damage multiplier (0 immune, 0.5 resistant, 1.5 vulnerable). Orcs and
+// their kind resist nothing; dragons (dragon.js) do.
+export const Elements = {
+  force: 'FORCE', fire: 'FIRE', cold: 'COLD', lightning: 'LIGHTNING', thunder: 'THUNDER', poison: 'POISON',
+  necrotic: 'NECROTIC', radiant: 'RADIANT', physical: 'IRON'
+};
 export class Enemy extends Entity {
   defaults() {
     this.hp = 100;
@@ -42,10 +51,36 @@ export class Enemy extends Entity {
     this.knockResist = 0;
     this.canPolymorph = false;
     this.sheepFrames = 0;
+    this.resist = null;
   }
 
   get alive() {
     return !this.killed && this.hp > 0;
+  }
+
+  // --------------------------------------------------------------- gear
+
+  // Its inventory (gear.js) changed: pools, speed and manergy regen follow
+  // the worn gear, and the model shows it.
+  onGearChanged() {
+    const { before, after } = applyGearPools(this);
+    const ratio = (1 + (after.speed || 0)) / (1 + (before.speed || 0));
+    this.desiredVel *= ratio;
+    this.maxSpeed *= ratio;
+    if (this.manergyRegen !== undefined) {
+      this.manergyRegen *= (1 + (after.regen || 0)) / (1 + (before.regen || 0));
+    }
+    dressRig(this.rig, this.inventory);
+  }
+
+  // Drops everything it carries around where it fell.
+  dropGear() {
+    if (!this.inventory) {
+      return;
+    }
+    for (const item of this.inventory.all()) {
+      this.game.dropGear(this, item);
+    }
   }
 
   // --------------------------------------------------------------- damage
@@ -58,31 +93,32 @@ export class Enemy extends Entity {
     const fx = game.fx;
     switch (p.kind) {
       case 'missile':
-        // one of three darts: a third of the 2D game's single missile each
-        this.hurt(player && player.hasMsring ? 25 : 17);
+        // one of three darts: a third of the 2D game's single missile each,
+        // and a third of the gear's missile damage
+        this.hurt(17 + statOf(player, 'missileDamage') / 3, 'force');
         fx.burst(c.x, c.y, 1.4, { color: [0xb070ff, 0xffffff], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
       case 'fireball': {
-        this.hurt(110);
+        this.hurt(110, 'fire');
         p.kill();
         this.explode(c);
         // in battles the blast catches the whole regiment around the hit
         for (const other of (game.battle ? game.hostilesOf(p.team) : game.orcs())) {
           if (other !== this && other.alive && other.distanceTo(this) < this.fireSplash) {
-            other.hurt(101);
+            other.hurt(101, 'fire');
           }
         }
         break;
       }
       case 'ironshot':
-        this.hurt(100 * k);
+        this.hurt(100 * k, 'physical');
         if (Math.random() < 0.5) {
           fx.burst(c.x, c.y, 1.4, { color: [0xd0d8e0, 0xff3020], count: 6, speed: 5, life: 0.3, size: 0.5 });
         }
         break;
       case 'lightning':
-        this.hurt(101);
+        this.hurt(101, 'lightning');
         p.kill();
         this.chainedAt = game.navFrame;
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.25, width: 0.07 });
@@ -94,12 +130,12 @@ export class Enemy extends Entity {
           return;
         }
         this.chainedAt = game.navFrame;
-        this.hurt(player && player.hasLg2 ? 101 : 75);
+        this.hurt(player && player.hasLg2 ? 101 : 75, 'lightning');
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.2, width: 0.05 });
         p.kill();
         break;
       case 'root':
-        this.stun();
+        this.stun('root');
         p.kill();
         this.rootedAt = game.navFrame;
         this.spreadChain('rootchain', 'rootedAt', p.team);
@@ -109,30 +145,30 @@ export class Enemy extends Entity {
           return;
         }
         this.rootedAt = game.navFrame;
-        this.stun();
+        this.stun('root');
         p.kill();
         break;
       case 'ray':
-        this.hurt(15);
+        this.hurt(15, 'necrotic');
         this.vel.x /= 3;
         this.vel.y /= 3;
         if (player && !player.killed) {
-          player.hp += 3;
+          player.hp += 3 + statOf(player, 'leech');
         }
         fx.emit(c.x, c.y, 1.4, { color: 0xff2040, life: 0.4, size: 0.8, vy: 1 });
         p.kill();
         break;
       case 'shadowbolt':
-        this.stun();
+        this.stun('shadow');
         p.kill();
         break;
       case 'scorch':
-        this.hurt(Arcana.scorch.damage);
+        this.hurt(Arcana.scorch.damage, 'fire');
         fx.burst(c.x, c.y, 1.4, { color: [0xff5020, 0xffc040], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
       default:
-        this.hurt(REFLECTED_DAMAGE[p.kind] || 20);
+        this.hurt(REFLECTED_DAMAGE[p.kind] || 20, p.spec.element || 'physical');
         fx.burst(c.x, c.y, 1.4, { color: 0xffffff, count: 8, speed: 3, life: 0.3, size: 0.6 });
         p.kill();
     }
@@ -162,26 +198,46 @@ export class Enemy extends Entity {
 
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
-      this.hp -= (zone.tier ? 1 : 0.5) * k;
+      this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k, 'cold');
     } else if (zone.kind === 'guardians') {
-      this.hp -= Arcana.guardians.dps / 60 * k;
+      this.hp -= this.resisted(Arcana.guardians.dps / 60 * k, 'radiant');
     } else if (zone.kind === 'cloud') {
-      this.hp -= Arcana.cloud.dps / 60 * k;
+      this.hp -= this.resisted(Arcana.cloud.dps / 60 * k, 'poison');
     }
+  }
+
+  // Damage after this monster's resistance to the element.
+  resisted(dmg, element) {
+    const mult = this.resist && element ? this.resist[element] : undefined;
+    return mult === undefined ? dmg : dmg * mult;
   }
 
   slowIn(zone) {
     return zone.tier ? this.blizzardSlow[1] : this.blizzardSlow[0];
   }
 
-  hurt(dmg) {
-    this.hp -= dmg;
-    if (this.rig) {
+  hurt(dmg, element) {
+    // gear armour first, then the element's resistance
+    dmg *= 1 - gearStat(this, 'armor');
+    const taken = this.resisted(dmg, element);
+    this.hp -= taken;
+    if (taken < dmg * 0.75 || taken > dmg * 1.25) {
+      this.onResist(element, taken / dmg);
+    }
+    if (this.rig && taken > 0) {
       this.rig.hit();
     }
   }
 
-  stun() {
+  // A hit it shrugs off or takes badly: a puff of the element's colour.
+  onResist(element, mult) {
+    const c = this.center();
+    const color = mult < 1 ? 0xb0b0b0 : 0xffe040;
+    this.game.fx.burst(c.x, c.y, (this.rig ? this.rig.height : 2) * 0.7, { color, count: mult < 1 ? 6 : 12, speed: 3, life: 0.4, size: 0.7 });
+  }
+
+  // `cause` is what stunned it (root, shadow), for monsters that shrug some off.
+  stun(cause) {
     this.isStunned = true;
     this.stunFrames = 0;
     const c = this.center();
@@ -189,6 +245,9 @@ export class Enemy extends Entity {
   }
 
   chill(frames) {
+    if (this.resisted(1, 'cold') === 0) {
+      return;
+    }
     this.chillFrames = Math.max(this.chillFrames, frames);
   }
 

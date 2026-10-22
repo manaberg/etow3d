@@ -1,6 +1,7 @@
 import { DungeonThemes } from '../world/dungeon.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
+import { Dragon } from '../entities/dragon.js';
 
 // Visited rooms show in their theme colour, the rest stay as dim outlines.
 // The base image is redrawn only when a room is discovered; markers are
@@ -76,7 +77,7 @@ export class Minimap {
       ctx.fillRect(Math.floor(sc.x * scale) - 3, Math.floor(sc.y * scale) - 3, 6, 6);
     }
     // hunting enemies are bright, unaware ones dim
-    const colors = [[Orc, '#d33', '#722'], [Clericorc, '#e8e', '#747'], [Mageorc, '#e8e', '#747'], [Boss, '#f0f', '#808']];
+    const colors = [[Orc, '#d33', '#722'], [Clericorc, '#e8e', '#747'], [Mageorc, '#e8e', '#747'], [Boss, '#f0f', '#808'], [Dragon, '#fa0', '#850']];
     for (const e of game.entities) {
       if (e.killed) {
         continue;

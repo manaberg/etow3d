@@ -6,8 +6,9 @@ ImpactJS wizard-versus-orcs dungeon game, rebuilt with [Three.js](https://threej
 
 Pre Alpha 0.1.0
 
-The game plays like the original: the same ten-floor survival descent, the same spells,
-orc classes, mini-bosses, warlord and duel AI, with the same numbers. It is now rendered
+The game plays like the original: the same ten-floor survival descent (now followed by ten
+more, down through the dragons' lairs), the same spells, orc classes, mini-bosses, warlord
+and duel AI, with the same numbers. It is now rendered
 as a lit 3D dungeon seen from an angled camera that follows the mage.
 
 ## Running it
@@ -78,15 +79,21 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `Space` | descend the stairs |
 | Mouse wheel | zoom |
 | `M` | larger map |
+| `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
 | `Esc` / `P` | pause |
 
 ## The game
 
 Three modes; the main menu explains each in full under **How each mode works**.
 
-**Battle.** You and a rival wizard each lead an orc army (blue against red) across open
-grassland ringed by cliffs: a best-of-five match in which every battle is 500 orcs a side.
-Armies are split into regiments by type (infantry, slingers, knights, shock
+**Battle.** You and a rival wizard each lead an army (blue against red) across open
+grassland ringed by cliffs. You pick your army's race on the menu (orcs, dwarves, humans,
+elves or random; `?race=dwarf` in the URL) and the rival fields a different race every
+battle. The races share the orcs' seven classes under their own names, models and missiles
+(`Races` in `src/world/levels.js`): dwarves are slow and take 30% more killing and shoot
+crossbows; humans are a little tougher, harder hitting and longer ranged than orcs; elves are
+quick and shoot a quarter further and straighter, but are frail. A match is best of five, and every battle is
+500 a side. Armies are split into regiments by type (infantry, slingers, knights, shock
 troops, mystics), each with a banner, deployed in lines with yours along the bottom of the
 screen facing up the field; you rearrange them before the battle (Space starts it early). Tab
 switches between spell mode (you play the wizard) and commander mode (the wizard stands, the
@@ -102,12 +109,13 @@ and the rival learns one. Duel rules apply between the wizards, including the 3 
 cooldown. Battle orcs have double the dungeon orcs' health (`BattleRules` in
 `src/entities/battle.js`).
 
-**Survival.** Ten floors, from The Upper Halls down to the Throne of the Warlord. Every floor
+**Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
+through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
 is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,
 alchemy lab, crypt, throne room) joined by corridors. The stairs down wait in the throne room
 and unseal once 40% of the floor's enemies are slain. Spells are learnt from scrolls; tier 2
 scrolls upgrade fireball, lightning, iron shot, blink and blizzard. Potions heal or raise
-maximum manergy, and rings add passive effects. Spells, rings and stats carry down the stairs.
+maximum manergy. Spells, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
 to spiritual weapon in the table above). Duels and battles use them too.
 
@@ -123,20 +131,61 @@ Every spell belongs to a school of magic, shown beside it in the spell list:
 | Illusion | mirror image, invisibility | 3.3 s |
 | Necromancy | lifesteal, power word kill | 4 s |
 
-Orcs guard their rooms until they see, hear or get hit by the player, then rally the pack
+**Gear.** Wizards wear a hat, a robe, a staff and two rings, each with properties (more
+health or manergy, faster regen, movement or cooldowns, armour, cheaper fireballs or
+lightning, stronger missiles, lifesteal, mending, longer shields), and what is worn shows
+on the model. `I` opens the inventory: the five worn slots, a bag of twenty, the wizard's
+resulting stats, and the selected item compared with what it would replace; double-click
+to wear or take off, or drop an item on the floor. You start in an apprentice's kit; the
+2D game's rings and new gear drop from champions, and the orcs wear gear too (casters
+now and then a hat or robe, champions often a ring or a robe, the orc mage a rare hat,
+the cleric its mitre), which makes them tougher, faster or harder to hurt and drops when
+they fall. In duels and battles both wizards wear matching kits (the rival's in red) and
+keep the 2D duel's five rings as built-in bonuses. The catalogue is `Gear` in
+`src/entities/gear.js`; the pieces are modelled in `src/render/gearModels.js`.
+
+The orcs share the dungeon with warbands of humans (from the first floor), dwarves (from the
+second) and elves (from the third), drawn per floor by the plan's `races` weights. Each pack
+is one race, with that race's stats, names and missiles; the warlord's guard is always orcs.
+Packs guard their rooms until they see, hear or get hit by the player, then rally the pack
 and hunt through the dungeon on flow-field paths. Classes: grunt, slinger, knight (charges),
 shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orcs are tougher
 and champions, which grow more common with depth, drop the most loot. Potions are scarce: a
 few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 4 and grow in
-number further down, and the warlord waits on the tenth floor.
+number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
 
 Every floor also hides a dark wizard with the duel rival's brain. It waits in its lair until it
-notices you, knows magic missile plus one random spell per floor below the first (nine on the
-tenth), fights as a hard rival from depth 6, and leaves a tier 2 scroll when slain.
+notices you, knows magic missile plus one random spell per floor below the first, fights as a
+hard rival from depth 6, and leaves a tier 2 scroll when slain.
+
+Below him the climb steepens (foes' health grows with the square of the depth past 10, to
+5.4x on floor 20; damage to 2.6x; more foes, champions and mini-bosses) and dragons lair in
+the largest rooms (`src/entities/dragon.js`): wyrmlings from depth 11, then young, adult and
+ancient dragons, each age bigger and stronger. Every colour has its own breath, spell and
+resistances (a damage multiplier per element; every spell of the mage now carries one):
+
+| Colour | Breath | Ancient's spell | Immune | Weak to |
+| --- | --- | --- | --- | --- |
+| red | fire cone, leaves burning ground | three fireballs | fire | cold |
+| white | frost cone, a slowing blizzard | a fan of ice shards | cold (and chill) | fire |
+| blue | lightning line, a short stun | three storm bolts | lightning (resists thunder) | poison |
+| green | poison cone, a lingering cloud | a poison cloud on you | poison (resists necrotic) | fire |
+| black | acid line, acid pools | three acid bolts | necrotic (resists poison) | radiant, lightning |
+
+All dragons bite, breathe and fly over walls to reach you; adults add a tail sweep at
+whoever stands behind them and a frightful roar that makes you flee; ancients add a wing
+buffet, their colour's spell and shrug off roots. Before a breath the dragon stops, rears and
+its mouth glows; the breath then sweeps slowly after you. Step out of it or raise the shield,
+which turns it. On floor 20 the great golden wyrm (immune to fire and poison, resistant to
+most else) breathes fire and weakening gas by turns, rains meteors, and at 75%, 50% and 25%
+health calls two of its chromatic brood and takes to the air. Slaying it wins the run.
 
 **Duel.** You against a rival wizard in a small dungeon of six themed rooms and corridors (no
 stairs); you start in the two rooms farthest apart. Walls block sight and bolts, so you can
 hide, flank and ambush, and the rival hunts you through the corridors when it loses you.
+The **arena** map (`?map=arena`, or the Rooms / Arena toggle on the menu) is the old
+straightforward duel instead: one open hall with no pillars, the wizards starting face to
+face from opposite ends.
 In **progressive** duels (the default) each wizard starts with magic missile and one random
 spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first
 learns a spell they lack (potions heal or restore manergy). The rival runs for loot when it
@@ -176,12 +225,18 @@ the original balance carries over unchanged. Textures and props are procedural.
 ### Character models
 
 The mage and every orc look are modelled in Blender from the 2D game's sprites by
-scripts in `tools/blender/`, and exported to `public/models/`. To rebuild them after
-changing a script (needs Blender 4.2 or newer on the `PATH`):
+scripts in `tools/blender/`, and exported to `public/models/`. The dwarves, humans and elves
+(`build_races.py`, seven classes each, `<race>_<class>.glb`) have no sprites; they follow the
+orcs' style. The dragon (`build_dragon.py`: `dragon.glb` for wyrmlings to adults, the horned
+`wyrm.glb` for ancients and the golden wyrm) has its own rig of jaw, wings, two-part tail and
+four legs, and is recoloured per colour in the game. To rebuild them after changing a script
+(needs Blender 4.2 or newer on the `PATH`):
 
 ```sh
 blender --background --python tools/blender/build_mage.py
 blender --background --python tools/blender/build_orcs.py -- --only knight   # or all looks
+blender --background --python tools/blender/build_races.py -- --only dwarf   # a race, a look, or all
+blender --background --python tools/blender/build_dragon.py
 ```
 
 Pass `-- --preview DIR` to also render front, three-quarter, side and back views. The

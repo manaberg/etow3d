@@ -1,7 +1,10 @@
-import { SpellBook, RingEffects } from '../entities/mage.js';
+import { SpellBook } from '../entities/mage.js';
+import { Rarities } from '../entities/gear.js';
+import { InventoryScreen } from './inventory.js';
 import { DungeonLevels } from '../world/levels.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
+import { Dragon } from '../entities/dragon.js';
 import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
@@ -79,8 +82,10 @@ export class Hud {
       return { spell, row, key, name, tier, fill, shown: null };
     });
     this.hint = el('div', 'hud-hint', left, 'Find scrolls to learn spells.');
-    this.ringHeading = el('div', 'hud-heading', left, 'RING EFFECTS');
-    this.ringRows = RingEffects.map((ring) => ({ ring, row: el('div', 'ring-row', left, ring.label) }));
+    // what the wizard wears, and the key to the inventory
+    this.gearHeading = el('div', 'hud-heading', left, '');
+    this.gearList = el('div', 'hud-gear', left);
+    this.gearShown = null;
 
     const right = el('div', 'hud-right', root);
     this.rightPanel = right;
@@ -132,6 +137,7 @@ export class Hud {
     const menu = el('button', 'secondary', pauseButtons, 'Main menu');
     menu.onclick = () => game.onExit && game.onExit('menu');
 
+    this.inventoryScreen = new InventoryScreen(root, game);
     this.endScreen = el('div', 'screen hidden', root);
 
     this.pauseButton = el('button', 'hud-pause', root, 'Pause the game');
@@ -184,6 +190,26 @@ export class Hud {
     this.slowTint = 1;
   }
 
+  showInventory(open) {
+    this.inventoryScreen.show(open);
+  }
+
+  // The worn gear's names in their rarity colours, redrawn when it changes.
+  updateGear(player, keysChanged) {
+    const worn = player.inventory ? player.inventory.worn() : [];
+    const key = worn.map((i) => i.uid).join(',') + '/' + (player.inventory ? player.inventory.bag.length : 0);
+    if (key === this.gearShown && !keysChanged) {
+      return;
+    }
+    this.gearShown = key;
+    const bag = player.inventory ? player.inventory.bag.length : 0;
+    setText(this.gearHeading, 'GEAR' + (bag ? ' (+' + bag + ' IN BAG)' : '') + '  ::  ' + actionKeyLabel('inventory') + ' INVENTORY');
+    this.gearList.textContent = '';
+    for (const item of worn) {
+      el('div', 'gear-row', this.gearList, item.type.name).style.color = Rarities[item.type.rarity].color;
+    }
+  }
+
   showPause(paused) {
     this.pauseScreen.classList.toggle('hidden', !paused);
     this.pauseHint.textContent = 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
@@ -199,7 +225,7 @@ export class Hud {
     const grid = el('div', 'stats', card);
     const lines = [
       ['Enemies slain', stats.killcount],
-      ['Orcs / knights / shamans', stats.orccount + ' / ' + stats.knightcount + ' / ' + stats.shamancount],
+      ['Soldiers / knights / healers', stats.orccount + ' / ' + stats.knightcount + ' / ' + stats.shamancount],
       ['Bosses', stats.bosscount],
       ['Scrolls read', stats.scrollcount],
       ['Health / manergy potions', stats.redpotcount + ' / ' + stats.bluepotcount],
@@ -283,13 +309,7 @@ export class Hud {
       }
     }
     this.hint.style.display = known <= 1 && !game.duelMode ? '' : 'none';
-    let rings = 0;
-    for (const r of this.ringRows) {
-      const has = !!player[r.ring.flag];
-      r.row.style.display = has ? '' : 'none';
-      rings += has ? 1 : 0;
-    }
-    this.ringHeading.style.display = rings ? '' : 'none';
+    this.updateGear(player, keysChanged);
 
     if (game.duelMode) {
       this.updateRival();
@@ -376,14 +396,14 @@ export class Hud {
   }
 
   // Between battles: the result, the score, and three spells to choose from.
-  showBattleDraft({ winner, why, score, next, nextSize, choices, rivalLearns, onPick }) {
+  showBattleDraft({ winner, why, score, next, nextSize, nextFoe, choices, rivalLearns, onPick }) {
     const screen = this.endScreen;
     screen.innerHTML = '';
     screen.classList.remove('hidden');
     const card = el('div', 'card end' + (winner === 'player' ? ' win' : ''), screen);
     el('h2', null, card, winner === 'player' ? 'BATTLE WON' : 'BATTLE LOST');
     el('p', null, card, why + ' Score :: you ' + score.player + ' - ' + score.enemy + ' rival.');
-    el('p', 'dim', card, 'Battle ' + next + ' of 5 is ' + nextSize + ' orcs a side.' + (rivalLearns ? ' The rival learns ' + rivalLearns + '.' : ''));
+    el('p', 'dim', card, 'Battle ' + next + ' of 5 is ' + nextSize + ' a side, against the rival\'s ' + nextFoe.toLowerCase() + '.' + (rivalLearns ? ' The rival learns ' + rivalLearns + '.' : ''));
     if (choices.length) {
       el('p', null, card, 'Choose a spell to learn:');
       const buttons = el('div', 'buttons draft', card);
@@ -411,7 +431,10 @@ export class Hud {
     }
     setText(this.slainLabel, 'SLAIN ' + game.floorSlain + ' / ' + game.levelEnemyTotal);
     let goal;
-    if (DungeonLevels.getPlan(game.depth).boss) {
+    const boss = DungeonLevels.getPlan(game.depth).boss;
+    if (boss === 'wyrm') {
+      goal = 'SLAY THE GREAT GOLDEN WYRM';
+    } else if (boss === 'warlord' && !game.warlordSlain) {
       goal = 'SLAY THE WARLORD';
     } else if (game.isStairsOpen()) {
       goal = 'STAIRS UNSEALED';
@@ -446,7 +469,15 @@ export class Hud {
     }
     const plan = DungeonLevels.getPlan(game.depth);
     setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + plan.name);
-    setText(this.bannerText, plan.boss ? 'THE WARLORD AWAITS IN THE THRONE ROOM' : 'FIND THE STAIRS IN THE THRONE ROOM');
+    let text = 'FIND THE STAIRS IN THE THRONE ROOM';
+    if (plan.boss === 'warlord') {
+      text = 'THE WARLORD AWAITS IN THE THRONE ROOM';
+    } else if (plan.boss === 'wyrm') {
+      text = 'THE GREAT GOLDEN WYRM SLEEPS ON ITS HOARD';
+    } else if (plan.dragons) {
+      text = 'DRAGONS LAIR ON THIS FLOOR :: FIND THE STAIRS IN THE THRONE ROOM';
+    }
+    setText(this.bannerText, text);
     this.banner.style.opacity = String(Math.min(1, game.bannerFrames / 60));
   }
 
@@ -507,7 +538,7 @@ export class Hud {
         }
         continue;
       }
-      if (e.killed || !(e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard)) {
+      if (e.killed || !(e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof Dragon || e instanceof DuelWizard)) {
         continue;
       }
       if (e.invis || e.distanceTo(player) > 900 || !e.rig) {
@@ -518,7 +549,7 @@ export class Hud {
       if (!p || p.x < -60 || p.y < -30 || p.x > w + 60 || p.y > h + 30) {
         continue;
       }
-      const big = e instanceof Boss || e instanceof DuelWizard || e.miniBoss;
+      const big = e instanceof Boss || e instanceof DuelWizard || e.miniBoss || e.isBoss;
       const bw = big ? 90 : 48;
       const ratioHp = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.fillStyle = 'rgba(0,0,0,0.65)';

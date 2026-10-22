@@ -1,11 +1,13 @@
 import { Enemy } from './enemy.js';
 import { Projectile } from './spells.js';
-import { OrcClasses } from '../world/levels.js';
+import { OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc, buildSheep } from '../render/models.js';
 import { UNIT } from '../core/constants.js';
 import { BattleRules } from './battle.js';
 
-// An orc in one of the battle armies (battle.js). It belongs to a regiment and
+// A soldier in one of the battle armies (battle.js): an orc, dwarf, human or
+// elf, as its army's race (Races in levels.js) scales its health, speed,
+// damage and range and picks its look and missiles. It belongs to a regiment and
 // follows the regiment's order: charge (fight the nearest foe), hold (march to
 // its slot in the regiment's formation and fight whatever comes in reach) or
 // follow (keep formation around its wizard). Brawlers close in, slingers and
@@ -17,6 +19,7 @@ export class Soldier extends Enemy {
     super.defaults();
     this.side = 'player';
     this.orcClass = 'grunt';
+    this.race = 'orc';
     this.regiment = null;
     this.slot = { x: 0, y: 0 };
     this.target = null;
@@ -37,6 +40,8 @@ export class Soldier extends Enemy {
 
   init() {
     const spec = OrcClasses[this.orcClass] || OrcClasses.grunt;
+    const race = Races[this.race] || Races.orc;
+    this.raceSpec = race;
     this.desiredVel = Math.floor(Math.random() * 30) + 90;
     this.meleeDmg = Math.floor(Math.random() * 10) + 10;
     this.hasCharge = this.orcClass === 'knight';
@@ -54,14 +59,18 @@ export class Soldier extends Enemy {
     } else if (this.hasCharge) {
       this.desiredVel = 120;
     }
-    this.maxSpeed = 160;
-    this.hp = this.maxHp = spec.hp * BattleRules.hpScale;
+    this.desiredVel = Math.round(this.desiredVel * race.speed);
+    this.meleeDmg = Math.round(this.meleeDmg * race.damage);
+    this.range = Math.round(this.range * race.range);
+    this.maxSpeed = Math.round(160 * race.speed);
+    this.hp = this.maxHp = spec.hp * race.hp * BattleRules.hpScale;
     this.label = '';
+    const look = raceLook(this.race, this.orcClass);
     const army = this.game.army;
-    this.rig = army ? army.register(this, spec.look, this.side) : null;
+    this.rig = army ? army.register(this, look, this.side) : null;
     if (!this.rig) {
       // no instanced slot (models missing): a full rig of its own
-      this.rig = buildOrc(spec.look, { team: this.side });
+      this.rig = buildOrc(look, { team: this.side });
       this.view = this.rig.root;
       this.game.gfx.add(this.view);
     }
@@ -147,7 +156,7 @@ export class Soldier extends Enemy {
         this.vel.y = 0;
       } else {
         const tc = target.center();
-        this.steer(tc.x, tc.y, this.hasCharge && dist < 320 ? 170 : this.desiredVel);
+        this.steer(tc.x, tc.y, this.hasCharge && dist < 320 ? 170 * this.raceSpec.speed : this.desiredVel);
       }
     } else {
       const spot = battle.slotPoint(this);
@@ -224,8 +233,9 @@ export class Soldier extends Enemy {
       return;
     }
     const c = this.center();
-    const kind = this.isCaster ? 'missile2' : 'stone';
-    const spread = this.isCaster ? 0.04 : 0.12;
+    const kind = this.isCaster ? this.raceSpec.bolt : this.raceSpec.shot;
+    // elves shoot straighter
+    const spread = (this.isCaster ? 0.04 : 0.12) / this.raceSpec.range;
     this.game.spawn(Projectile, c.x, c.y, { kind, angle: this.angleTo(target) + (Math.random() - 0.5) * spread, team: this.side });
     this.shotCooldown = (this.isCaster ? 160 : 100) + Math.random() * 20;
     this.rig.swing();

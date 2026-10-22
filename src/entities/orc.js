@@ -1,14 +1,17 @@
 import { Enemy } from './enemy.js';
 import { Projectile } from './spells.js';
-import { DungeonLevels, OrcClasses } from '../world/levels.js';
+import { DungeonLevels, OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc } from '../render/models.js';
+import { Inventory, rollGear } from './gear.js';
 
-// Regular orcs. The level plan picks a class; depth and champion rolls
-// scale their health and damage.
+// Regular dungeon foes: orcs, or a warband of dwarves, humans or elves. The
+// level plan picks a race for the pack and a class for each; the race, depth
+// and champion rolls scale their health, speed and damage.
 export class Orc extends Enemy {
   defaults() {
     super.defaults();
     this.orcClass = 'grunt';
+    this.race = 'orc';
     this.depth = 1;
     this.isChampion = false;
     this.attackCooldown = 0;
@@ -29,13 +32,15 @@ export class Orc extends Enemy {
     this.desiredVel = Math.floor(Math.random() * 125) + 25;
     this.meleeDmg = Math.floor(Math.random() * 10) + 10;
     const spec = OrcClasses[this.orcClass] || OrcClasses.grunt;
-    let hp = spec.hp * DungeonLevels.hpScale(this.depth);
-    let damage = DungeonLevels.damageScale(this.depth);
+    const race = Races[this.race] || Races.orc;
+    this.raceSpec = race;
+    let hp = spec.hp * race.hp * DungeonLevels.hpScale(this.depth);
+    let damage = race.damage * DungeonLevels.damageScale(this.depth);
     this.hasCharge = this.orcClass === 'knight';
     this.isHealer = this.orcClass === 'shaman';
     this.isCaster = this.orcClass === 'warlock';
     this.quiver = this.orcClass === 'slinger' ? 4 + Math.floor(this.depth / 2) : 0;
-    this.sightRange = spec.sight || 0;
+    this.sightRange = spec.sight ? spec.sight * race.range : 0;
     if (this.orcClass === 'berserker') {
       this.desiredVel = Math.floor(Math.random() * 30) + 140;
       this.meleeDmg += 8;
@@ -46,18 +51,46 @@ export class Orc extends Enemy {
     } else if (this.orcClass === 'warlock') {
       this.desiredVel = Math.floor(Math.random() * 30) + 60;
     }
+    this.desiredVel = Math.round(this.desiredVel * race.speed);
     if (this.isChampion) {
       hp *= 1.8;
       damage *= 1.3;
     }
-    this.maxSpeed = Math.max(100, this.desiredVel);
+    this.maxSpeed = Math.max(Math.round(100 * race.speed), this.desiredVel);
     this.desiredVel = Math.min(this.desiredVel, this.maxSpeed);
     this.hp = this.maxHp = Math.round(hp);
     this.meleeDmg = Math.round(this.meleeDmg * damage);
-    this.label = ((this.isChampion ? 'CHAMPION ' : '') + (spec.label || '')).trim();
-    this.rig = buildOrc(spec.look, { champion: this.isChampion });
+    // orcs only name their dangerous classes; the other races name every soldier
+    const name = this.race === 'orc' ? (spec.label || '') : race.names[this.orcClass];
+    this.label = ((this.isChampion ? 'CHAMPION ' : '') + name).trim();
+    this.rig = buildOrc(raceLook(this.race, this.orcClass), { champion: this.isChampion });
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
+    this.rollGear();
+  }
+
+  // Some of them wear gear (gear.js), on show and dropped when they fall:
+  // casters now and then a hat or robe, champions often a ring or a robe,
+  // and deeper down anyone may have found a ring.
+  rollGear() {
+    const wear = [];
+    const caster = this.orcClass === 'shaman' || this.orcClass === 'warlock';
+    if (caster && Math.random() < 0.15 + this.depth * 0.03) {
+      wear.push(rollGear(this.depth, { slots: [Math.random() < 0.5 ? 'hat' : 'robe'] }));
+    }
+    if (this.isChampion) {
+      if (Math.random() < 0.6) {
+        wear.push(rollGear(this.depth, { slots: [Math.random() < 0.6 ? 'ring' : 'robe'], minRarity: 'magic' }));
+      }
+    } else if (Math.random() < this.depth * 0.006) {
+      wear.push(rollGear(this.depth, { slots: ['ring'] }));
+    }
+    if (wear.length) {
+      this.inventory = new Inventory(this);
+      for (const item of wear) {
+        this.inventory.add(item);
+      }
+    }
   }
 
   update(k) {
@@ -131,23 +164,23 @@ export class Orc extends Enemy {
     } else if (!aggro) {
       // hasn't noticed the player: guard the home room
       game.idleEntity(this);
-    } else if (this.isCaster && hasRoomSight && distance < 440 && distance > 140) {
+    } else if (this.isCaster && hasRoomSight && distance < 440 * this.raceSpec.range && distance > 140) {
       // warlocks hold their ground and cast bolts
       this.vel.x = 0;
       this.vel.y = 0;
       if (this.castCooldown <= 0) {
         const c = this.center();
-        game.spawn(Projectile, c.x, c.y, { kind: 'missile2', angle: this.angleTo(player), team: 'enemy' });
+        game.spawn(Projectile, c.x, c.y, { kind: this.raceSpec.bolt, angle: this.angleTo(player), team: 'enemy' });
         this.castCooldown = this.castMax;
         this.rig.swing();
       }
-    } else if (this.quiver > 0 && hasRoomSight && distance < 400) {
+    } else if (this.quiver > 0 && hasRoomSight && distance < 400 * this.raceSpec.range) {
       // slingers keep their distance while they have stones
       this.vel.x = 0;
       this.vel.y = 0;
       if (this.stoneCooldown <= 0) {
         const c = this.center();
-        game.spawn(Projectile, c.x, c.y, { kind: 'stone', angle: this.angleTo(player) + (Math.random() - 0.5) * 0.1, team: 'enemy' });
+        game.spawn(Projectile, c.x, c.y, { kind: this.raceSpec.shot, angle: this.angleTo(player) + (Math.random() - 0.5) * 0.1, team: 'enemy' });
         this.stoneCooldown = 100;
         this.quiver--;
         this.rig.swing();
@@ -213,6 +246,7 @@ export class Orc extends Enemy {
       stats.orccount++;
     }
     game.rollOrcLoot(this);
+    this.dropGear();
     game.deathFx(this);
     this.kill();
   }

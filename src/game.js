@@ -5,13 +5,15 @@ import { World } from './world/world.js';
 import { DungeonLevels } from './world/levels.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage } from './entities/mage.js';
+import { Mage, DuelInnate } from './entities/mage.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
+import { Dragon, DragonAges } from './entities/dragon.js';
 import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage } from './entities/spells.js';
-import { Scroll, Potion, Ring, Stairs } from './entities/items.js';
+import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.js';
+import { Kits, outfit, rollGear } from './entities/gear.js';
 import { DuelLoot } from './entities/duelLoot.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
@@ -31,16 +33,20 @@ const STAT_KEYS = [
 ];
 
 export class Game {
-  constructor({ container, hudRoot, mode, difficulty, rules, onExit }) {
+  constructor({ container, hudRoot, mode, difficulty, rules, map, race, onExit }) {
     this.mode = mode;
     // battles are duels between two wizards with armies: they share the duel
     // rules (spell damage, global cooldown, the rival's brain and HUD panel)
     this.battleMode = mode === 'battle';
     this.duelMode = mode === 'duel' || this.battleMode;
     this.battle = null;
+    // the player's army in battles: orc, dwarf, human, elf or random
+    this.race = race || 'orc';
     this.difficulty = difficulty || 'hard';
     // duels are progressive (start with one spell, loot the rest) unless classic
     this.progressive = mode === 'duel' && rules !== 'classic';
+    // duels are fought in a six-room dungeon, or in one open arena
+    this.duelArena = mode === 'duel' && map === 'arena';
     this.duelLoot = null;
     this.onExit = onExit;
     this.gfx = new Gfx(container);
@@ -65,6 +71,7 @@ export class Game {
     this.bannerFrames = 0;
     this.state = 'playing';
     this.paused = false;
+    this.inventoryOpen = false;
     // enemies idle until they see, hear or get hit by the player
     this.aggroSightRange = 460;
     this.aggroHearRange = 130;
@@ -104,11 +111,16 @@ export class Game {
     this.player = null;
     const plan = DungeonLevels.getPlan(this.depth);
     // survival floors grow with depth; duels get a compact dungeon of six
-    // rooms, big enough to hide, flank and race for loot
+    // rooms, big enough to hide, flank and race for loot, or a single open
+    // arena (a pillarless hall) to fight face to face
     if (!options) {
-      options = this.duelMode
-        ? { cols: 56, rows: 38, roomCount: 6 }
-        : { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
+      if (this.duelArena) {
+        options = { cols: 44, rows: 30, roomCount: 1, minRoomW: 30, maxRoomW: 30, minRoomH: 16, maxRoomH: 16 };
+      } else if (this.duelMode) {
+        options = { cols: 56, rows: 38, roomCount: 6 };
+      } else {
+        options = { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
+      }
     }
     this.world = new World(options, () => this.navFrame);
     this.gfx.buildLevel(this.world, this.battleMode);
@@ -120,12 +132,17 @@ export class Game {
   startFloor(carry) {
     this.buildWorld();
     this.stairs = null;
+    this.warlordSlain = false;
     this.descendRequested = false;
     const spawn = this.world.getRoomSpawnPoint(this.world.getMainRoom(), 4);
     const player = this.spawn(Mage, spawn.x, spawn.y);
     this.player = player;
     if (carry) {
-      Object.assign(player, carry);
+      const { inventory, ...rest } = carry;
+      Object.assign(player, rest);
+      player.takeInventory(inventory);
+    } else {
+      outfit(player, Kits.apprentice);
     }
     this.populateFloor(DungeonLevels.getPlan(this.depth), player);
     this.floorSlain = 0;
@@ -136,6 +153,19 @@ export class Game {
 
   startDuel() {
     this.buildWorld();
+    if (this.duelArena) {
+      // the duelists start facing each other from opposite ends of the hall
+      const room = this.world.getMainRoom();
+      room.visited = true;
+      const center = this.world.getRoomCenterPixel(room);
+      const offset = Math.min(520, Math.floor(room.w * TILE / 2) - 150);
+      const player = this.spawn(Mage, center.x - offset - 24, center.y - 24);
+      this.player = player;
+      this.configureDuelPlayer(player);
+      this.rival = this.spawn(DuelWizard, center.x + offset - 24, center.y - 24, { difficulty: this.difficulty });
+      this.startDuelLoot();
+      return;
+    }
     // the duelists start in the two rooms farthest apart; no stairs, and the
     // whole (small) map is known from the start
     const rooms = this.world.rooms;
@@ -161,9 +191,13 @@ export class Game {
     this.configureDuelPlayer(player);
     const rs = this.world.getRoomSpawnPoint(rooms[pair[1]], 3);
     this.rival = this.spawn(DuelWizard, rs.x, rs.y, { difficulty: this.difficulty });
+    this.startDuelLoot();
+  }
+
+  startDuelLoot() {
     if (this.progressive) {
       this.duelLoot = new DuelLoot(this);
-      this.duelLoot.setup(player, this.rival);
+      this.duelLoot.setup(this.player, this.rival);
     }
     this.duelWinnerDeclared = false;
   }
@@ -172,13 +206,15 @@ export class Game {
     const flags = [
       'hasFireball', 'hasFb2', 'hasLightning', 'hasLg2', 'hasIronshot', 'hasIs2', 'hasBlink', 'hasBk2', 'hasTimestop',
       'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasBz2', 'hasRay', 'hasInvis', 'hasFear',
-      'hasPwkill', 'hasPwk2', 'hasTele', 'hasMrring', 'hasSpring', 'hasFrring', 'hasElring', 'hasMsring',
+      'hasPwkill', 'hasPwk2', 'hasTele',
       'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph',
       'hasDisintegrate', 'hasWeapon'
     ];
     for (const flag of flags) {
       player[flag] = true;
     }
+    // the 2D duel's five rings come built in
+    player.innate = { ...DuelInnate };
     player.is2Charges = 3;
     // the rival moves at 120, the duel player's 100 with the ring of speed
     player.desiredVel = 100;
@@ -186,17 +222,20 @@ export class Game {
     player.stunDuration = DuelRules.stunFrames;
     player.fearDuration = DuelRules.fearFrames;
     player.manergy = player.maxManergy;
+    // the same kit as the rival's, in blue (duelWizard.js)
+    outfit(player, Kits.apprentice);
   }
 
   snapshotPlayer(player) {
     const carry = {};
     for (const key of Object.keys(player)) {
-      // spellbook and ring flags (hasFireball, hasMsring...)
+      // spellbook flags (hasFireball, hasFb2...)
       if (/^has[A-Z]/.test(key)) {
         carry[key] = player[key];
       }
     }
-    for (const key of ['hp', 'manergy', 'maxManergy', 'is2Charges', 'timePlayed']) {
+    // the inventory goes down too, with the pools its gear has already raised
+    for (const key of ['hp', 'maxHp', 'manergy', 'maxManergy', 'is2Charges', 'timePlayed', 'inventory', 'gearStats']) {
       carry[key] = player[key];
     }
     return carry;
@@ -222,7 +261,7 @@ export class Game {
   }
 
   isStairsOpen() {
-    return !!this.stairs && this.getKillsToUnseal() === 0;
+    return !!this.stairs && (this.getKillsToUnseal() === 0 || this.warlordSlain);
   }
 
   // Rooms away from the start, picked by size, sometimes by theme.
@@ -248,12 +287,14 @@ export class Game {
     return lairs[lairs.length - 1];
   }
 
-  spawnOrcPack(plan, roomIndex, count) {
+  // A pack is one race: orcs, or a warband of dwarves, humans or elves.
+  spawnOrcPack(plan, roomIndex, count, race = DungeonLevels.pickRace(plan)) {
     const room = this.world.rooms[roomIndex];
     for (let i = 0; i < count; i++) {
       const spot = this.world.getRoomSpawnPoint(room, 2);
       this.spawn(Orc, spot.x, spot.y, {
         orcClass: DungeonLevels.pickClass(plan),
+        race,
         depth: this.depth,
         isChampion: Math.random() < plan.champion,
         homeRoom: roomIndex
@@ -292,7 +333,7 @@ export class Game {
     let total = 0;
     // a guard pack waits by the stairs (or around the warlord)
     const guards = Math.min(plan.orcs, 2 + Math.floor(this.depth / 3));
-    total += this.spawnOrcPack(plan, stairsRoom, guards);
+    total += this.spawnOrcPack(plan, stairsRoom, guards, plan.boss ? 'orc' : undefined);
     let remaining = plan.orcs - guards;
     while (remaining > 0) {
       const packSize = Math.min(remaining, randInt(3, 5 + Math.floor(this.depth / 3)));
@@ -309,9 +350,25 @@ export class Game {
       }
     }
     total += this.spawnFloorWizard(lairs);
-    if (plan.boss) {
+    // dragons lair in the biggest rooms, the greatest in the throne room
+    if (plan.dragons) {
+      const lairsBySize = lairs.slice().sort((a, b) => rooms[b].w * rooms[b].h - rooms[a].w * rooms[a].h);
+      let next = 0;
+      for (const age of ['ancient', 'adult', 'young', 'wyrmling']) {
+        for (let n = 0; n < (plan.dragons.ages[age] || 0); n++) {
+          const roomIndex = lairsBySize[next++ % lairsBySize.length];
+          const color = plan.dragons.colors[randInt(0, plan.dragons.colors.length - 1)];
+          this.spawnDragon(roomIndex, color, age);
+          total++;
+        }
+      }
+    }
+    if (plan.boss === 'warlord') {
       const spot = world.getRoomSpawnPoint(rooms[stairsRoom], 4, 96);
       this.spawn(Boss, spot.x, spot.y, { homeRoom: stairsRoom });
+      total++;
+    } else if (plan.boss === 'wyrm') {
+      this.spawnDragon(stairsRoom, 'gold', 'great');
       total++;
     } else {
       const spot = world.getRoomSpawnPoint(rooms[stairsRoom], 4, 96);
@@ -356,6 +413,22 @@ export class Game {
     return 1;
   }
 
+  spawnDragon(roomIndex, color, age) {
+    const size = DragonAges[age].size;
+    const spot = this.world.getRoomSpawnPoint(this.world.rooms[roomIndex], 3, size);
+    return this.spawn(Dragon, spot.x, spot.y, { color, age, depth: this.depth, homeRoom: roomIndex });
+  }
+
+  // The warlord fell on floor 10: the run goes on, down to the dragons. The
+  // stairs open where he died.
+  onWarlordSlain(boss) {
+    const c = boss.center();
+    this.stairs = this.spawn(Stairs, c.x - 48, c.y - 48);
+    this.stairsRoomIndex = boss.homeRoom;
+    this.warlordSlain = true;
+    this.hud.toast('THE WARLORD IS SLAIN :: THE STAIRS DOWN TO THE DRAGONS OPEN', '#ffd060');
+  }
+
   // Deeper orcs drop more; champions drop the most. Potions stay scarce.
   rollOrcLoot(orc) {
     if (this.duelMode) {
@@ -370,6 +443,19 @@ export class Game {
     if (Math.random() < scrollChance) {
       this.dropScroll(orc, Math.random() < plan.tier2 ? 1 : 0, 24);
     }
+    // now and then a piece of gear (whatever it wore drops as well, orc.js)
+    const gearChance = orc.isChampion ? 0.15 : 0.01 + this.depth * 0.003;
+    if (Math.random() < gearChance) {
+      this.dropGear(orc, rollGear(this.depth, { minRarity: orc.isChampion ? 'magic' : undefined }));
+    }
+  }
+
+  // An item (gear.js) on the floor somewhere around a body.
+  dropGear(from, item) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 20 + Math.random() * 30;
+    const c = from.center();
+    return this.spawn(GearItem, c.x - 24 + Math.cos(a) * r, c.y - 24 + Math.sin(a) * r, { item });
   }
 
   dropPotion(from, settings = {}) {
@@ -401,7 +487,7 @@ export class Game {
   }
 
   floorEnemies() {
-    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard));
+    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard || e instanceof Dragon));
   }
 
   duelRival() {
@@ -427,7 +513,7 @@ export class Game {
   listHostiles(team) {
     if (team === 'player') {
       return this.entities.filter((e) => !e.killed && (
-        e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard ||
+        e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof Dragon || e instanceof DuelWizard ||
         (e instanceof MirrorImage && e.source !== this.player) || (e instanceof Soldier && e.side === 'enemy')
       ));
     }
@@ -488,7 +574,7 @@ export class Game {
 
   hoveredItem() {
     const g = this.input.ground;
-    return this.entities.find((e) => !e.killed && (e instanceof Scroll || e instanceof Potion || e instanceof Ring) && e.containsPoint(g.x, g.y, 14)) || null;
+    return this.entities.find((e) => !e.killed && e instanceof Item && e.containsPoint(g.x, g.y, 14)) || null;
   }
 
   // Slow factor from the zones covering an entity (blizzards of the other side).
@@ -500,6 +586,8 @@ export class Game {
         slow = Math.min(slow, entity.slowIn ? entity.slowIn(e) : 0.5);
       } else if (e instanceof Zone && !e.killed && e.kind === 'guardians' && e.team !== friendlyTeam && e.covers(entity)) {
         slow = Math.min(slow, 0.6);
+      } else if (e instanceof Zone && !e.killed && e.kind === 'gloom' && e.team !== friendlyTeam && e.covers(entity)) {
+        slow = Math.min(slow, 0.55);
       }
     }
     return slow;
@@ -519,14 +607,14 @@ export class Game {
     const pool = this.battle ? this.battle.units('enemy') : this.orcs();
     for (const orc of pool) {
       if (orc !== target && !orc.killed && orc.distanceTo(target) < spec.radius) {
-        orc.hurt(spec.splash);
+        orc.hurt(spec.splash, 'necrotic');
       }
     }
     if (target instanceof DuelWizard) {
       DuelRules.applyHit(target, 'pwkill', this.player);
       return;
     }
-    target.hurt(Math.max(target.pwkillDamage, spec.target));
+    target.hurt(Math.max(target.pwkillDamage, spec.target), 'necrotic');
   }
 
   // --------------------------------------------------------------- awareness & navigation
@@ -789,7 +877,7 @@ export class Game {
     this.saveGame(this.player).then((msg) => {
       this.hud.showEnd({
         title: 'VICTORY',
-        text: 'You slew the warlord and escaped the end of the world.',
+        text: 'You slew the great golden wyrm and escaped the end of the world.',
         stats: this.stats,
         saved: msg,
         time: this.player.timePlayed,
@@ -832,9 +920,25 @@ export class Game {
 
   // --------------------------------------------------------------- loop
 
+  // The inventory screen (ui/inventory.js) holds the game still while open.
+  toggleInventory(open = !this.inventoryOpen) {
+    if (open && (this.state !== 'playing' || this.paused || !this.player || this.player.dead || !this.player.inventory)) {
+      return;
+    }
+    this.inventoryOpen = open;
+    this.hud.showInventory(open);
+    if (!open) {
+      // clicks on the screen must not turn into spells when play resumes
+      this.input.queued.clear();
+    }
+  }
+
   setPaused(paused) {
     if (this.state !== 'playing') {
       return;
+    }
+    if (paused && this.inventoryOpen) {
+      this.toggleInventory(false);
     }
     this.paused = paused;
     this.hud.showPause(paused);
@@ -893,8 +997,16 @@ export class Game {
     this.frameHandle = requestAnimationFrame((t) => this.frame(t));
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
+    if (this.input.consume('inventory')) {
+      this.toggleInventory();
+    }
     if (this.input.consume('pause')) {
-      this.setPaused(!this.paused);
+      // Esc closes the inventory before it pauses
+      if (this.inventoryOpen) {
+        this.toggleInventory(false);
+      } else {
+        this.setPaused(!this.paused);
+      }
     }
     if (this.input.consume('map')) {
       this.hud.toggleMap();
@@ -907,7 +1019,7 @@ export class Game {
         this.input.ground.y = g.y;
       }
     }
-    if (!this.paused && this.state === 'playing') {
+    if (!this.paused && !this.inventoryOpen && this.state === 'playing') {
       this.acc += dt;
       let steps = 0;
       while (this.acc >= STEP && steps < 5) {

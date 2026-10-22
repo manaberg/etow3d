@@ -172,7 +172,7 @@ const templates = new Map();
 const GLOWING = new Set(['Gem', 'Glow']);
 
 export async function loadModels() {
-  const names = ['mage', ...Object.keys(ORC_LOOKS).map((look) => 'orc_' + look)];
+  const names = ['mage', 'dragon', 'wyrm', ...Object.keys(LOOKS).map(modelName)];
   const loader = new GLTFLoader();
   await Promise.all(names.map(async (name) => {
     try {
@@ -207,10 +207,15 @@ function rigFromModel(parts, colors = {}, glowScale = 0.8) {
     }
     return mats[m.material];
   };
+  // every part's meshes (and gem glows) by material, for gear to hide
+  const byPart = {};
   const part = (name) => {
     const g = new THREE.Group();
+    const found = byPart[name] = {};
     for (const m of parts[name].meshes) {
-      g.add(new THREE.Mesh(m.geometry, material(m)));
+      const o = new THREE.Mesh(m.geometry, material(m));
+      g.add(o);
+      (found[m.material] = found[m.material] || []).push(o);
       if (GLOWING.has(m.material)) {
         if (!m.geometry.boundingBox) {
           m.geometry.computeBoundingBox();
@@ -219,10 +224,12 @@ function rigFromModel(parts, colors = {}, glowScale = 0.8) {
         const glow = glowSprite(material(m).color, m.material === 'Gem' ? glowScale : glowScale * 0.4);
         m.geometry.boundingBox.getCenter(glow.position);
         g.add(glow);
+        found[m.material].push(glow);
       }
     }
     return g;
   };
+  rig.partMeshes = (name, ...materials) => materials.flatMap((m) => (byPart[name] && byPart[name][m]) || []);
   const pivotPart = (name) => {
     const p = parts[name].position;
     return rig.pivot(p.x, p.y, p.z, part(name));
@@ -244,7 +251,7 @@ export function buildMage(o = {}) {
     return buildPrimitiveMage(o);
   }
   // the duel wizard and mirror images recolour the sprite's grey wizard
-  const { rig } = rigFromModel(parts, {
+  const { rig, mats } = rigFromModel(parts, {
     Robe: o.robe,
     RobeShade: o.robe !== undefined ? new THREE.Color(o.robe).multiplyScalar(0.65).getHex() : undefined,
     Mantle: o.hat,
@@ -255,6 +262,13 @@ export function buildMage(o = {}) {
   });
   rig.root.add(blobShadow(0.85));
   rig.height = 2.7;
+  // gear (gearModels.js): a hat replaces the circlet, a staff the plain one
+  rig.wardrobe = {
+    mats: { Robe: mats.Robe, RobeShade: mats.RobeShade, Mantle: mats.Mantle, Trim: mats.Trim },
+    skin: mats.Skin,
+    hide: { hat: rig.partMeshes('Head', 'Trim', 'Gem'), staff: rig.partMeshes('ArmR', 'Wood', 'Gem', 'Leather') },
+    cape: { y: 1.98, z: -0.06 }
+  };
   return rig;
 }
 
@@ -318,6 +332,12 @@ function buildPrimitiveMage(o) {
 
   rig.root.add(blobShadow(0.85));
   rig.height = 3.1;
+  rig.wardrobe = {
+    mats: { Robe: robe, Mantle: hatMat, Trim: trim },
+    skin,
+    hide: { hat: [brim, cone, band], staff: [staff] },
+    cape: { y: 1.92, z: -0.06 }
+  };
   return rig;
 }
 
@@ -336,24 +356,61 @@ const ORC_LOOKS = {
   boss: { skin: 0x4a6a2a, cloth: 0x1c1c22, scale: 2.0 }
 };
 
+// Dwarves, humans and elves (tools/blender/build_races.py): the orcs' seven
+// classes per race, looks named <race>_<class>. `height` is the model's own
+// height before scaling (dwarves are short, elves tall).
+const RACE_BUILDS = {
+  dwarf: { skin: 0xb88262, height: 1.9, brute: 1.15 },
+  human: { skin: 0xbe9070, height: 2.45, brute: 1.12 },
+  elf: { skin: 0xccb096, height: 2.6, brute: 1.08 }
+};
+const RACE_LOOKS = {};
+for (const race in RACE_BUILDS) {
+  const build = RACE_BUILDS[race];
+  for (const cls of ['grunt', 'slinger', 'knight', 'shaman', 'berserker', 'brute', 'warlock']) {
+    RACE_LOOKS[race + '_' + cls] = {
+      skin: build.skin, cloth: ORC_LOOKS[cls].cloth, cls, height: build.height, scale: cls === 'brute' ? build.brute : 1
+    };
+  }
+}
+const LOOKS = { ...ORC_LOOKS, ...RACE_LOOKS };
+
+// public/models file of a look: the orcs' are prefixed, the races' are not
+function modelName(look) {
+  return ORC_LOOKS[look] ? 'orc_' + look : look;
+}
+
+function lookSpec(look) {
+  return LOOKS[look] || ORC_LOOKS.grunt;
+}
+
+// Any soldier of any race; `look` is an orc look or <race>_<class>.
 export function buildOrc(look, o = {}) {
-  const spec = ORC_LOOKS[look] || ORC_LOOKS.grunt;
+  if (!LOOKS[look]) {
+    look = 'grunt';
+  }
+  const spec = lookSpec(look);
   const champion = !!o.champion;
-  const parts = templates.get('orc_' + (ORC_LOOKS[look] ? look : 'grunt'));
+  const parts = templates.get(modelName(look));
   if (parts) {
     // battle armies wear their side's colours
     const team = TEAM_COLORS[o.team];
     const { rig, mats } = rigFromModel(parts, team ? { Cloth: team.cloth, Armor: team.armor } : {}, 0.9);
-    return finishOrc(rig, look, spec, champion, mats.Cloth, o.team);
+    return finishOrc(rig, look, spec, champion, mats.Cloth, o.team, mats.Skin);
   }
-  return buildPrimitiveOrc(look, spec, champion, o.team);
+  // no model: the primitive orc of the same class, in the race's skin
+  const prim = spec.cls ? { ...ORC_LOOKS[spec.cls], skin: spec.skin, scale: spec.scale } : spec;
+  const rig = buildPrimitiveOrc(spec.cls || look, prim, champion, o.team);
+  rig.height = (spec.height || 2.6) * spec.scale;
+  return rig;
 }
 
-// For the instanced battle armies (armyRenderer.js): an orc look's Blender
-// parts and body scale, or null while the model is missing.
+// For the instanced battle armies (armyRenderer.js): a look's Blender parts,
+// body scale and height, or null while the model is missing.
 export function orcTemplate(look) {
-  const parts = templates.get('orc_' + (ORC_LOOKS[look] ? look : 'grunt'));
-  return parts ? { parts, scale: (ORC_LOOKS[look] || ORC_LOOKS.grunt).scale } : null;
+  const parts = templates.get(modelName(LOOKS[look] ? look : 'grunt'));
+  const spec = lookSpec(look);
+  return parts ? { parts, scale: spec.scale, height: (spec.height || 2.6) * spec.scale } : null;
 }
 
 export const TEAM_COLORS = {
@@ -525,11 +582,11 @@ function buildPrimitiveOrc(look, spec, champion, team) {
   if (TEAM_COLORS[team]) {
     cloth.color.setHex(TEAM_COLORS[team].cloth);
   }
-  return finishOrc(rig, look, spec, champion, cloth, team);
+  return finishOrc(rig, look, spec, champion, cloth, team, skin);
 }
 
 // Champion aura and tint, shadow and size, shared by both kinds of orc.
-function finishOrc(rig, look, spec, champion, cloth, team) {
+function finishOrc(rig, look, spec, champion, cloth, team, skin) {
   if (TEAM_COLORS[team]) {
     // a thin ring underfoot tells the armies apart from any angle
     const ring = new THREE.Mesh(
@@ -558,7 +615,213 @@ function finishOrc(rig, look, spec, champion, cloth, team) {
 
   rig.root.add(blobShadow(look === 'boss' ? 1.0 : 0.95));
   rig.body.scale.setScalar(spec.scale);
-  rig.height = 2.6 * spec.scale;
+  rig.height = (spec.height || 2.6) * spec.scale;
+  // gear (gearModels.js): a robe dyes the cloth; hands keep their weapons
+  if (cloth && skin) {
+    rig.wardrobe = { mats: { Cloth: cloth }, skin, hide: {}, noStaff: true, ringScale: 1.3 };
+  }
+  return rig;
+}
+
+// ---------------------------------------------------------------- dragons
+
+// Scale colours by dragon (dragon.js picks one). Gold is metal.
+export const DRAGON_HUES = {
+  red: { Scale: 0x9a1a10, Belly: 0xd89a40, Wing: 0x6a1010, Horn: 0x2a1a10, Spine: 0x4a0a08, Eye: 0xffd040 },
+  white: { Scale: 0xd8e2ec, Belly: 0x9abcd4, Wing: 0xb8cce0, Horn: 0x7a8aa0, Spine: 0x8aa8c8, Eye: 0x60c8ff },
+  blue: { Scale: 0x1c48aa, Belly: 0x88b0dc, Wing: 0x203a7a, Horn: 0xe0dcc8, Spine: 0x10286a, Eye: 0xc0f0ff },
+  green: { Scale: 0x2a6e28, Belly: 0xa8b85a, Wing: 0x1a4e24, Horn: 0x3a3020, Spine: 0x16401a, Eye: 0xd0ff40 },
+  black: { Scale: 0x1e1c24, Belly: 0x4a4838, Wing: 0x2a2230, Horn: 0xc8c0a8, Spine: 0x101014, Eye: 0x90ff40 },
+  gold: { Scale: 0xd8a024, Belly: 0xfff0a8, Wing: 0xc08a20, Horn: 0xfff4dc, Spine: 0xa87010, Eye: 0xff5020, metal: true }
+};
+
+// A dragon's rig: four legs that walk in diagonal pairs, wings that fold on
+// the ground and beat in flight, a jaw that opens to bite and breathe, a head
+// that rears before a breath, and a tail of two segments that sways.
+class DragonRig {
+  constructor(parts, hue) {
+    this.root = new THREE.Group();
+    this.lift = new THREE.Group();
+    this.body = new THREE.Group();
+    this.root.add(this.lift);
+    this.lift.add(this.body);
+    this.materials = [];
+    this.phase = Math.random() * 10;
+    this.time = Math.random() * 10;
+    this.flash = 0;
+    this.bite = 0;
+    this.tail = 0;
+    this.buffet = 0;
+    this.rear = 0;
+    this.gape = 0;
+    this.fly = 0;
+    this.facing = 0;
+    this.alpha = 1;
+    const mats = {};
+    const material = (m) => {
+      if (!mats[m.material]) {
+        const color = hue[m.material] ?? m.color;
+        if (m.material === 'Eye') {
+          mats[m.material] = new THREE.MeshBasicMaterial({ color });
+        } else if (hue.metal && (m.material === 'Scale' || m.material === 'Horn' || m.material === 'Spine')) {
+          mats[m.material] = new THREE.MeshStandardMaterial({ color, metalness: 0.75, roughness: 0.35, emissive: 0x000000, side: THREE.DoubleSide });
+          mats[m.material].userData.baseEmissive = new THREE.Color(0x201000);
+          mats[m.material].emissive.setHex(0x201000);
+          this.materials.push(mats[m.material]);
+        } else {
+          mats[m.material] = mat(color, { emissive: 0x000000, side: THREE.DoubleSide });
+          mats[m.material].userData.baseEmissive = new THREE.Color(0x000000);
+          this.materials.push(mats[m.material]);
+        }
+      }
+      return mats[m.material];
+    };
+    const group = (name) => {
+      const g = new THREE.Group();
+      for (const m of parts[name].meshes) {
+        g.add(new THREE.Mesh(m.geometry, material(m)));
+      }
+      return g;
+    };
+    const pivot = (name, parent, origin) => {
+      const p = new THREE.Group();
+      p.position.copy(parts[name].position);
+      if (origin) {
+        p.position.sub(origin);
+      }
+      p.add(group(name));
+      parent.add(p);
+      return p;
+    };
+    this.body.add(group('Body'));
+    this.head = pivot('Head', this.body);
+    this.jaw = pivot('Jaw', this.head, parts.Head.position);
+    this.wingL = pivot('WingL', this.body);
+    this.wingR = pivot('WingR', this.body);
+    this.tailRoot = pivot('Tail', this.body);
+    this.tailTip = pivot('TailTip', this.tailRoot, parts.Tail.position);
+    this.legs = ['FL', 'FR', 'BL', 'BR'].map((n) => pivot('Leg' + n, this.body));
+    this.eyeColor = hue.Eye;
+    this.shadow = blobShadow(1.6);
+    this.root.add(this.shadow);
+    this.scale = 1;
+    this.height = 2.4;
+  }
+
+  setScale(s) {
+    this.scale = s;
+    this.body.scale.setScalar(s);
+    this.shadow.scale.set(s * 4.2, s * 4.2, 1);
+    this.height = 2.4 * s;
+  }
+
+  // Where the mouth is, in units ahead of and above the feet.
+  get mouth() {
+    return { ahead: 2.75 * this.scale, up: (2.1 + this.fly * 3) * this.scale };
+  }
+
+  // speed 0..1 walk, facing as for Rig; fly 0..1 how far it is off the ground
+  animate(dt, speed, facing) {
+    this.time += dt;
+    if (facing !== undefined && facing !== null) {
+      let diff = facing - this.facing;
+      while (diff > Math.PI) { diff -= Math.PI * 2; }
+      while (diff < -Math.PI) { diff += Math.PI * 2; }
+      this.facing += diff * Math.min(1, dt * 5);
+      this.root.rotation.y = this.facing;
+    }
+    const t = this.time;
+    const fly = this.fly;
+    this.phase += dt * (3 + speed * 6);
+    const swing = Math.sin(this.phase) * 0.55 * speed * (1 - fly);
+    const [fl, fr, bl, br] = this.legs;
+    fl.rotation.x = swing + fly * 0.9;
+    br.rotation.x = swing - fly * 0.7;
+    fr.rotation.x = -swing + fly * 0.9;
+    bl.rotation.x = -swing - fly * 0.7;
+    // breathing, and a lift into the air when flying
+    this.body.position.y = Math.sin(t * 2) * 0.03 + Math.abs(Math.sin(this.phase)) * 0.05 * speed;
+    this.lift.position.y = fly * 3 * this.scale + Math.sin(t * 6) * 0.15 * fly * this.scale;
+    this.body.rotation.x = -this.rear * 0.18 + fly * 0.1;
+    // wings: folded along the back on the ground, spread and beating aloft;
+    // a buffet throws them wide in one great beat
+    const beat = fly > 0 ? Math.sin(t * 7) * 0.7 * fly : Math.sin(t * 1.3) * 0.04;
+    const spread = Math.max(fly, this.buffet);
+    const lift = 0.55 * (1 - spread) + beat + this.buffet * Math.sin(this.buffet * Math.PI) * 0.9;
+    const fold = 0.95 * (1 - spread);
+    this.wingR.rotation.set(0, fold, lift);
+    this.wingL.rotation.set(0, -fold, -lift);
+    // head: rears back before a breath, lunges on a bite
+    const lunge = this.bite > 0 ? Math.sin(this.bite * Math.PI) : 0;
+    this.head.rotation.x = -this.rear * 0.45 + lunge * 0.35 + Math.sin(t * 1.7) * 0.04;
+    this.head.rotation.y = Math.sin(t * 0.9) * 0.08;
+    this.jaw.rotation.x = Math.max(this.gape, lunge) * 0.65 + Math.max(0, Math.sin(t * 0.6)) * 0.05;
+    // tail sways, and whips round in a sweep
+    const whip = this.tail > 0 ? Math.sin(this.tail * Math.PI * 2) * 1.1 : 0;
+    this.tailRoot.rotation.y = Math.sin(t * 1.4) * 0.22 + whip + speed * Math.sin(this.phase * 0.5) * 0.15;
+    this.tailTip.rotation.y = Math.sin(t * 1.4 - 0.9) * 0.35 + whip * 0.8;
+    this.tailRoot.rotation.x = -fly * 0.3;
+    this.bite = Math.max(0, this.bite - dt * 2.5);
+    this.tail = Math.max(0, this.tail - dt * 1.6);
+    this.buffet = Math.max(0, this.buffet - dt * 1.4);
+    if (this.flash > 0) {
+      this.flash = Math.max(0, this.flash - dt * 4);
+    }
+    for (const m of this.materials) {
+      m.emissive.copy(m.userData.baseEmissive).lerp(FLASH, this.flash * 0.7);
+    }
+    this.shadow.material.opacity = 0.55 * (1 - fly * 0.6);
+    this.shadow.position.y = 0.02;
+  }
+
+  hit() {
+    this.flash = 1;
+  }
+
+  swing() {
+    this.bite = 1;
+  }
+
+  sweep() {
+    this.tail = 1;
+  }
+
+  beat() {
+    this.buffet = 1;
+  }
+
+  setAlpha() {}
+}
+
+// A dragon of the given hue (DRAGON_HUES); `old` takes the horned wyrm body.
+// Without the models it is a crude stand-in of primitives.
+export function buildDragon(hue, old) {
+  const colors = DRAGON_HUES[hue] || DRAGON_HUES.red;
+  const parts = templates.get(old ? 'wyrm' : 'dragon') || templates.get('dragon');
+  if (parts) {
+    return new DragonRig(parts, colors);
+  }
+  const rig = new Rig();
+  const scale = rig.track(mat(colors.Scale, { emissive: 0x000000 }));
+  rig.body.add(mesh(geo('drake.body', () => new THREE.SphereGeometry(0.8, 12, 8)), scale, 0, 1.1, 0));
+  rig.body.children[0].scale.set(0.9, 0.8, 1.6);
+  rig.head = mesh(geo('drake.head', () => new THREE.BoxGeometry(0.5, 0.45, 0.9)), scale, 0, 2.1, 1.6);
+  rig.body.add(rig.head);
+  rig.root.add(blobShadow(1.6));
+  rig.height = 2.4;
+  rig.setScale = (s) => {
+    rig.body.scale.setScalar(s);
+    rig.height = 2.4 * s;
+    rig.scale = s;
+  };
+  rig.scale = 1;
+  rig.fly = 0;
+  rig.rear = 0;
+  rig.gape = 0;
+  rig.sweep = () => rig.swing();
+  rig.beat = () => {};
+  rig.eyeColor = colors.Eye;
+  Object.defineProperty(rig, 'mouth', { get: () => ({ ahead: 2.0 * rig.scale, up: (2.1 + rig.fly * 3) * rig.scale }) });
   return rig;
 }
 
@@ -591,15 +854,6 @@ export function buildPotion(blue) {
   g.add(mesh(geo('pot.neck', () => new THREE.CylinderGeometry(0.09, 0.11, 0.3, 8)), glass, 0, 0.36, 0));
   g.add(mesh(geo('pot.cork', () => new THREE.CylinderGeometry(0.1, 0.09, 0.12, 8)), mat(0x8a6a40), 0, 0.55, 0));
   g.add(glowSprite(color, 1.6, 0.7));
-  return g;
-}
-
-export function buildRing() {
-  const g = new THREE.Group();
-  const gold = new THREE.MeshStandardMaterial({ color: 0xffc840, metalness: 0.9, roughness: 0.25, emissive: 0x302000 });
-  g.add(mesh(geo('ring.band', () => new THREE.TorusGeometry(0.26, 0.06, 8, 20)), gold));
-  g.add(mesh(geo('ring.gem', () => new THREE.OctahedronGeometry(0.11)), new THREE.MeshBasicMaterial({ color: 0x40ffd0 }), 0, 0.3, 0));
-  g.add(glowSprite(0xffe080, 1.6, 0.6));
   return g;
 }
 
@@ -658,6 +912,18 @@ export function buildIronshot() {
   const iron = new THREE.MeshStandardMaterial({ color: 0x9aa4b0, metalness: 0.95, roughness: 0.25, emissive: 0x202830 });
   g.add(mesh(geo('iron', () => new THREE.SphereGeometry(0.28, 14, 10)), iron));
   g.add(glowSprite(0xc0d8ff, 1.4, 0.7));
+  return g;
+}
+
+// An arrow or crossbow quarrel, pointing along +x (the way it flies).
+export function buildArrow(color) {
+  const g = new THREE.Group();
+  const shaft = mesh(geo('arrow.shaft', () => new THREE.CylinderGeometry(0.025, 0.025, 0.9, 5)), mat(color));
+  shaft.rotation.z = Math.PI / 2;
+  const head = mesh(geo('arrow.head', () => new THREE.ConeGeometry(0.06, 0.18, 4)), mat(0x9aa0aa), 0.52, 0, 0);
+  head.rotation.z = -Math.PI / 2;
+  const fletch = mesh(geo('arrow.fletch', () => new THREE.BoxGeometry(0.2, 0.12, 0.01)), mat(0xe8e0d0), -0.38, 0, 0);
+  g.add(shaft, head, fletch);
   return g;
 }
 

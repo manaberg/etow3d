@@ -17,9 +17,14 @@ export const DuelRules = {
     rootchain: 0,
     // per ray: a cast fans three
     scorch: 30,
-    // battle orcs' stones and warlock bolts
+    // battle soldiers' stones, arrows and quarrels, and their casters' bolts
     stone: 20,
-    missile2: 50
+    arrow: 20,
+    quarrel: 24,
+    missile2: 50,
+    runebolt: 50,
+    sunbolt: 50,
+    moonbolt: 50
   },
   blizzardDamage: 0.25,
   blizzard2Damage: 0.5,

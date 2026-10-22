@@ -1,6 +1,7 @@
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
-import { buildOrb, buildRock, buildIronshot, buildZone, buildMage } from '../render/models.js';
+import { buildOrb, buildRock, buildIronshot, buildZone, buildMage, buildArrow } from '../render/models.js';
+import { dressRig } from '../render/gearModels.js';
 
 // Projectile kinds, numbers from the 2D game (speed px/s, life s, box px).
 // `light` is a colour for the dynamic light pool, `trail` a particle colour.
@@ -17,7 +18,19 @@ export const BoltKinds = {
   ray: { speed: 1000, life: 0.4, size: 8, color: 0xff3050, radius: 0.07, trail: 0xff2040 },
   stone: { speed: 225, life: 3, size: 23, rock: true, simple: true },
   missile2: { speed: 300, life: 2, size: 20, color: 0x7dff4a, radius: 0.16, trail: 0x50c030, simple: true },
-  fireball2: { speed: 400, life: 1, size: 36, color: 0xff3070, radius: 0.3, trail: 0xff2060, light: 0xff2060 },
+  // the other races' missiles (Races in levels.js): human and elf archers'
+  // arrows, dwarf crossbow quarrels, and their casters' bolts
+  arrow: { speed: 320, life: 2.4, size: 18, arrow: 0xd8c8a0, simple: true },
+  quarrel: { speed: 380, life: 2, size: 18, arrow: 0x8a8e96, simple: true },
+  runebolt: { speed: 300, life: 2, size: 20, color: 0xff9a30, radius: 0.16, trail: 0xff7010, simple: true },
+  sunbolt: { speed: 300, life: 2, size: 20, color: 0xffe070, radius: 0.16, trail: 0xffc030, simple: true },
+  moonbolt: { speed: 330, life: 2, size: 20, color: 0x70e8ff, radius: 0.15, trail: 0x40b0ff, simple: true },
+  // ancient dragons' spells (dragon.js); `element` is what a dragon resists
+  // when a shield sends one back at it
+  iceshard: { speed: 460, life: 1.4, size: 18, color: 0xd8f4ff, radius: 0.13, trail: 0x9ad8ff, element: 'cold' },
+  stormbolt: { speed: 520, life: 1.2, size: 24, color: 0x9ae8ff, radius: 0.18, trail: 0x80d8ff, light: 0x80d0ff, arcs: true, element: 'lightning' },
+  acidbolt: { speed: 360, life: 1.6, size: 22, color: 0x9aff30, radius: 0.17, trail: 0x60c020, element: 'poison' },
+  fireball2: { speed: 400, life: 1, size: 36, color: 0xff3070, radius: 0.3, trail: 0xff2060, light: 0xff2060, element: 'fire' },
   ironshot2: { speed: 1000, life: 0.5, size: 26, pierce: true },
   scorch: { speed: 700, life: 0.6, size: 18, color: 0xff5020, radius: 0.12, trail: 0xff4010, light: 0xff5010 },
   shadowbolt: { speed: 450, life: 1, size: 41, color: 0x9a40ff, radius: 0.3, trail: 0x6020c0, light: 0x8030ff }
@@ -82,6 +95,8 @@ export class Projectile extends Entity {
     }
     if (spec.rock) {
       this.view = buildRock(0.22);
+    } else if (spec.arrow) {
+      this.view = buildArrow(spec.arrow);
     } else if (spec.pierce) {
       this.view = buildIronshot();
     } else {
@@ -241,10 +256,10 @@ export class Zone extends Entity {
     this.size = { x: this.radius * 2, y: this.radius * 2 };
     this.pos.x -= this.radius;
     this.pos.y -= this.radius;
-    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20, guardians: 0xffe080, cloud: 0x70d040 }[this.kind];
+    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20, guardians: 0xffe080, cloud: 0x70d040, acid: 0x90ff30, gloom: 0xd8b040 }[this.kind];
     this.color = color;
     this.view = buildZone(color, this.radius * UNIT, this.kind === 'fire' ? 0.5 : 0.28);
-    if (this.kind === 'fire' || this.kind === 'cloud') {
+    if (this.kind === 'fire' || this.kind === 'cloud' || this.kind === 'acid') {
       this.view.userData.rune.visible = false;
     }
     this.game.gfx.add(this.view);
@@ -340,6 +355,18 @@ export class Zone extends Entity {
           color: Math.random() < 0.5 ? 0x5a9a30 : 0x9ad050, life: 1.2, size: 2.2, vy: 0.3, grow: 1.5
         });
       }
+    } else if (this.kind === 'acid') {
+      // a hissing pool from a black dragon
+      if (Math.random() < 0.5) {
+        fx.column(c.x, c.y, this.radius * 0.8, { color: [0x90ff30, 0x406010], count: 1, rise: 0.6, life: 0.7, size: 0.6 });
+      }
+    } else if (this.kind === 'gloom') {
+      // the golden wyrm's weakening breath, lingering
+      for (let i = 0; i < 2; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * this.radius;
+        fx.emit(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, 0.3 + Math.random() * 1.5, { color: [0xe8c860, 0x8a6a20], life: 1, size: 1.6, vy: 0.4, grow: 1.4 });
+      }
     } else {
       if (Math.random() < 0.5) {
         fx.column(c.x, c.y, this.radius * 0.8, { color: [0xff7020, 0xffc040], count: 1, rise: 1.8, life: 0.6, size: 0.8 });
@@ -364,6 +391,8 @@ export class MirrorImage extends Entity {
 
   init() {
     this.rig = buildMage({ robe: this.robe, hat: this.hat });
+    // dressed in its caster's gear, or it would give itself away
+    dressRig(this.rig, this.source && this.source.inventory);
     this.rig.setAlpha(0.8);
     this.view = this.rig.root;
     this.game.gfx.add(this.view);

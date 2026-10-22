@@ -1,11 +1,13 @@
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
-import { buildScroll, buildPotion, buildRing, buildStairs } from '../render/models.js';
+import { buildScroll, buildPotion, buildStairs } from '../render/models.js';
+import { buildGearLoot } from '../render/gearModels.js';
 import { SpellBook } from './mage.js';
+import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
 // start of a floor (`persistent`) waits until it is picked up.
-class Item extends Entity {
+export class Item extends Entity {
   defaults() {
     this.persistent = false;
     this.life = 35 * 60;
@@ -157,33 +159,61 @@ export class Potion extends Item {
   }
 }
 
-const RINGS = [
-  ['hasMrring', 'RING OF MANERGY :: FASTER MANERGY REGEN'],
-  ['hasSpring', 'RING OF SPEED :: FASTER MOVEMENT'],
-  ['hasFrring', 'RING OF FIRE :: CHEAPER FIREBALLS'],
-  ['hasElring', 'RING OF STORMS :: CHEAPER LIGHTNING'],
-  ['hasMsring', 'RING OF FORCE :: STRONGER MISSILES']
-];
+// A piece of gear on the floor (gear.js): it goes into the inventory, and
+// straight on if its slot is free. With the bag full, or when the wizard
+// just dropped it, it waits until the wizard has stepped off it.
+export class GearItem extends Item {
+  defaults() {
+    super.defaults();
+    this.item = null;
+    this.life = 45 * 60;
+    this.waitClear = false;
+  }
 
-export class Ring extends Item {
+  init() {
+    this.view = buildGearLoot(this.item.type, Rarities[this.item.type.rarity].glow);
+    this.game.gfx.add(this.view);
+  }
+
+  update(k) {
+    const player = this.game.player;
+    if (this.waitClear && player && this.touches(player)) {
+      return;
+    }
+    this.waitClear = false;
+    super.update(k);
+  }
+
+  pickUp(player) {
+    const inventory = player.inventory || outfit(player, []);
+    const type = this.item.type;
+    const rarity = Rarities[type.rarity];
+    if (!inventory.add(this.item)) {
+      this.waitClear = true;
+      this.game.hud.toast('BAG FULL :: ' + type.name, '#ff8a70');
+      return;
+    }
+    const worn = inventory.worn().includes(this.item);
+    this.game.pickupFx(this, rarity.glow);
+    this.game.hud.toast((worn ? 'EQUIPPED :: ' : 'FOUND :: ') + type.name, rarity.color);
+    this.kill();
+  }
+}
+
+// The 2D game's ring loot: one of its five rings, preferring one the player
+// has not got yet.
+export class Ring extends GearItem {
   defaults() {
     super.defaults();
     this.life = 25 * 60;
   }
 
   init() {
-    this.view = buildRing();
-    this.game.gfx.add(this.view);
-  }
-
-  pickUp(player) {
-    const missing = RINGS.filter(([flag]) => !player[flag]);
-    const pool = missing.length > 0 ? missing : RINGS;
-    const [flag, message] = pool[Math.floor(Math.random() * pool.length)];
-    player[flag] = true;
-    this.game.pickupFx(this, 0xffd060);
-    this.game.hud.toast(message, '#ffd060');
-    this.kill();
+    const owned = new Set((this.game.player && this.game.player.inventory ? this.game.player.inventory.all() : []).map((i) => i.type.id));
+    const missing = ClassicRings.filter((id) => !owned.has(id));
+    const pool = missing.length > 0 ? missing : ClassicRings;
+    this.item = makeItem(pool[Math.floor(Math.random() * pool.length)]);
+    super.init();
   }
 }
 
