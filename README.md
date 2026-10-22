@@ -31,11 +31,36 @@ npm start          # http://localhost:8080 (PORT and SESSION_SECRET are read fro
 ```
 
 The game also runs from any static host (`dist/` after `npm run build`); runs are then just
-not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app (the
-`etow3d` site of the `flubber-8ae55` project): `npm run build && npx firebase-tools deploy`.
+not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app; see
+**Deploying** below.
 
 URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=duel&ai=normal|hard|insane`
 starts a duel, and `/` shows the main menu.
+
+## Deploying
+
+The game is published as a static site on Firebase Hosting, at https://etow3d.web.app: the
+`etow3d` site of the `flubber-8ae55` Firebase project, which also hosts the flubber
+generator (https://flubber-8ae55.web.app) and the naval game (https://battlesea.web.app).
+Only the built game goes up (`dist/`); the score backend is not deployed there, so runs are
+not saved online. `firebase.json` names the site, the folder and the cache headers (no-cache,
+except the hashed files in `/assets`), `.firebaserc` the project. Deploy from `main`:
+
+```sh
+git checkout main && git pull
+npm install
+FIREBASE_SERVICE_ACCOUNT=... npm run deploy     # builds, then publishes dist/
+```
+
+`npm run deploy` builds the game and publishes `dist/` with `scripts/deploy-hosting.mjs`,
+which talks to the Hosting API directly. It needs `FIREBASE_SERVICE_ACCOUNT`: the
+`flubber-8ae55` service account key (Firebase console, Project settings, Service accounts),
+as the JSON itself or base64 of it. Keep the key out of the repo.
+
+With your own Google login instead, the Firebase CLI reads the same config:
+`npm run build && npx firebase-tools deploy --only hosting:etow3d`. The CLI does not work
+with the service account: it first asks the Service Usage API whether Hosting is enabled,
+which that account may not do, hence the script.
 
 ## Controls
 
