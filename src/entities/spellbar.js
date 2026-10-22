@@ -52,7 +52,7 @@ export const WizardLevels = {
   // slots open outside survival: progressive duels, classic duels, battles
   duelSlots: 6,
   classicSlots: 8,
-  battleSlots: 8,
+  battleSlots: 10,
   quickCooldown: 400,
   // a spell put on the bar from the spellbook waits its own cooldown, and at
   // least this many frames, before it can be cast

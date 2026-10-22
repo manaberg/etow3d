@@ -30,8 +30,10 @@ export class DungeonGenerator {
     this.roomGap = 3;
     this.corridorWidth = 3;
     this.extraLoopChance = 0.35;
-    // battle maps: rock outcrops scattered over the middle of the one big field
+    // battle maps: rock outcrops scattered over the middle of the one big
+    // field, between these fractions of its height
     this.outcrops = 0;
+    this.outcropBand = [0, 1];
     Object.assign(this, options);
   }
 
@@ -316,13 +318,14 @@ export class DungeonGenerator {
     });
   }
 
-  // Small blocks of rock in the middle half of a battlefield, clear of the
-  // deployment zones at either end, to break lines of sight and funnel armies.
+  // Small blocks of rock over the band of a battlefield between the armies
+  // (outcropBand), clear of where they deploy, to break lines of sight and
+  // funnel them.
   addOutcrops(cells, room) {
-    const x0 = room.x + Math.floor(room.w * 0.25);
-    const x1 = room.x + Math.floor(room.w * 0.75) - 2;
-    const y0 = room.y + 2;
-    const y1 = room.y + room.h - 4;
+    const x0 = room.x + Math.floor(room.w * 0.1);
+    const x1 = room.x + Math.floor(room.w * 0.9) - 2;
+    const y0 = Math.max(room.y + 2, room.y + Math.floor(room.h * this.outcropBand[0]));
+    const y1 = Math.min(room.y + room.h - 4, room.y + Math.floor(room.h * this.outcropBand[1]));
     for (let n = 0; n < this.outcrops; n++) {
       const x = randInt(x0, x1);
       const y = randInt(y0, y1);

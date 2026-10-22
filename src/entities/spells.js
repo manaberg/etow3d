@@ -103,6 +103,13 @@ export class Projectile extends Entity {
     const spec = this.spec;
     if (this.view) {
       this.game.gfx.remove(this.view);
+      this.view = null;
+    }
+    // battles: the armies' stones, arrows and bolts are drawn in batches
+    // (render/boltRenderer.js), thousands at a time
+    this.batched = !!(this.game.bolts && this.game.bolts.draws(this.kind));
+    if (this.batched) {
+      return;
     }
     if (spec.rock) {
       this.view = buildRock(0.22);
@@ -154,6 +161,11 @@ export class Projectile extends Entity {
       return;
     }
     if (this.kind === 'missile' && this.shootDown()) {
+      return;
+    }
+    if (this.game.battle) {
+      // battles: only the bodies around the bolt, from the battle's grid
+      this.game.battle.strike(this, k);
       return;
     }
     if (this.team === 'player') {
@@ -209,7 +221,7 @@ export class Projectile extends Entity {
   // Magic missile meets a simple bolt of the other side (a stone, a green
   // bolt, the duel rival's missile): both are spent.
   shootDown() {
-    for (const e of this.game.entities) {
+    for (const e of this.game.liveBolts()) {
       if (e instanceof Projectile && e !== this && !e.killed && e.team !== this.team && e.spec.simple && this.touches(e)) {
         const c = e.center();
         this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: [0xc090ff, 0xffffff, e.spec.trail || 0xbbbbbb], count: 16, speed: 4, life: 0.35, size: 0.6 });
@@ -223,12 +235,20 @@ export class Projectile extends Entity {
 
   syncView(time) {
     const c = this.center();
+    const fx = this.game.fx;
+    if (this.batched) {
+      this.game.bolts.write(this.kind, c.x * UNIT, FLY_HEIGHT, c.y * UNIT, -this.angle, this.spec.rock ? time * 12 + this.id : 0);
+      // a thinner trail: there are thousands of them
+      if (this.spec.trail && Math.random() < 0.3) {
+        fx.emit(c.x, c.y, FLY_HEIGHT, { color: this.spec.trail, life: 0.3, size: this.spec.radius * 7 });
+      }
+      return;
+    }
     this.view.position.set(c.x * UNIT, FLY_HEIGHT, c.y * UNIT);
     this.view.rotation.y = -this.angle;
     if (this.spec.rock || this.spec.pierce) {
       this.view.rotation.x = time * 12;
     }
-    const fx = this.game.fx;
     if (this.spec.trail) {
       fx.emit(c.x, c.y, FLY_HEIGHT + (Math.random() - 0.5) * 0.15, {
         color: this.team === 'enemy' && this.spec.enemyColor ? this.spec.enemyColor : this.spec.trail,
@@ -302,7 +322,15 @@ export class Zone extends Entity {
       this.pos.x += this.drift.x * k / 60;
       this.pos.y += this.drift.y * k / 60;
     }
-    if (this.team === 'player') {
+    if (game.battle) {
+      // battles: only the bodies around the zone, from the battle's grid
+      const c = this.center();
+      game.battle.eachNear(c.x, c.y, this.radius + 60, this.team === 'player' ? 'enemy' : 'player', (e) => {
+        if (!e.killed && this.covers(e)) {
+          e.inZone(this, k);
+        }
+      });
+    } else if (this.team === 'player') {
       for (const enemy of game.hostilesOf('player')) {
         if (!enemy.killed && this.covers(enemy)) {
           enemy.inZone(this, k);

@@ -680,10 +680,6 @@ button.rule.active {
   margin-bottom: 4px;
 }
 
-.buttons.draft button {
-  min-width: 150px;
-}
-
 .mode-guide {
   text-align: left;
   margin: 0 0 14px;
@@ -719,17 +715,21 @@ button.rule.active {
   bottom: 52px;
   transform: translateX(-50%);
   display: flex;
-  gap: 6px;
-  max-width: calc(100% - 32px);
-  overflow-x: auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  width: min(1180px, calc(100% - 32px));
+  max-height: 26vh;
+  overflow-y: auto;
 }
 
 .hud button.regiment {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 8px;
-  min-width: 132px;
-  padding: 6px 8px;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 2px 5px;
+  min-width: 128px;
+  padding: 4px 6px;
   text-align: left;
   font-size: 10px;
   color: var(--text);
@@ -753,8 +753,8 @@ button.rule.active {
 }
 
 .regiment-name {
-  grid-column: 1 / -1;
   color: #8fb8ff;
+  white-space: nowrap;
 }
 
 .regiment-order {
