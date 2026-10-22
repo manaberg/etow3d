@@ -493,8 +493,12 @@ export class Hud {
     this.goalLabel.classList.toggle('open', game.isStairsOpen());
 
     const stairs = game.stairs;
+    const item = game.state === 'playing' && game.grabbableItem();
     if (stairs && stairs.playerOn && game.state === 'playing') {
       setText(this.prompt, game.isStairsOpen() ? 'PRESS SPACE TO DESCEND' : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
+      this.prompt.style.opacity = '1';
+    } else if (item) {
+      setText(this.prompt, 'PRESS ' + actionKeyLabel('grab') + ' TO GRAB :: ' + item.label());
       this.prompt.style.opacity = '1';
     } else {
       this.prompt.style.opacity = '0';

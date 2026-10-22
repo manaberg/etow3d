@@ -81,6 +81,7 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
+| `G` | survival: grab the item you stand on (in duels and battles loot is picked up by walking over it) |
 | Mouse wheel | zoom |
 | `M` | larger map |
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |

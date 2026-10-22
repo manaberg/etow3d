@@ -650,6 +650,29 @@ export class Game {
     return best;
   }
 
+  // Survival: the item the grab key takes, the nearest one the wizard stands on.
+  grabbableItem() {
+    const player = this.player;
+    if (this.duelMode || !player || player.dead) {
+      return null;
+    }
+    const c = player.center();
+    let best = null;
+    let bestD = Infinity;
+    for (const e of this.entities) {
+      if (e.killed || !(e instanceof Item) || !e.touches(player)) {
+        continue;
+      }
+      const ec = e.center();
+      const d = Math.hypot(ec.x - c.x, ec.y - c.y);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
   hoveredItem() {
     const g = this.input.ground;
     return this.entities.find((e) => !e.killed && e instanceof Item && e.containsPoint(g.x, g.y, 14)) || null;

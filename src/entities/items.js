@@ -8,7 +8,9 @@ import { actionKeyLabel } from '../core/bindings.js';
 import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
-// start of a floor (`persistent`) waits until it is picked up.
+// start of a floor (`persistent`) waits until it is picked up. In duels and
+// battles loot is picked up by walking over it; on survival floors the wizard
+// stands on it and presses the grab key (game.grabbableItem).
 export class Item extends Entity {
   defaults() {
     this.persistent = false;
@@ -26,7 +28,11 @@ export class Item extends Entity {
     }
     const game = this.game;
     const player = game.player;
-    if (player && !player.dead && this.touches(player)) {
+    if (!game.duelMode) {
+      if (game.input.pressed('grab') && game.grabbableItem() === this) {
+        this.pickUp(player);
+      }
+    } else if (player && !player.dead && this.touches(player)) {
       this.pickUp(player);
     } else if (game.duelLoot && this.isLoot && game.rival && !game.rival.killed && this.touches(game.rival)) {
       this.pickUp(game.rival);
@@ -34,6 +40,11 @@ export class Item extends Entity {
   }
 
   pickUp() {}
+
+  // What the grab prompt calls it.
+  label() {
+    return 'ITEM';
+  }
 
   syncView(time) {
     const c = this.center();
@@ -94,6 +105,10 @@ export class Scroll extends Item {
     return left.length ? pick(left) : null;
   }
 
+  label() {
+    return this.tier ? 'GOLD SCROLL' : 'SCROLL';
+  }
+
   pickUp(player) {
     if (this.game.duelLoot) {
       this.game.duelLoot.takeScroll(player);
@@ -143,6 +158,10 @@ export class Potion extends Item {
     this.game.gfx.add(this.view);
   }
 
+  label() {
+    return this.isBlue ? 'MANERGY POTION' : 'HEALTH POTION';
+  }
+
   pickUp(player) {
     if (this.game.duelLoot) {
       this.game.duelLoot.takePotion(player, this.isBlue);
@@ -167,8 +186,9 @@ export class Potion extends Item {
 }
 
 // A piece of gear on the floor (gear.js): it goes into the inventory, and
-// straight on if its slot is free. With the bag full, or when the wizard
-// just dropped it, it waits until the wizard has stepped off it.
+// straight on if its slot is free. Where loot is picked up by walking over
+// it, with the bag full or when the wizard just dropped it, it waits until
+// the wizard has stepped off it.
 export class GearItem extends Item {
   defaults() {
     super.defaults();
@@ -184,11 +204,15 @@ export class GearItem extends Item {
 
   update(k) {
     const player = this.game.player;
-    if (this.waitClear && player && this.touches(player)) {
+    if (this.waitClear && this.game.duelMode && player && this.touches(player)) {
       return;
     }
     this.waitClear = false;
     super.update(k);
+  }
+
+  label() {
+    return this.item.type.name;
   }
 
   pickUp(player) {
