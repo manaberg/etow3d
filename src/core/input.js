@@ -3,7 +3,8 @@ import { actionFor } from './bindings.js';
 // Keyboard and mouse input, mapped to actions through the rebindable bindings
 // (bindings.js). `pressed` is edge-triggered per simulation step: presses
 // queue up until a step consumes them, so nothing is lost when a render frame
-// runs no step.
+// runs no step. The left button also reads as 'click' whatever it is bound
+// to (survival loot is picked up by clicking its name).
 export class Input {
   constructor(element) {
     this.element = element;
@@ -36,6 +37,10 @@ export class Input {
     });
     this.on(window, 'blur', () => this.held.clear());
     this.on(element, 'mousedown', (e) => {
+      if (e.button === 0) {
+        this.queued.add('click');
+        this.held.add('click');
+      }
       const action = actionFor('Mouse' + e.button);
       if (action) {
         e.preventDefault();
@@ -44,6 +49,9 @@ export class Input {
       }
     });
     this.on(window, 'mouseup', (e) => {
+      if (e.button === 0) {
+        this.held.delete('click');
+      }
       const action = actionFor('Mouse' + e.button);
       if (action) {
         this.held.delete(action);

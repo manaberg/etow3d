@@ -30,7 +30,6 @@ export const Actions = [
   { id: 'order_hold', label: 'Selected: march to cursor and hold', group: 'Battle', key: 'KeyK' },
   { id: 'order_follow', label: 'Selected: follow me', group: 'Battle', key: 'KeyL' },
   { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space' },
-  { id: 'grab', label: 'Grab an item (survival)', group: 'Game', key: 'KeyG' },
   { id: 'map', label: 'Larger map', group: 'Game', key: 'KeyM' },
   { id: 'inventory', label: 'Inventory', group: 'Game', key: 'KeyI' },
   { id: 'spellbook', label: 'Spellbook', group: 'Game', key: 'KeyB' },

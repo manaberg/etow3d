@@ -88,6 +88,11 @@ export class Mage extends Entity {
     this.hp = 100;
     this.maxHp = 100;
     this.desiredVel = 115;
+    // survival: the item a click on its name sent the wizard to (updateLootClick)
+    this.walkTo = null;
+    this.walkBest = Infinity;
+    this.walkStall = 0;
+    this.clickTaken = false;
     // cooldown frames left per spell (0 = ready), and the length of a wait
     // longer than the spell's own cooldown (one just put on the bar)
     this.cdFull = {};
@@ -446,6 +451,7 @@ export class Mage extends Entity {
     // battles: while the armies deploy, or while the wizard commands them,
     // it stands still and casts nothing (but still regenerates and can fall)
     const standing = !!game.battle && (!game.battle.fighting || game.battle.commander);
+    this.updateLootClick();
 
     // movement
     // gear speeds it up (the ring of speed adds a fifth, as 100 -> 120 did in the 2D game)
@@ -477,6 +483,14 @@ export class Mage extends Entity {
       if (input.state('down')) { my += 1; }
       if (input.state('left')) { mx -= 1; }
       if (input.state('right')) { mx += 1; }
+      if (mx || my) {
+        this.walkTo = null;
+      } else if (this.walkTo) {
+        const t = this.walkTo.center();
+        const c = this.center();
+        mx = t.x - c.x;
+        my = t.y - c.y;
+      }
       const len = Math.hypot(mx, my) || 1;
       this.vel.x = (mx / len) * speed;
       this.vel.y = (my / len) * speed;
@@ -499,6 +513,7 @@ export class Mage extends Entity {
       this.castSpells();
     }
     this.move(k);
+    this.reachLoot(k);
     if (this.knock) {
       const res = game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
       this.pos.x = res.x;
@@ -512,6 +527,50 @@ export class Mage extends Entity {
     if (this.hp <= 0 && !this.dead) {
       this.dead = true;
       game.onPlayerDeath(this);
+    }
+  }
+
+  // Survival: a left click on a hovered item's name sends the wizard to it
+  // (WASD takes over again), and that click casts no magic missile.
+  updateLootClick() {
+    const input = this.game.input;
+    if (this.clickTaken && !input.state('click')) {
+      this.clickTaken = false;
+    }
+    if (!input.pressed('click')) {
+      return;
+    }
+    const item = this.game.pointedItem();
+    if (item) {
+      this.walkTo = item;
+      this.walkBest = Infinity;
+      this.walkStall = 0;
+      this.clickTaken = true;
+    }
+  }
+
+  // Picks up the item it walked to, or gives up once a wall keeps it from
+  // getting any closer.
+  reachLoot(k) {
+    const item = this.walkTo;
+    if (!item) {
+      return;
+    }
+    if (item.killed) {
+      this.walkTo = null;
+      return;
+    }
+    if (this.touches(item)) {
+      this.walkTo = null;
+      item.pickUp(this);
+      return;
+    }
+    const d = this.distanceTo(item);
+    if (d < this.walkBest - 1) {
+      this.walkBest = d;
+      this.walkStall = 0;
+    } else if ((this.walkStall += k) > 30) {
+      this.walkTo = null;
     }
   }
 
@@ -565,7 +624,7 @@ export class Mage extends Entity {
     const aim = this.aim;
     const fire = (kind, angle, x = c.x, y = c.y) => game.spawn(Projectile, x, y, { kind, angle, team: 'player', timeOwner: this });
 
-    if (input.state('missile') && this.ready('missile')) {
+    if (input.state('missile') && !this.clickTaken && this.ready('missile')) {
       // the darts home in on the foe under (or near) the cursor, else on the spot
       const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
       castMissiles(game, this, 'player', aim, target);

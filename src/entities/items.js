@@ -9,8 +9,9 @@ import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
 // start of a floor (`persistent`) waits until it is picked up. In duels and
-// battles loot is picked up by walking over it; on survival floors the wizard
-// stands on it and presses the grab key (game.grabbableItem).
+// battles loot is picked up by walking over it; on survival floors hovering it
+// shows its name, and clicking the name sends the wizard to pick it up
+// (game.pointedItem, Mage.walkTo).
 export class Item extends Entity {
   defaults() {
     this.persistent = false;
@@ -29,10 +30,9 @@ export class Item extends Entity {
     const game = this.game;
     const player = game.player;
     if (!game.duelMode) {
-      if (game.input.pressed('grab') && game.grabbableItem() === this) {
-        this.pickUp(player);
-      }
-    } else if (player && !player.dead && this.touches(player)) {
+      return;
+    }
+    if (player && !player.dead && this.touches(player)) {
       this.pickUp(player);
     } else if (game.duelLoot && this.isLoot && game.rival && !game.rival.killed && this.touches(game.rival)) {
       this.pickUp(game.rival);
@@ -41,9 +41,13 @@ export class Item extends Entity {
 
   pickUp() {}
 
-  // What the grab prompt calls it.
+  // The name shown when it is hovered, and its colour.
   label() {
     return 'ITEM';
+  }
+
+  labelColor() {
+    return '#f0e0d0';
   }
 
   syncView(time) {
@@ -109,6 +113,10 @@ export class Scroll extends Item {
     return this.tier ? 'GOLD SCROLL' : 'SCROLL';
   }
 
+  labelColor() {
+    return this.tier ? '#ffd040' : '#f3e6c4';
+  }
+
   pickUp(player) {
     if (this.game.duelLoot) {
       this.game.duelLoot.takeScroll(player);
@@ -162,6 +170,10 @@ export class Potion extends Item {
     return this.isBlue ? 'MANERGY POTION' : 'HEALTH POTION';
   }
 
+  labelColor() {
+    return this.isBlue ? '#6aa8ff' : '#ff6a70';
+  }
+
   pickUp(player) {
     if (this.game.duelLoot) {
       this.game.duelLoot.takePotion(player, this.isBlue);
@@ -213,6 +225,10 @@ export class GearItem extends Item {
 
   label() {
     return this.item.type.name;
+  }
+
+  labelColor() {
+    return Rarities[this.item.type.rarity].color;
   }
 
   pickUp(player) {

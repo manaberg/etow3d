@@ -650,27 +650,18 @@ export class Game {
     return best;
   }
 
-  // Survival: the item the grab key takes, the nearest one the wizard stands on.
-  grabbableItem() {
-    const player = this.player;
-    if (this.duelMode || !player || player.dead) {
+  // Survival: the item whose name shows, the one under the cursor or the one
+  // whose name tag (drawn by the HUD last frame) the cursor is on.
+  pointedItem() {
+    if (this.duelMode || !this.player || this.player.dead || this.state !== 'playing') {
       return null;
     }
-    const c = player.center();
-    let best = null;
-    let bestD = Infinity;
-    for (const e of this.entities) {
-      if (e.killed || !(e instanceof Item) || !e.touches(player)) {
-        continue;
-      }
-      const ec = e.center();
-      const d = Math.hypot(ec.x - c.x, ec.y - c.y);
-      if (d < bestD) {
-        bestD = d;
-        best = e;
-      }
+    const tag = this.hud.itemTag;
+    const m = this.input.mouse;
+    if (tag && !tag.item.killed && m.inside && m.x >= tag.x0 && m.x <= tag.x1 && m.y >= tag.y0 && m.y <= tag.y1) {
+      return tag.item;
     }
-    return best;
+    return this.hoveredItem();
   }
 
   hoveredItem() {

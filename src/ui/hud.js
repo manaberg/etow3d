@@ -493,12 +493,8 @@ export class Hud {
     this.goalLabel.classList.toggle('open', game.isStairsOpen());
 
     const stairs = game.stairs;
-    const item = game.state === 'playing' && game.grabbableItem();
     if (stairs && stairs.playerOn && game.state === 'playing') {
       setText(this.prompt, game.isStairsOpen() ? 'PRESS SPACE TO DESCEND' : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
-      this.prompt.style.opacity = '1';
-    } else if (item) {
-      setText(this.prompt, 'PRESS ' + actionKeyLabel('grab') + ' TO GRAB :: ' + item.label());
       this.prompt.style.opacity = '1';
     } else {
       this.prompt.style.opacity = '0';
@@ -574,6 +570,7 @@ export class Hud {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    this.itemTag = null;
     const player = game.player;
     if (!player) {
       return;
@@ -629,6 +626,31 @@ export class Hud {
       ctx.fillStyle = e.isChampion ? '#ffd060' : (big ? '#ff9ad0' : '#f0e0d0');
       ctx.fillText(text, p.x, p.y - 5);
     }
+    this.drawItemTag(ctx);
+  }
+
+  // Survival: the name of the hovered item on a dark tag above it. Clicking
+  // the tag picks the item up, so its box is kept for game.pointedItem.
+  drawItemTag(ctx) {
+    const item = this.game.pointedItem();
+    if (!item) {
+      return;
+    }
+    const c = item.center();
+    const p = this.game.gfx.project(c.x, c.y, 1.6);
+    if (!p) {
+      return;
+    }
+    const text = item.label();
+    const tw = ctx.measureText(text).width;
+    const tag = { item, x0: p.x - tw / 2 - 6, y0: p.y - 18, x1: p.x + tw / 2 + 6, y1: p.y };
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(tag.x0, tag.y0, tag.x1 - tag.x0, tag.y1 - tag.y0);
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.strokeRect(tag.x0 + 0.5, tag.y0 + 0.5, tag.x1 - tag.x0 - 1, tag.y1 - tag.y0 - 1);
+    ctx.fillStyle = item.labelColor();
+    ctx.fillText(text, p.x, p.y - 5);
+    this.itemTag = tag;
   }
 
   dispose() {
