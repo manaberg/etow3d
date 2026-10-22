@@ -8,6 +8,7 @@ from an up-to-date `main` (merge the work first) and run:
 
 ```sh
 npm install
+npm run build && node scripts/deploy-hosting.mjs --dry-run   # check the file list first
 npm run deploy
 ```
 

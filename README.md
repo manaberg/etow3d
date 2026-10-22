@@ -50,6 +50,7 @@ except the hashed files in `/assets`), `.firebaserc` the project. Deploy from `m
 git checkout main && git pull
 npm install
 FIREBASE_SERVICE_ACCOUNT=... npm run deploy     # builds, then publishes dist/
+npm run build && node scripts/deploy-hosting.mjs --dry-run   # only lists the files
 ```
 
 `npm run deploy` builds the game and publishes `dist/` with `scripts/deploy-hosting.mjs`,
