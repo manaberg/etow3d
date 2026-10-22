@@ -31,14 +31,15 @@ export class Entity {
   // k: frames of game time this step (1 normally, less while time is slowed)
   update(_k) {}
 
-  // Moves by vel against the collision map. Returns the wall hits.
+  // Moves by vel against the collision map. Returns the wall hits. Anything
+  // that `flies` (bolts) passes over water, lava and chasms; the rest stop.
   move(k) {
     const dx = this.vel.x * k / 60;
     const dy = this.vel.y * k / 60;
     if (dx === 0 && dy === 0) {
       return null;
     }
-    const res = this.game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, dx, dy);
+    const res = this.game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, dx, dy, this.flies);
     this.pos.x = res.x;
     this.pos.y = res.y;
     if (res.hitX || res.hitY) {

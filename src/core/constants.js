@@ -6,8 +6,6 @@ export const CELL = 48;
 export const UNIT = 1 / TILE;
 export const STEP = 1 / 60;
 
-export const WALL_HEIGHT = 3.4;
-
 export function randInt(min, max) {
   if (max <= min) {
     return min;

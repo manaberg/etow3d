@@ -3,6 +3,7 @@ import { Input } from './core/input.js';
 import { TimeSlower } from './core/timeslower.js';
 import { World } from './world/world.js';
 import { DungeonLevels } from './world/levels.js';
+import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
 import { Mage, DuelInnate, SpellBook } from './entities/mage.js';
@@ -136,7 +137,15 @@ export class Game {
       } else if (this.duelMode) {
         options = { cols: 56, rows: 38, roomCount: 6 };
       } else {
-        options = { cols: 34 + plan.rooms * 4, rows: 22 + plan.rooms * 3, roomCount: plan.rooms };
+        // every floor is laid out after its name (looks.js), some bigger
+        const look = floorLook(this.depth);
+        const scale = look.mapScale || 1;
+        options = {
+          cols: Math.round((34 + plan.rooms * 4) * scale),
+          rows: Math.round((22 + plan.rooms * 3) * scale),
+          roomCount: plan.rooms,
+          look
+        };
       }
     }
     this.world = new World(options, () => this.navFrame);
@@ -749,6 +758,15 @@ export class Game {
       return false;
     }
     return this.world.hasLineOfSight(ca.x, ca.y, cb.x, cb.y);
+  }
+
+  // Whether `a` could walk straight to `b`: sight carries over water, lava
+  // and chasms, feet do not.
+  hasWalkingLine(a, b) {
+    const pf = this.world.pathfinder;
+    const ca = a.center();
+    const cb = b.center();
+    return pf.isSegmentClear(ca.x, ca.y, cb.x, cb.y, pf.radiusForSize(a.size.x, a.size.y));
   }
 
   // Called by every enemy each step with its own line-of-sight result.

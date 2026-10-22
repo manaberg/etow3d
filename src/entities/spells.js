@@ -83,6 +83,8 @@ export class Projectile extends Entity {
     this.homing = null;
     this.homeFrames = 0;
     this.phase = 0;
+    // over water, lava and chasms (Entity.move)
+    this.flies = true;
   }
 
   init() {

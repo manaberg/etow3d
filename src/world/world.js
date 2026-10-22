@@ -1,36 +1,37 @@
-import { TILE, CELL, randInt } from '../core/constants.js';
+import { TILE, randInt } from '../core/constants.js';
 import { DungeonGenerator, DungeonThemes } from './dungeon.js';
 import { Pathfinder } from './pathfinder.js';
+import { ClassicLook } from './looks.js';
 
 // One floor: the generated dungeon, its collision map (every 48px cell is
 // 2x2 collision tiles), room records in collision-tile units and the
-// pathfinder over it.
+// pathfinder over it. `options.look` (looks.js) shapes the dungeon and names
+// its rooms. Low ground (dungeon cell 2: water, lava, chasms) stops anything
+// on foot but not bolts, and it does not block sight.
 export class World {
   constructor(options, frameSource) {
-    const dungeon = new DungeonGenerator(options).generate();
+    this.look = options.look || ClassicLook;
+    const dungeon = new DungeonGenerator({ ...this.look.layout, ...options }).generate();
     this.dungeon = dungeon;
     this.width = dungeon.cols * 2;
     this.height = dungeon.rows * 2;
+    // the pathfinder walks the floor and sees past everything but walls
     const grid = [];
-    for (let y = 0; y < this.height; y++) {
-      grid.push(new Array(this.width).fill(1));
-    }
-    for (let y = 0; y < dungeon.rows; y++) {
-      for (let x = 0; x < dungeon.cols; x++) {
-        if (dungeon.cells[y][x] === 0) {
-          grid[y * 2][x * 2] = 0;
-          grid[y * 2][x * 2 + 1] = 0;
-          grid[y * 2 + 1][x * 2] = 0;
-          grid[y * 2 + 1][x * 2 + 1] = 0;
-        }
-      }
-    }
+    const sight = [];
     this.solid = new Uint8Array(this.width * this.height);
     for (let y = 0; y < this.height; y++) {
+      const walk = new Array(this.width);
+      const see = new Array(this.width);
       for (let x = 0; x < this.width; x++) {
-        this.solid[y * this.width + x] = grid[y][x];
+        const cell = dungeon.cells[y >> 1][x >> 1];
+        walk[x] = cell === 0 ? 0 : 1;
+        see[x] = cell === 1 ? 1 : 0;
+        this.solid[y * this.width + x] = cell;
       }
+      grid.push(walk);
+      sight.push(see);
     }
+    const names = this.look.rooms || {};
     this.rooms = dungeon.rooms.map((room, r) => ({
       x: room.x * 2,
       y: room.y * 2,
@@ -38,11 +39,11 @@ export class World {
       h: room.h * 2,
       theme: room.theme,
       themeIndex: room.themeIndex,
-      label: DungeonThemes[room.themeIndex].label,
+      label: names[room.theme] || DungeonThemes[room.themeIndex].label,
       visited: r === 0
     }));
     this.mainRoomIndex = 0;
-    this.pathfinder = new Pathfinder(grid, TILE, frameSource);
+    this.pathfinder = new Pathfinder(grid, TILE, frameSource, sight);
   }
 
   get pixelWidth() {
@@ -53,21 +54,24 @@ export class World {
     return this.height * TILE;
   }
 
-  isSolidTile(tx, ty) {
+  // Whether a tile stops a body on foot (walls and low ground), or with
+  // `fly` only walls (bolts and breath pass over water, lava and chasms).
+  isSolidTile(tx, ty, fly) {
     if (tx < 0 || ty < 0 || tx >= this.width || ty >= this.height) {
       return true;
     }
-    return this.solid[ty * this.width + tx] === 1;
+    const cell = this.solid[ty * this.width + tx];
+    return fly ? cell === 1 : cell !== 0;
   }
 
-  boxFree(x, y, w, h) {
+  boxFree(x, y, w, h, fly) {
     const x0 = Math.floor(x / TILE);
     const y0 = Math.floor(y / TILE);
     const x1 = Math.floor((x + w - 0.001) / TILE);
     const y1 = Math.floor((y + h - 0.001) / TILE);
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
-        if (this.isSolidTile(tx, ty)) {
+        if (this.isSolidTile(tx, ty, fly)) {
           return false;
         }
       }
@@ -77,7 +81,7 @@ export class World {
 
   // Moves a box by (dx, dy) in small sub-steps, x before y, stopping flush
   // against walls. The free axis keeps moving, so bodies slide along walls.
-  trace(x, y, w, h, dx, dy) {
+  trace(x, y, w, h, dx, dy, fly) {
     const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 8));
     const sx = dx / steps;
     const sy = dy / steps;
@@ -86,7 +90,7 @@ export class World {
     for (let i = 0; i < steps; i++) {
       if (sx !== 0 && !hitX) {
         const nx = x + sx;
-        if (this.boxFree(nx, y, w, h)) {
+        if (this.boxFree(nx, y, w, h, fly)) {
           x = nx;
         } else {
           hitX = true;
@@ -99,7 +103,7 @@ export class World {
       }
       if (sy !== 0 && !hitY) {
         const ny = y + sy;
-        if (this.boxFree(x, ny, w, h)) {
+        if (this.boxFree(x, ny, w, h, fly)) {
           y = ny;
         } else {
           hitY = true;
@@ -126,7 +130,8 @@ export class World {
   }
 
   // Random spot inside a room (top-left of an entity of `entitySize`), clear
-  // of pillars with a tile of breathing room.
+  // of pillars and pools with a tile of breathing room. Rooms crowded with
+  // columns or water are searched tile by tile when chance does not find one.
   getRoomSpawnPoint(room, padding, entitySize) {
     const size = entitySize || 48;
     const pad = padding || 2;
@@ -142,16 +147,31 @@ export class World {
       minY = room.y + 1;
       maxY = room.y + room.h - 2;
     }
+    const at = (tx, ty) => ({ x: (tx * TILE) - (size / 2), y: (ty * TILE) - (size / 2) });
+    const fits = (spot, margin) => this.pathfinder.isAreaWalkable(spot.x - margin, spot.y - margin, size + margin * 2, size + margin * 2);
     let spot = null;
     for (let attempt = 0; attempt < 30; attempt++) {
-      const tx = randInt(minX, maxX);
-      const ty = randInt(minY, maxY);
-      spot = { x: (tx * TILE) - (size / 2), y: (ty * TILE) - (size / 2) };
-      if (this.pathfinder.isAreaWalkable(spot.x - TILE, spot.y - TILE, size + CELL, size + CELL)) {
+      spot = at(randInt(minX, maxX), randInt(minY, maxY));
+      if (fits(spot, TILE)) {
         return spot;
       }
     }
-    return spot;
+    for (const margin of [TILE, 0]) {
+      const open = [];
+      for (let ty = room.y + 1; ty < room.y + room.h; ty++) {
+        for (let tx = room.x + 1; tx < room.x + room.w; tx++) {
+          if (fits(at(tx, ty), margin)) {
+            open.push(at(tx, ty));
+          }
+        }
+      }
+      if (open.length > 0) {
+        return open[randInt(0, open.length - 1)];
+      }
+    }
+    const pf = this.pathfinder;
+    const near = pf.findNearestPassable(room.x + (room.w >> 1), room.y + (room.h >> 1), pf.radiusForSize(size, size), 12);
+    return near ? at(near.x + 0.5, near.y + 0.5) : spot;
   }
 
   getRoomIndexForWorldPoint(worldX, worldY) {

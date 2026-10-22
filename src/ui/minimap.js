@@ -1,11 +1,17 @@
-import { DungeonThemes } from '../world/dungeon.js';
+import { DungeonThemes, FLOOR, LOW } from '../world/dungeon.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
 import { Dragon } from '../entities/dragon.js';
 
-// Visited rooms show in their theme colour, the rest stay as dim outlines.
-// The base image is redrawn only when a room is discovered; markers are
-// painted on top every frame.
+// Visited rooms show in their theme colour, the rest stay as dim outlines;
+// water, lava and chasms in their own colour, rivers from the start. The
+// base image is redrawn only when a room is discovered; markers are painted
+// on top every frame.
+const LIQUID_COLORS = {
+  water: '#2c5c6c', icewater: '#4a7a9a', blood: '#6a1414', mire: '#4a6a2a',
+  tar: '#24202c', lava: '#c0501a', metal: '#d08a30', void: '#120c18'
+};
+
 export class Minimap {
   constructor(canvas, game) {
     this.canvas = canvas;
@@ -31,13 +37,17 @@ export class Minimap {
     ctx.clearRect(0, 0, this.base.width, this.base.height);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     ctx.fillRect(0, 0, this.base.width, this.base.height);
+    const liquid = world.look.liquid ? LIQUID_COLORS[world.look.liquid.kind] : null;
     for (let y = 0; y < dungeon.rows; y++) {
       for (let x = 0; x < dungeon.cols; x++) {
-        if (dungeon.cells[y][x] !== 0) {
+        const cell = dungeon.cells[y][x];
+        if (cell !== FLOOR && !(cell === LOW && liquid)) {
           continue;
         }
         const owner = dungeon.owner[y][x];
-        if (owner >= 0 && world.rooms[owner].visited) {
+        if (cell === LOW) {
+          ctx.fillStyle = owner < 0 || world.rooms[owner].visited ? liquid : '#1c1c22';
+        } else if (owner >= 0 && world.rooms[owner].visited) {
           ctx.fillStyle = DungeonThemes[dungeon.rooms[owner].themeIndex].minimap;
         } else if (owner >= 0) {
           ctx.fillStyle = '#2c2c30';

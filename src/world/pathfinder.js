@@ -60,18 +60,22 @@ const DIRS_COST = [1, 1, 1, 1, SQRT2, SQRT2, SQRT2, SQRT2];
 
 // Grid navigation over the collision map. Every tile stores its clearance:
 // how many tiles of open space surround it, so an entity of a given size can
-// be routed through tiles where its whole body fits.
+// be routed through tiles where its whole body fits. `sightData` marks what
+// blocks sight (walls); without it, whatever blocks walking does.
 export class Pathfinder {
-  constructor(collisionData, tilesize, frameSource) {
+  constructor(collisionData, tilesize, frameSource, sightData) {
     this.tilesize = tilesize || 24;
     this.frameSource = frameSource || (() => 0);
     this.height = collisionData.length;
     this.width = this.height > 0 ? collisionData[0].length : 0;
     const size = this.width * this.height;
     this.walkable = new Uint8Array(size);
+    this.seeThrough = new Uint8Array(size);
+    const sight = sightData || collisionData;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         this.walkable[(y * this.width) + x] = collisionData[y][x] === 0 ? 1 : 0;
+        this.seeThrough[(y * this.width) + x] = sight[y][x] === 0 ? 1 : 0;
       }
     }
     this.computeClearance();
@@ -153,6 +157,15 @@ export class Pathfinder {
     }
     const i = (y * this.width) + x;
     return this.walkable[i] === 1 && this.clearance[i] >= (radius || 0);
+  }
+
+  // A tile a segment may cross: walkable ground with room for `radius`, or
+  // for `sight` anything but a wall (sight carries over water and chasms).
+  passes(x, y, radius, sight) {
+    if (!sight) {
+      return this.isPassable(x, y, radius);
+    }
+    return this.inBounds(x, y) && this.seeThrough[(y * this.width) + x] === 1;
   }
 
   isAreaWalkable(worldX, worldY, w, h) {
@@ -310,13 +323,13 @@ export class Pathfinder {
   // Exact grid traversal of a world-space segment (Amanatides & Woo). Movement
   // checks must use this: an entity's centre can sit anywhere in its tile, so
   // its real line can cross tiles the tile-centre line never touches.
-  isSegmentClear(ax, ay, bx, by, radius) {
+  isSegmentClear(ax, ay, bx, by, radius, sight) {
     const ts = this.tilesize;
     let x = Math.floor(ax / ts);
     let y = Math.floor(ay / ts);
     const endX = Math.floor(bx / ts);
     const endY = Math.floor(by / ts);
-    if (!this.isPassable(x, y, radius)) {
+    if (!this.passes(x, y, radius, sight)) {
       return false;
     }
     const dx = bx - ax;
@@ -332,7 +345,7 @@ export class Pathfinder {
     let guard = Math.abs(endX - x) + Math.abs(endY - y) + 2;
     while ((x !== endX || y !== endY) && guard-- > 0) {
       if (Math.abs(tMaxX - tMaxY) < cornerEps) {
-        if (!this.isPassable(x + stepX, y, radius) || !this.isPassable(x, y + stepY, radius)) {
+        if (!this.passes(x + stepX, y, radius, sight) || !this.passes(x, y + stepY, radius, sight)) {
           return false;
         }
         x += stepX;
@@ -349,15 +362,15 @@ export class Pathfinder {
       if (tMaxX > 1 && tMaxY > 1 && (x !== endX || y !== endY)) {
         break;
       }
-      if (!this.isPassable(x, y, radius)) {
+      if (!this.passes(x, y, radius, sight)) {
         return false;
       }
     }
-    return this.isPassable(endX, endY, radius);
+    return this.passes(endX, endY, radius, sight);
   }
 
   hasLineOfSight(ax, ay, bx, by) {
-    return this.isSegmentClear(ax, ay, bx, by, 0);
+    return this.isSegmentClear(ax, ay, bx, by, 0, true);
   }
 
   // Dijkstra distance map from a target tile. Every entity chasing the same

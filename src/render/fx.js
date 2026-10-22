@@ -38,7 +38,7 @@ export class Fx {
     this.count = 0;
     this.p = [];
     for (let i = 0; i < MAX_PARTICLES; i++) {
-      this.p.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, size: 1, r: 1, g: 1, b: 1, gravity: 0, drag: 0, grow: 0 });
+      this.p.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, size: 1, r: 1, g: 1, b: 1, gravity: 0, drag: 0, grow: 0, fadeIn: 0 });
     }
     this.positions = new Float32Array(MAX_PARTICLES * 3);
     this.colors = new Float32Array(MAX_PARTICLES * 3);
@@ -98,6 +98,8 @@ export class Fx {
     p.grow = o.grow || 0;
     p.gravity = o.gravity || 0;
     p.drag = o.drag || 0;
+    // the share of its life a particle takes to fade in (ambient motes)
+    p.fadeIn = o.fadeIn || 0;
     this.color.setHex(o.color === undefined ? 0xffffff : o.color);
     p.r = this.color.r;
     p.g = this.color.g;
@@ -164,18 +166,20 @@ export class Fx {
     });
   }
 
-  // Jagged bolt between two sim points (lightning, chains).
+  // Jagged bolt between two sim points (lightning, chains), at height `h`,
+  // or from `h` down to `h2` (lightning out of the sky).
   bolt(ax, ay, bx, by, o) {
     const pts = [];
     const segs = 9;
     const h = o.h || 1.4;
+    const h2 = o.h2 === undefined ? h : o.h2;
     const jag = o.jag === undefined ? 0.35 : o.jag;
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
       const off = (i === 0 || i === segs) ? 0 : 1;
       pts.push(new THREE.Vector3(
         (ax + (bx - ax) * t) * UNIT + (Math.random() - 0.5) * jag * off,
-        h + (Math.random() - 0.5) * jag * off,
+        h + (h2 - h) * t + (Math.random() - 0.5) * jag * off,
         (ay + (by - ay) * t) * UNIT + (Math.random() - 0.5) * jag * off
       ));
     }
@@ -223,7 +227,7 @@ export class Fx {
       this.colors[i * 3 + 1] = p.g;
       this.colors[i * 3 + 2] = p.b;
       this.sizes[i] = p.size * (1 + p.grow * (1 - t));
-      this.alphas[i] = Math.min(1, t * 2.2);
+      this.alphas[i] = Math.min(1, t * 2.2) * (p.fadeIn ? Math.min(1, (1 - t) / p.fadeIn) : 1);
       i++;
     }
     this.geometry.setDrawRange(0, this.count);

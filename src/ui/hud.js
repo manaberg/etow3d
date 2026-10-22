@@ -520,13 +520,15 @@ export class Hud {
     }
     const plan = DungeonLevels.getPlan(game.depth);
     setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + plan.name);
-    let text = 'FIND THE STAIRS IN THE THRONE ROOM';
+    // every floor names the room where its stairs wait (world/looks.js)
+    const stairsRoom = game.world.look.rooms.throne || 'THRONE ROOM';
+    let text = 'FIND THE STAIRS IN THE ' + stairsRoom;
     if (plan.boss === 'warlord') {
-      text = 'THE WARLORD AWAITS IN THE THRONE ROOM';
+      text = 'THE WARLORD AWAITS IN THE ' + stairsRoom;
     } else if (plan.boss === 'wyrm') {
       text = 'THE GREAT GOLDEN WYRM SLEEPS ON ITS HOARD';
     } else if (plan.dragons) {
-      text = 'DRAGONS LAIR ON THIS FLOOR :: FIND THE STAIRS IN THE THRONE ROOM';
+      text = 'DRAGONS LAIR ON THIS FLOOR :: FIND THE STAIRS IN THE ' + stairsRoom;
     }
     setText(this.bannerText, text);
     this.banner.style.opacity = String(Math.min(1, game.bannerFrames / 60));

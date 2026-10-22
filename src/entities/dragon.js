@@ -677,7 +677,7 @@ export class DragonBreath extends Entity {
     // walls stop the breath, so the particles too
     const dx = Math.cos(this.angle);
     const dy = Math.sin(this.angle);
-    const wall = game.world.trace(o.x - 2, o.y - 2, 4, 4, dx * reach, dy * reach);
+    const wall = game.world.trace(o.x - 2, o.y - 2, 4, 4, dx * reach, dy * reach, true);
     const len = Math.hypot(wall.x + 2 - o.x, wall.y + 2 - o.y);
     if (this.element === 'lightning') {
       if (Math.random() < 0.5) {

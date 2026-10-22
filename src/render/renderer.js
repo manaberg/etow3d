@@ -3,6 +3,7 @@ import { UNIT, clamp } from '../core/constants.js';
 import { buildDungeonMesh } from './dungeonMesh.js';
 import { buildFieldMesh } from './fieldMesh.js';
 import { Fx } from './fx.js';
+import { Ambience } from './ambience.js';
 
 const ROOM_LIGHTS = 6;
 const FX_LIGHTS = 4;
@@ -60,9 +61,16 @@ export class Gfx {
     this.flashes = [];
 
     this.levelGroup = null;
+    this.level = null;
     this.torches = [];
     this.cutaway = { center: { value: new THREE.Vector3() }, strength: { value: 1 } };
     this.fx = new Fx(this.scene);
+    // a floor's look sets the strength and reach of its lights, the staff's
+    // light, and the air (ambience.js)
+    this.ambience = new Ambience(this.fx);
+    this.lightPower = 1;
+    this.playerPower = 1;
+    this.baseHemi = null;
 
     this.raycaster = new THREE.Raycaster();
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -99,7 +107,8 @@ export class Gfx {
     }
   }
 
-  // `field` draws an open battlefield instead of dungeon halls.
+  // `field` draws an open battlefield instead of dungeon halls; a dungeon
+  // takes the light and air of its look (world.look).
   buildLevel(world, field) {
     if (this.levelGroup) {
       this.scene.remove(this.levelGroup);
@@ -108,17 +117,49 @@ export class Gfx {
           o.geometry.dispose();
         }
       });
+      if (this.level && this.level.dispose) {
+        this.level.dispose();
+      }
     }
     this.fx.clear();
+    this.ambience.clear();
     const built = field ? buildFieldMesh(world) : buildDungeonMesh(world, this.cutaway);
+    this.level = built;
     this.levelGroup = built.group;
     this.torches = built.torches;
     this.scene.add(this.levelGroup);
+    if (!field) {
+      this.applyLook(world.look, built);
+    }
+  }
+
+  // A floor's light and air: sky and ground light, fog, exposure, the
+  // staff's light, how strong and far its lamps reach.
+  applyLook(look, built) {
+    const sky = look.sky;
+    this.hemisphere.color.setHex(sky.hemi[0]);
+    this.hemisphere.groundColor.setHex(sky.hemi[1]);
+    this.hemisphere.intensity = this.baseHemi = sky.hemi[2];
+    this.ambient.color.setHex(sky.ambient[0]);
+    this.ambient.intensity = sky.ambient[1];
+    this.scene.background.setHex(sky.fog[0]);
+    this.scene.fog.color.setHex(sky.fog[0]);
+    this.scene.fog.near = sky.fog[1];
+    this.scene.fog.far = sky.fog[2];
+    this.renderer.toneMappingExposure = sky.exposure;
+    this.playerLight.color.setHex(sky.player[0]);
+    this.playerPower = sky.player[1];
+    this.lightPower = look.light.power || 1;
+    for (const light of this.roomLights) {
+      light.distance = look.light.range || 14;
+    }
+    this.ambience.setLevel(look, built.ambience);
   }
 
   // Battlefields are open ground under a grey sky rather than torchlit halls:
   // brighter, hazy in the distance, and the camera pulls much further back.
   setBattlefield(on) {
+    this.baseHemi = null;
     this.hemisphere.intensity = on ? 2.6 : 1.9;
     this.hemisphere.color.setHex(on ? 0xd8e0f0 : 0x9aa0c0);
     this.hemisphere.groundColor.setHex(on ? 0x4a5030 : 0x30241a);
@@ -197,8 +238,16 @@ export class Gfx {
 
     // high enough to clear a pointed hat; brighter to light the floor as before
     this.playerLight.position.set(fx, 4.4, fz + 0.4);
-    this.playerLight.intensity = 56 + Math.sin(time * 7) * 3.3 + Math.sin(time * 13.3) * 2.5;
+    this.playerLight.intensity = (56 + Math.sin(time * 7) * 3.3 + Math.sin(time * 13.3) * 2.5) * this.playerPower;
 
+    if (this.level && this.level.update) {
+      this.level.update(time, dt, this.camera);
+    }
+    // lightning lights up the whole floor for a moment
+    const flash = this.ambience.update(dt, this.focus, this);
+    if (this.baseHemi !== null) {
+      this.hemisphere.intensity = this.baseHemi + flash * 1.4;
+    }
     this.assignTorchLights(time);
     this.assignFxLights(dt);
     this.fx.update(dt, this.camera);
@@ -222,10 +271,7 @@ export class Gfx {
       light.position.set(t.x, t.y, t.z);
       light.color.setHex(t.color);
       const flicker = 1 + Math.sin(time * 9 + t.phase) * 0.08 + Math.sin(time * 23.7 + t.phase * 2) * 0.05;
-      light.intensity = 22 * flicker;
-      if (t.flame) {
-        t.flame.scale.setScalar(0.9 + Math.sin(time * 15 + t.phase) * 0.12);
-      }
+      light.intensity = 22 * flicker * (t.power || 1) * this.lightPower;
     }
   }
 

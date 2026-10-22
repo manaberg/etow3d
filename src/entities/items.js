@@ -17,9 +17,13 @@ export class Item extends Entity {
     this.persistent = false;
     this.life = 35 * 60;
     this.bob = Math.random() * 10;
+    this.settled = false;
   }
 
   update(k) {
+    if (!this.settled) {
+      this.settle();
+    }
     if (!this.persistent) {
       this.life -= k;
       if (this.life <= 0) {
@@ -40,6 +44,25 @@ export class Item extends Entity {
   }
 
   pickUp() {}
+
+  // Loot thrown off a body at the edge of water, lava or a chasm (or into a
+  // wall) moves to the nearest floor it can be picked up from.
+  settle() {
+    this.settled = true;
+    const world = this.game.world;
+    if (world.canStandAt(this.pos.x, this.pos.y, this.size.x, this.size.y)) {
+      return;
+    }
+    const pf = world.pathfinder;
+    const c = this.center();
+    const tile = pf.worldToTile(c.x, c.y);
+    const spot = pf.findNearestPassable(tile.x, tile.y, 1, 16);
+    if (spot) {
+      const w = pf.tileToWorldCenter(spot.x, spot.y);
+      this.pos.x = w.x - this.size.x / 2;
+      this.pos.y = w.y - this.size.y / 2;
+    }
+  }
 
   // The name shown when it is hovered, and its colour.
   label() {

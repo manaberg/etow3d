@@ -294,8 +294,8 @@ export class Boss extends Enemy {
   }
 
   charge(player, hasSight) {
-    // path around walls when the player is out of sight
-    if (!hasSight) {
+    // path around walls (and pools) when the way to the player is not clear
+    if (!hasSight || !this.game.hasWalkingLine(this, player)) {
       this.game.navigateEntityToward(this, player, this.desiredVel, 12);
       return;
     }

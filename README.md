@@ -142,13 +142,47 @@ are instanced too (`src/render/boltRenderer.js`).
 
 **Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
 through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
-is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,
-alchemy lab, crypt, throne room) joined by corridors. The stairs down wait in the throne room
-and unseal once 40% of the floor's enemies are slain. Spells are learnt from scrolls into the
+is a freshly generated dungeon of themed rooms joined by corridors, laid out and dressed after
+the floor's name (see **The floors** below). The stairs down wait in the room farthest from the
+start (the throne room, which every floor names its own way) and unseal once 40% of the floor's
+enemies are slain. Spells are learnt from scrolls into the
 spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
 maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
 to spiritual weapon in the table below). Duels and battles use them too.
+
+**The floors.** Each floor has a look (`src/world/looks.js`): the shape of its rooms and
+corridors, what its floors, walls and pillars are made of, its water, lava or chasms, its light,
+fog and drifting particles, its props and its room names. The first floor is the classic
+dungeon; every floor below gets stranger. Duels keep the classic look.
+
+| Depth | Floor | Laid out as | Looks like |
+| --- | --- | --- | --- |
+| 1 | The Upper Halls | rectangular halls, straight corridors | flagstones, brick, torches, banners, barrels, rugs |
+| 2 | The Warrens | small caves joined by narrow, crooked, looping tunnels | dirt, low rough rock, timber shoring, lanterns, roots |
+| 3 | The Muster Halls | big halls lined with colonnades, wide corridors | tiles, dressed stone, braziers, war banners, racks, dummies |
+| 4 | The Bone Crypts | cross and octagon chapels, narrow passages | slate, walls of skulls, green candles, sarcophagi, bones |
+| 5 | The Sunken Library | aisles of bookshelves, flooded pools | wet parquet, walls of books, pale candles, dripping water |
+| 6 | The Iron Forges | a channel of molten iron across the map, furnaces for pillars | iron plates, anvils, chains, caged lamps, sparks |
+| 7 | The Blood Pits | round arenas around sunken pools of blood, a grand arena | red sand, braziers, spikes, cages, skulls on pikes |
+| 8 | The Shadow Vaults | octagonal vaults with bottomless shafts | obsidian, glowing runes, violet crystals, hooded statues; little light |
+| 9 | The Burning Deep | caves cut by a river and pools of lava | basalt with glowing cracks, walls hot at the foot, fire vents, embers |
+| 10 | Throne of the Warlord | a mirrored fortress, the throne hall facing the gate | marble, carpeted corridors, skull banners, braziers, statues |
+| 11 | The Scorched Galleries | long galleries with piers along their walls | charred tiles, glowing soot-streaked brick, burnt paintings, falling ash |
+| 12 | The Frozen Cisterns | cisterns forested with ice columns, holes in the ice | ice, frosted stone, icicles, ice crystals, snow |
+| 13 | The Storm Halls | tall cross-shaped halls ringed with lightning rods | wet slate, puddles, rain, lightning striking the rods |
+| 14 | The Venom Mires | drowned caves full of poisoned pools | mud, mossy rock, giant glowing mushrooms, reeds, spores |
+| 15 | The Black Pools | round chambers drowned in tar, islands joined by causeways | obsidian, glossy black pools, violet crystals, monoliths |
+| 16 | The Wyrm Warrens | great caverns joined by wide clawed-out burrows | scorched earth, claw-marked rock, nests of eggs, giant bones |
+| 17 | The Hoard Vaults | mirrored vaults of heavy piers | gold-veined marble, gold-banded walls, coins, chests, glitter |
+| 18 | The Ashen Deep | caves of ash over ruins, chasms lit from below | grey ash, broken columns, dead trees, falling ash |
+| 19 | The Boneyard of Kings | yards and tombs, giant ribcages arching over aisles | bone dust, giant skulls, royal sarcophagi, statues, mist |
+| 20 | The Golden Hoard | a vast golden cavern for the wyrm | floors of coins, heaps of gold, chests, crowns, gems |
+
+Water, blood, mire, tar, lava, molten iron and chasms are low ground: they stop anything on
+foot, the mage included, but bolts, breath and sight pass over them, and blink can cross them.
+Corridors cross them on bridges, and the generator bridges any pocket that would otherwise be
+cut off, so every floor can be walked from end to end.
 
 **Spellbook and bar.** Every spell a wizard learns goes into its spellbook, but only the spells
 on its bar can be cast. Magic missile has its own key (LMB); the bar's ten slots sit on RMB, Q,
@@ -307,11 +341,11 @@ game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 index.html, src/main.js     menu and start-up
 src/game.js                 game state, floors, spawning, aggro and navigation helpers
 src/core/                   constants, rebindable input bindings, time stop, entity base class
-src/world/                  dungeon generator, level plans, pathfinder, collision
+src/world/                  dungeon generator, level plans, floor looks, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
                             and warlord, duel wizard, projectiles and zones, loot and stairs
-src/render/                 Three.js renderer, dungeon meshes, character and prop models,
-                            textures and particle effects
+src/render/                 Three.js renderer, dungeon meshes, props, ambience, character
+                            models, textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
 src/ui/                     HUD, minimap, inventory and spellbook, controls screen
@@ -320,7 +354,8 @@ backend/                    Express + SQLite score server (shared with eotw)
 
 The simulation runs at a fixed 60 steps per second and keeps the 2D game's units: positions
 in pixels on the ground plane (a 24px collision tile is one 3D unit) and timers in frames, so
-the original balance carries over unchanged. Textures and props are procedural.
+the original balance carries over unchanged. Textures and props are procedural: dungeon props
+are built from primitives and drawn instanced, a chunk of the map at a time.
 
 ### Character models
 
@@ -350,3 +385,5 @@ the game falls back to the older primitive model.
 - The caster of a time stop, and their spells, are not slowed by it.
 - A shield turns reflected bolts against their caster's side.
 - Chain lightning and chain root can hit the same orc again after a short delay.
+- Every survival floor below the first is laid out and dressed after its name, with water,
+  lava and chasms that stop walkers but not bolts (see **The floors**).
