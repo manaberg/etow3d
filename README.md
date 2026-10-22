@@ -46,32 +46,9 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | --- | --- |
 | `W` `A` `S` `D` | move |
 | Mouse | aim |
-| `LMB` (hold) | magic missile: three darts that curve in on the foe nearest the cursor (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
-| `RMB` | blink to the cursor |
-| `Q` | fireball |
-| `E` | iron shot |
-| `F` | chain lightning (locks on to the nearest enemy) |
-| `R` | time stop |
-| `1` | haste |
-| `2` | mirror image |
-| `3` | chain root |
-| `4` | shield (reflects bolts) |
-| `5` | blizzard at the cursor |
-| `G` (hold) | lifesteal ray |
-| `T` | invisibility |
-| `C` | fear |
-| `X` | power word kill (hover an enemy) |
-| `V` | telekinesis (hover loot) |
-| `H` | scorching ray (three fire bolts) |
-| `Z` | cone of cold (damages and chills in front of you) |
-| `B` | thunderwave (blasts nearby enemies away) |
-| `6` | meteor swarm at the cursor |
-| `7` | spirit guardians (a damaging, slowing aura that follows you) |
-| `8` | cloudkill at the cursor (a poison cloud that rolls away from you) |
-| `Y` | healing word |
-| `U` | polymorph (turns an orc under the cursor into a sheep; a wizard only briefly, and a sheep cannot cast) |
-| `9` | disintegrate (a ray into the first enemy in line) |
-| `0` | spiritual weapon (a spectral sword that fights beside you) |
+| `LMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
+| `RMB` `Q` `E` `R` `F` `1` `2` `3` `4` `C` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
+| `B` | spellbook: choose which spells sit on the bar (the game waits while it is open) |
 | `Tab` | battle: switch between spell mode and commander mode |
 | Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans |
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
@@ -104,20 +81,86 @@ blizzards into packed ranks, lightning chaining through them. The rival commands
 regiments (line charges, knights flank, mystics guard it). Orcs are drawn instanced
 (`src/render/armyRenderer.js`) and find foes and neighbours through a spatial grid, so 400 orcs
 cost about a millisecond a step. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
-with magic missile and one random spell; after each battle you draft one of three new spells
-and the rival learns one. Duel rules apply between the wizards, including the 3 s global
-cooldown. Battle orcs have double the dungeon orcs' health (`BattleRules` in
+with a one-dart magic missile and one random spell and eight bar slots; after each battle you
+draft one of three: a new spell, another magic missile dart or a rank for a spell you have
+(one of the three is a rank whenever there is one to take), and the rival learns one. Your bar
+keeps its order from battle to battle. Duel rules apply between the wizards, including the
+school lockouts. Battle orcs have double the dungeon orcs' health (`BattleRules` in
 `src/entities/battle.js`).
 
 **Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
 through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
 is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,
 alchemy lab, crypt, throne room) joined by corridors. The stairs down wait in the throne room
-and unseal once 40% of the floor's enemies are slain. Spells are learnt from scrolls; tier 2
-scrolls upgrade fireball, lightning, iron shot, blink and blizzard. Potions heal or raise
-maximum manergy. Spells, gear and stats carry down the stairs.
+and unseal once 40% of the floor's enemies are slain. Spells are learnt from scrolls into the
+spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
+maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
-to spiritual weapon in the table above). Duels and battles use them too.
+to spiritual weapon in the table below). Duels and battles use them too.
+
+**Spellbook and bar.** Every spell a wizard learns goes into its spellbook, but only the spells
+on its bar can be cast. Magic missile has its own key (LMB); the bar's ten slots sit on RMB, Q,
+E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to arrange them
+(`src/entities/spellbar.js`, `src/ui/spellbook.js`).
+
+- A new spell goes into the first free slot that suits it: blink to RMB, spells with a cooldown
+  of 6.7 s or less to Q, E, R and F, slower ones to the number row. With the bar full it waits
+  in the book.
+- A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
+  mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
+  spell.
+- **Levels** (survival). Every kill gives experience (the square root of the foe's health,
+  three times that for a dark wizard), and each level adds 6 health and 4 manergy. The bar
+  opens with three slots (RMB, Q, E); R opens at level 2, F at 4, then 1, 2, 3 and 4 at 6, 8,
+  10 and 12, and C at 15, the last level. Slaying about 60% of every floor reaches level 10 on
+  the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
+  spell waiting in the book. Duels and battles have no levels: progressive duels open six
+  slots, classic duels and battles eight.
+- **Circles** (survival). A scroll only teaches spells of the circles its floor has reached:
+  circle I from floor 1, II from floor 3, III from floor 6 and IV from floor 9 (table below).
+- **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
+  on your bar. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot, blink,
+  blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
+  other spell's rank II adds 30% to its main number (damage, duration, reach or healing), or,
+  for chain root, mirror image and telekinesis, cuts its cooldown by a quarter. Rank III cuts
+  every spell's cooldown by a quarter (`RankRules`). Duels are fought with the tier 2 spells,
+  so those start at rank II there.
+
+| Spell | Circle | Rank II |
+| --- | --- | --- |
+| fireball | I | a second orb beside the first |
+| iron shot | I | two charges |
+| blink | I | cooldown halved |
+| shield (reflects bolts) | I | +30% duration |
+| scorching ray (three fire bolts) | I | +30% damage |
+| thunderwave (blasts nearby enemies away) | I | +30% damage |
+| healing word | I | +30% healing |
+| chain lightning (locks on to the nearest enemy) | II | every jump hits as hard as the first |
+| chain root | II | cooldown -25% |
+| haste | II | +30% duration |
+| mirror image | II | cooldown -25% |
+| lifesteal (hold) | II | +30% damage |
+| cone of cold (damages and chills in front of you) | II | +30% damage |
+| fear | II | +30% reach |
+| telekinesis (hover loot) | II | cooldown -25% |
+| blizzard at the cursor | III | twice the radius |
+| invisibility | III | +30% duration |
+| polymorph (turns an orc under the cursor into a sheep; a wizard only briefly, and a sheep cannot cast) | III | +30% duration |
+| cloudkill at the cursor (a poison cloud that rolls away from you) | III | +30% damage |
+| spirit guardians (a damaging, slowing aura that follows you) | III | +30% damage |
+| spiritual weapon (a spectral sword that fights beside you) | III | +30% damage |
+| disintegrate (a ray into the first enemy in line) | III | +30% damage |
+| time stop | IV | +30% duration |
+| meteor swarm at the cursor | IV | +30% damage |
+| power word kill (hover an enemy) | IV | a wider, deeper splash |
+
+**Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
+`src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
+little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
+game's single missile (51, plus gear); between wizards a dart deals 36. Survival scrolls are
+magic missile scrolls 15% of the time until the third dart; progressive duels and battles
+start both wizards at one dart (scrolls or the battle draft add more), classic duels give
+both all three, and the dungeon's dark wizards have two from depth 3 and three from depth 6.
 
 Every spell belongs to a school of magic, shown beside it in the spell list:
 
@@ -155,8 +198,9 @@ few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 
 number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
 
 Every floor also hides a dark wizard with the duel rival's brain. It waits in its lair until it
-notices you, knows magic missile plus one random spell per floor below the first, fights as a
-hard rival from depth 6, and leaves a tier 2 scroll when slain.
+notices you, knows magic missile plus one random spell per floor below the first (no more than
+a player that deep has slots on the bar), at rank II from depth 8 and III from depth 15, fights
+as a hard rival from depth 6, and leaves a gold scroll when slain.
 
 Below him the climb steepens (foes' health grows with the square of the depth past 10, to
 5.4x on floor 20; damage to 2.6x; more foes, champions and mini-bosses) and dragons lair in
@@ -186,11 +230,15 @@ hide, flank and ambush, and the rival hunts you through the corridors when it lo
 The **arena** map (`?map=arena`, or the Rooms / Arena toggle on the menu) is the old
 straightforward duel instead: one open hall with no pillars, the wizards starting face to
 face from opposite ends.
-In **progressive** duels (the default) each wizard starts with magic missile and one random
-spell; scrolls and potions keep appearing around the map, and whoever reaches a scroll first
-learns a spell they lack (potions heal or restore manergy). The rival runs for loot when it
-is worth it and tells you what it learned. **Classic** duels (`?rules=classic`, or the toggle
-on the menu) give both wizards every spell from the start, the ten D&D spells included.
+In **progressive** duels (the default) each wizard starts with a one-dart magic missile and
+one random spell; scrolls and potions keep appearing around the map, and whoever reaches a
+scroll first learns a spell they lack or adds a magic missile dart until their six bar slots
+are full, and after that raises a spell's rank (potions heal or restore manergy). The rival
+runs for loot when it is worth it and tells you what it learned. **Classic** duels
+(`?rules=classic`, or the toggle on the menu) put every spell in the book, the ten D&D spells
+included: the duel opens on the spellbook to choose the eight spells for your bar (free until
+you start; the last loadout is remembered), and shows the eight the rival brings (shield, blink
+and fireball, and five at random).
 Instead of a global cooldown, a cast locks the rest of its school for the school's lockout
 (table above), so spells of different schools can be woven back to back; magic missile and
 lifesteal never lock (`DuelRules.schools`). Survival has no lockouts. The rival wizard reads the
@@ -208,13 +256,13 @@ index.html, src/main.js     menu and start-up
 src/game.js                 game state, floors, spawning, aggro and navigation helpers
 src/core/                   constants, rebindable input bindings, time stop, entity base class
 src/world/                  dungeon generator, level plans, pathfinder, collision
-src/entities/               mage (spell book), orcs, mini-bosses and warlord, duel wizard,
-                            projectiles and zones, loot and stairs
+src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
+                            and warlord, duel wizard, projectiles and zones, loot and stairs
 src/render/                 Three.js renderer, dungeon meshes, character and prop models,
                             textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
-src/ui/                     HUD, minimap, controls screen
+src/ui/                     HUD, minimap, inventory and spellbook, controls screen
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 

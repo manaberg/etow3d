@@ -1,3 +1,5 @@
+import { rankPower } from './spellbar.js';
+
 // Shared duel balance: both duelists use the same numbers.
 export const DuelRules = {
   hp: 700,
@@ -5,8 +7,9 @@ export const DuelRules = {
   fearFrames: 120,
   rayHeal: 3,
   damage: {
-    // per missile: a cast looses three
-    missile: 20,
+    // per dart: a cast looses one to three by tier (spells.js MissileTiers),
+    // so three darts every 44 frames about match the old 3 x 20 every 24
+    missile: 36,
     fireball: 75,
     ironshot: 180,
     lightning: 70,
@@ -110,7 +113,8 @@ export const DuelRules = {
       target.stun(this.stunFrames);
       return;
     }
-    const dmg = (this.damage[kind] || 0) * scale;
+    // rank II of lifesteal and scorching ray (spellbar.js) hits harder
+    const dmg = (this.damage[kind] || 0) * scale * rankPower(attacker, kind);
     target.hurt(dmg);
     if (kind === 'ray' && attacker) {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + this.rayHeal);

@@ -5,7 +5,8 @@ import { World } from './world/world.js';
 import { DungeonLevels } from './world/levels.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage, DuelInnate } from './entities/mage.js';
+import { Mage, DuelInnate, SpellBook } from './entities/mage.js';
+import { BarSlots, WizardLevels, RankRules } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
@@ -14,10 +15,18 @@ import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.js';
 import { Kits, outfit, rollGear } from './entities/gear.js';
-import { DuelLoot } from './entities/duelLoot.js';
+import { DuelLoot, DuelSpells, startRank } from './entities/duelLoot.js';
+import { actionKeyLabel } from './core/bindings.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
+
+// Classic duels: the player's eight spells before they choose (spell ids,
+// placed in order), the spells the rival always takes, and where the
+// player's last loadout is kept.
+const CLASSIC_LOADOUT = ['blink', 'fireball', 'lightning', 'shield', 'ironshot', 'haste', 'image', 'timestop'];
+const RIVAL_CORE = ['shield', 'blink', 'fireball'];
+const LOADOUT_KEY = 'etow3d.loadout';
 
 // Power word kill: damage to the target (at least its own pwkillDamage) and to
 // every orc within the splash radius around it.
@@ -72,6 +81,9 @@ export class Game {
     this.state = 'playing';
     this.paused = false;
     this.inventoryOpen = false;
+    // classic duels open on the spellbook to choose the loadout; changes are
+    // free until it closes and the duel starts
+    this.loadout = false;
     // enemies idle until they see, hear or get hit by the player
     this.aggroSightRange = 460;
     this.aggroHearRange = 130;
@@ -92,6 +104,10 @@ export class Game {
     this.hud.build();
     if (this.battle) {
       this.hud.onBattleRound(this.battle);
+    }
+    if (this.mode === 'duel' && !this.progressive) {
+      this.loadout = true;
+      this.toggleInventory(true, 'spells');
     }
 
     this.last = performance.now();
@@ -198,8 +214,46 @@ export class Game {
     if (this.progressive) {
       this.duelLoot = new DuelLoot(this);
       this.duelLoot.setup(this.player, this.rival);
+    } else {
+      this.chooseRivalLoadout(this.rival);
     }
     this.duelWinnerDeclared = false;
+  }
+
+  // Classic duels: the rival takes its core spells and five more at random,
+  // as many as the player's bar holds.
+  chooseRivalLoadout(rival) {
+    const pool = DuelSpells.map((e) => e.id).filter((id) => !RIVAL_CORE.includes(id));
+    const known = new Set(RIVAL_CORE);
+    while (known.size < WizardLevels.classicSlots && pool.length) {
+      known.add(pool.splice(randInt(0, pool.length - 1), 1)[0]);
+    }
+    rival.known = known;
+    rival.ranks = {};
+    for (const entry of DuelSpells) {
+      rival.ranks[entry.id] = startRank(entry);
+    }
+  }
+
+  // The player's classic loadout: the last one chosen, or the default.
+  savedLoadout() {
+    try {
+      const bar = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
+      if (Array.isArray(bar)) {
+        return bar;
+      }
+    } catch {
+      // the default then
+    }
+    return null;
+  }
+
+  saveLoadout(player) {
+    try {
+      localStorage.setItem(LOADOUT_KEY, JSON.stringify(player.bar));
+    } catch {
+      // not kept: the default comes back next time
+    }
   }
 
   configureDuelPlayer(player) {
@@ -213,9 +267,21 @@ export class Game {
     for (const flag of flags) {
       player[flag] = true;
     }
+    // classic duels know every spell and fight with eight of them (progressive
+    // duels and battles start the spellbook over); the tier 2 spells start at
+    // rank II, as the 2D duel had them
+    const ids = SpellBook.filter((s) => s.flag).map((s) => s.id);
+    const ranks = {};
+    for (const id in RankRules.tierFlags) {
+      ranks[id] = 2;
+    }
+    const order = [...CLASSIC_LOADOUT, ...ids.filter((id) => !CLASSIC_LOADOUT.includes(id))];
+    player.resetSpells(order, { slots: WizardLevels.classicSlots, ranks, bar: this.savedLoadout() });
     // the 2D duel's five rings come built in
     player.innate = { ...DuelInnate };
     player.is2Charges = 3;
+    // every dart of magic missile (progressive duels and battles start at one)
+    player.missileTier = 3;
     // the rival moves at 120, the duel player's 100 with the ring of speed
     player.desiredVel = 100;
     player.hp = player.maxHp = DuelRules.hp;
@@ -235,9 +301,14 @@ export class Game {
       }
     }
     // the inventory goes down too, with the pools its gear has already raised
-    for (const key of ['hp', 'maxHp', 'manergy', 'maxManergy', 'is2Charges', 'timePlayed', 'inventory', 'gearStats']) {
+    for (const key of ['hp', 'maxHp', 'manergy', 'maxManergy', 'is2Charges', 'missileTier', 'timePlayed', 'inventory', 'gearStats',
+      'slotLimit', 'level', 'xp']) {
       carry[key] = player[key];
     }
+    // and the spell bar, the ranks and the order spells were learnt in
+    carry.bar = player.bar.slice();
+    carry.ranks = { ...player.ranks };
+    carry.learnOrder = player.learnOrder.slice();
     return carry;
   }
 
@@ -407,9 +478,13 @@ export class Game {
     });
     const pool = Object.keys(wizard.spellBook).filter((s) => s !== 'missile');
     wizard.known = new Set();
+    wizard.ranks = {};
     for (let n = Math.min(pool.length, rules.spells(this.depth)); n > 0; n--) {
-      wizard.known.add(pool.splice(randInt(0, pool.length - 1), 1)[0]);
+      const id = pool.splice(randInt(0, pool.length - 1), 1)[0];
+      wizard.known.add(id);
+      wizard.ranks[id] = rules.rank(this.depth);
     }
+    wizard.missileTier = rules.missileTier(this.depth);
     return 1;
   }
 
@@ -921,16 +996,51 @@ export class Game {
   // --------------------------------------------------------------- loop
 
   // The inventory screen (ui/inventory.js) holds the game still while open.
-  toggleInventory(open = !this.inventoryOpen) {
+  // `tab` is 'gear' or 'spells' (the spellbook).
+  toggleInventory(open = !this.inventoryOpen, tab = 'gear') {
     if (open && (this.state !== 'playing' || this.paused || !this.player || this.player.dead || !this.player.inventory)) {
       return;
     }
     this.inventoryOpen = open;
-    this.hud.showInventory(open);
+    this.hud.showInventory(open, tab);
     if (!open) {
       // clicks on the screen must not turn into spells when play resumes
       this.input.queued.clear();
+      if (this.loadout) {
+        // the classic duel starts
+        this.loadout = false;
+        this.saveLoadout(this.player);
+      }
     }
+  }
+
+  // The spellbook key opens the inventory on the spellbook, or closes it.
+  toggleSpellbook() {
+    if (this.inventoryOpen && this.hud.inventoryScreen.tab === 'spells') {
+      this.toggleInventory(false);
+    } else {
+      this.toggleInventory(true, 'spells');
+    }
+  }
+
+  // ------------------------------------------------------------ experience
+
+  // A foe fell: survival experience for the player (spellbar.js WizardLevels).
+  onEnemySlain(enemy) {
+    if (!this.duelMode && this.player && !this.player.dead) {
+      this.player.gainXp(WizardLevels.xpFor(enemy));
+    }
+  }
+
+  onPlayerLevel(player, opened) {
+    const keys = opened.map((i) => actionKeyLabel(BarSlots[i].action));
+    this.hud.toast('LEVEL ' + player.level + ' :: +' + WizardLevels.hp + ' HP :: +' + WizardLevels.manergy + ' MANERGY', '#ffd040');
+    if (keys.length) {
+      this.hud.toast('NEW SPELL SLOT :: ' + keys.join(' '), '#ffd040');
+    }
+    const c = player.center();
+    this.fx.column(c.x, c.y, 26, { color: [0xffd040, 0xfff0c0], count: 40, rise: 3, life: 0.9, size: 0.8 });
+    this.fx.ring(c.x, c.y, { color: 0xffd040, radius: 70, life: 0.5 });
   }
 
   setPaused(paused) {
@@ -998,7 +1108,11 @@ export class Game {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     if (this.input.consume('inventory')) {
-      this.toggleInventory();
+      // the inventory key closes the spellbook as well
+      this.toggleInventory(!this.inventoryOpen, 'gear');
+    }
+    if (this.input.consume('spellbook')) {
+      this.toggleSpellbook();
     }
     if (this.input.consume('pause')) {
       // Esc closes the inventory before it pauses

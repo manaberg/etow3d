@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { Mage, SpellBook } from './mage.js';
 import { DuelWizard } from './duelWizard.js';
 import { Soldier } from './soldier.js';
-import { DuelSpells } from './duelLoot.js';
+import { DuelSpells, MissileUpgrade, playerSpellId, startRank } from './duelLoot.js';
+import { MAX_MISSILE_TIER } from './spells.js';
+import { WizardLevels, RankRules, ROMAN } from './spellbar.js';
 import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
@@ -16,7 +18,8 @@ import { TEAM_COLORS } from '../render/models.js';
 // knights, shock troops, mystics) that the player commands one by one or
 // together: charge, march to a point and hold it, or follow the wizard.
 // Both wizards start with magic missile and one random spell; after every
-// battle the player picks one of three new spells and the rival learns one.
+// battle the player picks one of three: a new spell, another magic missile
+// dart or a rank for a spell they have (spellbar.js), and the rival learns one.
 // A battle is lost when your wizard falls or your army is wiped out. Wizards
 // follow the duel rules (damage between them, school lockouts); orcs take
 // the dungeon damage, so a fireball wrecks a regiment.
@@ -80,7 +83,10 @@ function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export function spellLabel(entry) {
+export function spellLabel(entry, darts) {
+  if (entry === MissileUpgrade) {
+    return MissileUpgrade.name + ' :: ' + darts + ' DARTS';
+  }
   const spell = SpellBook.find((s) => s.flag === entry.flag);
   return spell ? spell.name : entry.id.toUpperCase();
 }
@@ -95,6 +101,11 @@ export class Battle {
     this.rollRivalRace();
     this.playerSpells = new Set([pick(DuelSpells).id]);
     this.rivalSpells = new Set([pick(DuelSpells).id]);
+    // spell ranks by duel spell id, and the player's bar between battles
+    this.ranks = { player: {}, enemy: {} };
+    this.playerBar = null;
+    // magic missile darts per cast; the draft can add more (MissileUpgrade)
+    this.missileTiers = { player: 1, enemy: 1 };
     this.fighting = false;
     this.deploy = 0;
     this.fightFrames = 0;
@@ -120,6 +131,40 @@ export class Battle {
     const last = this.races.enemy;
     const options = Object.keys(Races).filter((r) => r !== this.races.player && r !== last);
     this.races.enemy = pick(options);
+  }
+
+  rankOf(side, entry) {
+    return this.ranks[side][entry.id] || startRank(entry);
+  }
+
+  // What a side could gain between battles: new spells, a dart, and ranks
+  // for the spells it has, as { kind, entry } ('learn', 'dart', 'rank').
+  draftPool(side) {
+    const known = side === 'player' ? this.playerSpells : this.rivalSpells;
+    const learn = DuelSpells.filter((e) => !known.has(e.id)).map((entry) => ({ kind: 'learn', entry }));
+    if (this.missileTiers[side] < MAX_MISSILE_TIER) {
+      learn.push({ kind: 'dart', entry: MissileUpgrade });
+    }
+    const rank = DuelSpells.filter((e) => known.has(e.id) && this.rankOf(side, e) < RankRules.max).map((entry) => ({ kind: 'rank', entry }));
+    return { learn, rank };
+  }
+
+  draftLabel(side, choice) {
+    if (choice.kind === 'dart') {
+      return spellLabel(MissileUpgrade, this.missileTiers[side] + 1);
+    }
+    const name = spellLabel(choice.entry);
+    return choice.kind === 'rank' ? name + ' :: RANK ' + ROMAN[this.rankOf(side, choice.entry) + 1] : name;
+  }
+
+  takeDraft(side, choice) {
+    if (choice.kind === 'dart') {
+      this.missileTiers[side]++;
+    } else if (choice.kind === 'rank') {
+      this.ranks[side][choice.entry.id] = this.rankOf(side, choice.entry) + 1;
+    } else {
+      (side === 'player' ? this.playerSpells : this.rivalSpells).add(choice.entry.id);
+    }
   }
 
   get armySize() {
@@ -154,15 +199,20 @@ export class Battle {
     const pl = game.spawn(Mage, wizardPlayer.x - 24, wizardPlayer.y - 24);
     game.player = pl;
     game.configureDuelPlayer(pl);
-    for (const entry of DuelSpells) {
-      pl[entry.flag] = this.playerSpells.has(entry.id);
-      if (entry.tier) {
-        pl[entry.tier] = pl[entry.flag];
-      }
+    const known = DuelSpells.filter((entry) => this.playerSpells.has(entry.id));
+    const ranks = {};
+    for (const entry of known) {
+      ranks[playerSpellId(entry)] = this.rankOf('player', entry);
     }
-    pl.hasTele = false;
+    pl.resetSpells(known.map(playerSpellId), { slots: WizardLevels.battleSlots, ranks, bar: this.playerBar });
+    pl.missileTier = this.missileTiers.player;
     const rival = game.spawn(DuelWizard, wizardEnemy.x - 24, wizardEnemy.y - 24, { difficulty: game.difficulty });
     rival.known = new Set(this.rivalSpells);
+    rival.ranks = {};
+    for (const entry of DuelSpells.filter((e) => this.rivalSpells.has(e.id))) {
+      rival.ranks[entry.id] = this.rankOf('enemy', entry);
+    }
+    rival.missileTier = this.missileTiers.enemy;
     game.rival = rival;
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
@@ -859,14 +909,26 @@ export class Battle {
       });
       return;
     }
-    // between battles: the player drafts one of three new spells, the rival learns one
-    const missing = DuelSpells.filter((s) => !this.playerSpells.has(s.id));
-    const choices = [];
-    while (choices.length < BattleRules.draftChoices && missing.length) {
-      choices.push(missing.splice(Math.floor(Math.random() * missing.length), 1)[0]);
+    // between battles: the player drafts one of three (one a rank when they
+    // have a spell to rank up, the rest new spells while any are left), the
+    // rival learns one
+    if (game.player) {
+      this.playerBar = game.player.bar.slice();
     }
-    const rivalMissing = DuelSpells.filter((s) => !this.rivalSpells.has(s.id));
-    const rivalPick = rivalMissing.length ? pick(rivalMissing) : null;
+    const pool = this.draftPool('player');
+    const choices = [];
+    const take = (list) => list.splice(Math.floor(Math.random() * list.length), 1)[0];
+    if (pool.rank.length) {
+      choices.push(take(pool.rank));
+    }
+    while (choices.length < BattleRules.draftChoices && (pool.learn.length || pool.rank.length)) {
+      choices.push(take(pool.learn.length ? pool.learn : pool.rank));
+    }
+    // the rank choice goes last
+    choices.sort((a, b) => (a.kind === 'rank') - (b.kind === 'rank'));
+    const rivalPool = this.draftPool('enemy');
+    const rivalPick = rivalPool.learn.length ? pick(rivalPool.learn) : (rivalPool.rank.length ? pick(rivalPool.rank) : null);
+    const rivalLearns = rivalPick ? this.draftLabel('enemy', rivalPick) : null;
     this.rollRivalRace();
     game.hud.showBattleDraft({
       winner,
@@ -875,14 +937,14 @@ export class Battle {
       next: this.round + 2,
       nextSize: BattleRules.armies[this.round + 1],
       nextFoe: Races[this.races.enemy].name,
-      choices: choices.map((c) => ({ id: c.id, name: spellLabel(c) })),
-      rivalLearns: rivalPick ? spellLabel(rivalPick) : null,
-      onPick: (id) => {
-        if (id) {
-          this.playerSpells.add(id);
+      choices: choices.map((c, i) => ({ id: i, name: this.draftLabel('player', c) })),
+      rivalLearns,
+      onPick: (i) => {
+        if (i !== null && choices[i]) {
+          this.takeDraft('player', choices[i]);
         }
         if (rivalPick) {
-          this.rivalSpells.add(rivalPick.id);
+          this.takeDraft('enemy', rivalPick);
         }
         this.round++;
         this.over = false;

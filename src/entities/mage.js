@@ -2,45 +2,49 @@ import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildMage, buildSheep, glowMap } from '../render/models.js';
-import { Projectile, Zone, MirrorImage, castMissiles } from './spells.js';
+import { Projectile, Zone, MirrorImage, castMissiles, missileTier } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { DungeonLevels } from '../world/levels.js';
 import { castArcana, arcanaZoneDamage } from './arcana.js';
 import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
 import { dressRig } from '../render/gearModels.js';
+import { BarSlots, WizardLevels, RankRules, placementOrder, rankOf, rankPower, rankCooldown } from './spellbar.js';
 
-// The spell book, in HUD order. `cd` is the cooldown in frames, `need` the
-// manergy that must be exceeded and `cost` what a cast spends; `flag` is the
-// spellbook entry a scroll unlocks and `tier` its tier 2 upgrade. Keys live in
-// core/bindings.js under the spell's id (or `action` where they differ).
+// The spell book. `cd` is the cooldown in frames, `need` the manergy that
+// must be exceeded and `cost` what a cast spends; `flag` is the spellbook
+// entry a scroll unlocks and `tier` the flag its rank II sets (the 2D game's
+// tier 2). `circle` is how deep its scrolls start to turn up (spellbar.js
+// CircleFloors), `grows` what rank II adds 30% to (spellbar.js RankRules)
+// and `text` what the spellbook says about it. Spells are cast from the bar's
+// slots (spellbar.js BarSlots); magic missile has its own key.
 export const SpellBook = [
-  { id: 'missile', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null },
-  { id: 'fireball', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2' },
-  { id: 'lightning', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2' },
-  { id: 'ironshot', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2' },
-  { id: 'blink', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2' },
-  { id: 'timestop', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop' },
-  { id: 'haste', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste' },
-  { id: 'image', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage' },
-  { id: 'stun', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun' },
-  { id: 'shield', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield' },
-  { id: 'blizzard', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2' },
-  { id: 'ray', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay' },
-  { id: 'invis', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis' },
-  { id: 'fear', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear' },
-  { id: 'pwkill', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2' },
-  { id: 'tele', action: 'telekinesis', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele' },
+  { id: 'missile', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null, circle: 0, rank2: 'TWO DARTS', rank3: 'THREE DARTS', text: 'Darts that curve in on the foe nearest the cursor and shoot down simple bolts. Hold to keep casting.' },
+  { id: 'fireball', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2', circle: 1, rank2: 'A SECOND ORB BESIDE THE FIRST', text: 'An orb that bursts on the first foe and scorches those around it.' },
+  { id: 'lightning', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2', circle: 2, rank2: 'EVERY JUMP HITS AS HARD AS THE FIRST', text: 'Locks on to the nearest foe and jumps from it to every foe close by.' },
+  { id: 'ironshot', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2', circle: 1, rank2: 'TWO CHARGES', text: 'A heavy bolt that pierces through every foe in its line.' },
+  { id: 'blink', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2', circle: 1, rank2: 'COOLDOWN HALVED', text: 'Teleports you to the cursor, onto open floor only.' },
+  { id: 'timestop', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop', circle: 4, grows: 'DURATION', text: 'Slows the world around you to a crawl; you and your spells keep full speed.' },
+  { id: 'haste', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste', circle: 2, grows: 'DURATION', text: 'You run two and a half times as fast for a while.' },
+  { id: 'image', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage', circle: 2, text: 'A copy of you that draws the foes\' attention.' },
+  { id: 'stun', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun', circle: 2, text: 'Roots the nearest foe to the spot, and every foe close to it.' },
+  { id: 'shield', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield', circle: 1, grows: 'DURATION', text: 'A bubble that turns blows and sends bolts back at their caster.' },
+  { id: 'blizzard', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2', circle: 3, rank2: 'TWICE THE RADIUS', text: 'A storm of ice at the cursor that hurts and slows everything in it.' },
+  { id: 'ray', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay', circle: 2, grows: 'DAMAGE', text: 'Hold for a red ray that drains your foe\'s life into yours.' },
+  { id: 'invis', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis', circle: 3, grows: 'DURATION', text: 'Foes lose sight of you until it wears off.' },
+  { id: 'fear', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear', circle: 2, grows: 'REACH', text: 'Foes around you flee in a panic.' },
+  { id: 'pwkill', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2', circle: 4, rank2: 'A WIDER, DEEPER SPLASH', text: 'Hover a foe: a word that kills it, and wounds those around it.' },
+  { id: 'tele', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele', circle: 2, text: 'Hover loot to pull it to you from afar.' },
   // D&D spells new to the 3D game (see arcana.js)
-  { id: 'scorch', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch' },
-  { id: 'cone', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone' },
-  { id: 'thunder', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder' },
-  { id: 'meteor', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor' },
-  { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians' },
-  { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud' },
-  { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal' },
-  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph' },
-  { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate' },
-  { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon' }
+  { id: 'scorch', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch', circle: 1, grows: 'DAMAGE', text: 'Three fire bolts fanned around your aim.' },
+  { id: 'cone', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone', circle: 2, grows: 'DAMAGE', text: 'Damages and chills every foe in front of you.' },
+  { id: 'thunder', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder', circle: 1, grows: 'DAMAGE', text: 'Blasts the foes around you away.' },
+  { id: 'meteor', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor', circle: 4, grows: 'DAMAGE', text: 'Rocks rain down around the cursor.' },
+  { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians', circle: 3, grows: 'DAMAGE', text: 'A damaging, slowing aura that follows you.' },
+  { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud', circle: 3, grows: 'DAMAGE', text: 'A poison cloud at the cursor that rolls away from you.' },
+  { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal', circle: 1, grows: 'HEALING', text: 'Heals you at once.' },
+  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph', circle: 3, grows: 'DURATION', text: 'Hover a foe to turn it into a sheep for a while (a wizard only briefly).' },
+  { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate', circle: 3, grows: 'DAMAGE', text: 'A ray into the first foe in line.' },
+  { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon', circle: 3, grows: 'DAMAGE', text: 'A spectral sword that fights beside you.' }
 ];
 
 export const SpellById = {};
@@ -84,7 +88,9 @@ export class Mage extends Entity {
     this.hp = 100;
     this.maxHp = 100;
     this.desiredVel = 115;
-    // cooldown frames left per spell (0 = ready)
+    // cooldown frames left per spell (0 = ready), and the length of a wait
+    // longer than the spell's own cooldown (one just put on the bar)
+    this.cdFull = {};
     this.cd = {};
     for (const spell of SpellBook) {
       this.cd[spell.id] = 0;
@@ -93,6 +99,8 @@ export class Mage extends Entity {
     this.schoolLock = {};
     // the 2D game started a few spells on cooldown
     this.is2Charges = 1;
+    // magic missile darts per cast, 1 to 3: each magic missile scroll adds one
+    this.missileTier = 1;
     // buffs (frames left) and debuffs
     this.shieldFrames = 0;
     this.hasteFrames = 0;
@@ -123,6 +131,16 @@ export class Mage extends Entity {
         this[spell.tier] = false;
       }
     }
+    // the spell bar (spellbar.js): the spell prepared in each slot, how many
+    // slots are open, and the order spells were learnt in (the newest one in
+    // the book takes a slot that opens)
+    this.bar = BarSlots.map(() => null);
+    this.slotLimit = WizardLevels.slotsAt(1);
+    this.learnOrder = [];
+    // spell ranks (1 to 3; magic missile's are its darts), and the survival level
+    this.ranks = {};
+    this.level = 1;
+    this.xp = 0;
     // gear (gear.js): what it carries and wears, the summed properties of the
     // worn gear, and bonuses that come with the mode rather than with items
     this.inventory = null;
@@ -214,7 +232,7 @@ export class Mage extends Entity {
 
   spend(id, extraCost) {
     const spell = SpellById[id];
-    this.cd[id] = this.cooldownOf(spell.cd);
+    this.cd[id] = this.cooldownOf(spell.cd * rankCooldown(this, id));
     this.manergy -= spell.cost + (extraCost || 0);
     this.lockSchool(id);
   }
@@ -232,6 +250,192 @@ export class Mage extends Entity {
       return false;
     }
     return this.ready(id) && this.manergy > spell.need;
+  }
+
+  // ------------------------------------------------------------ spellbook and bar
+
+  knowsSpell(id) {
+    const spell = SpellById[id];
+    return !!spell && (!spell.flag || !!this[spell.flag]);
+  }
+
+  // The spell sits in an open slot of the bar, so it can be cast.
+  prepared(id) {
+    const i = this.bar.indexOf(id);
+    return i >= 0 && i < this.slotLimit;
+  }
+
+  // The key of the slot holding `id` went down this step (`held`: is down).
+  wants(id, held) {
+    const i = this.bar.indexOf(id);
+    if (i < 0 || i >= this.slotLimit) {
+      return false;
+    }
+    const input = this.game.input;
+    return held ? input.state(BarSlots[i].action) : input.pressed(BarSlots[i].action);
+  }
+
+  // Spells known but not on the bar, newest first.
+  waitingInBook() {
+    return this.learnOrder.filter((id) => this.knowsSpell(id) && !this.prepared(id)).reverse();
+  }
+
+  // A new spell for the book. It takes the first free slot that suits it
+  // (spellbar.js placementOrder) or waits in the book. Returns the slot, or -1.
+  learnSpell(id, rank = 1) {
+    const spell = SpellById[id];
+    this[spell.flag] = true;
+    this.ranks[id] = Math.max(this.ranks[id] || 1, rank);
+    if (!this.learnOrder.includes(id)) {
+      this.learnOrder.push(id);
+    }
+    this.syncTierFlags();
+    return this.autoPrepare(id);
+  }
+
+  autoPrepare(id) {
+    const at = this.bar.indexOf(id);
+    if (at >= 0 && at < this.slotLimit) {
+      return at;
+    }
+    if (at >= 0) {
+      this.bar[at] = null;
+    }
+    for (const i of placementOrder(id, SpellById[id].cd)) {
+      if (i < this.slotLimit && !this.bar[i]) {
+        this.bar[i] = id;
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // One rank up (to RankRules.max). Magic missile's ranks are its darts.
+  rankUp(id) {
+    if (id === 'missile') {
+      this.missileTier = Math.min(RankRules.max, (this.missileTier || 1) + 1);
+      return this.missileTier;
+    }
+    this.ranks[id] = Math.min(RankRules.max, (this.ranks[id] || 1) + 1);
+    if (id === 'ironshot' && this.ranks[id] === 2) {
+      this.is2Charges = 2;
+    }
+    this.syncTierFlags();
+    return this.ranks[id];
+  }
+
+  // The six spells with a rank II of their own keep the 2D game's tier flags.
+  syncTierFlags() {
+    for (const id in RankRules.tierFlags) {
+      this[RankRules.tierFlags[id]] = this.knowsSpell(id) && rankOf(this, id) >= 2;
+    }
+  }
+
+  // Puts a spell on the bar at `slot`; the one there goes back to the book,
+  // or, when the spell came from another slot, the two swap. A spell brought
+  // in from the book starts on its cooldown (WizardLevels.prepareFrames at
+  // least) so swapping mid-fight is never free; `free` skips that (a duel's
+  // loadout before the fight).
+  prepare(id, slot, free) {
+    if (slot < 0 || slot >= this.slotLimit || !this.knowsSpell(id)) {
+      return;
+    }
+    const from = this.bar.indexOf(id);
+    if (from >= 0 && from < this.slotLimit) {
+      this.swapSlots(from, slot);
+      return;
+    }
+    if (from >= 0) {
+      this.bar[from] = null;
+    }
+    this.bar[slot] = id;
+    if (!free) {
+      const spell = SpellById[id];
+      this.cd[id] = Math.max(this.cd[id] || 0, this.cooldownOf(spell.cd * rankCooldown(this, id)), WizardLevels.prepareFrames);
+      this.cdFull[id] = this.cd[id];
+    }
+  }
+
+  swapSlots(a, b) {
+    const spell = this.bar[a];
+    this.bar[a] = this.bar[b];
+    this.bar[b] = spell;
+  }
+
+  unprepare(slot) {
+    this.bar[slot] = null;
+  }
+
+  // Opens (or closes) slots: spells in closed slots go back to the book, and
+  // the newest spells waiting in the book take the slots that opened.
+  // Returns the slots that opened.
+  setSlotLimit(n) {
+    const before = this.slotLimit;
+    this.slotLimit = Math.max(0, Math.min(BarSlots.length, n));
+    for (let i = this.slotLimit; i < this.bar.length; i++) {
+      this.bar[i] = null;
+    }
+    const opened = [];
+    for (let i = before; i < this.slotLimit; i++) {
+      opened.push(i);
+    }
+    for (const id of this.waitingInBook()) {
+      if (this.autoPrepare(id) < 0) {
+        break;
+      }
+    }
+    return opened;
+  }
+
+  // Starts the spellbook over knowing `ids` (duels and battles), at `ranks`,
+  // with `bar` (spell ids by slot) kept where it still fits and the other
+  // spells placed in order.
+  resetSpells(ids, { slots, ranks = {}, bar = null } = {}) {
+    for (const spell of SpellBook) {
+      if (spell.flag) {
+        this[spell.flag] = false;
+      }
+    }
+    this.bar = BarSlots.map(() => null);
+    this.slotLimit = slots;
+    this.learnOrder = [];
+    this.ranks = {};
+    for (const id of ids) {
+      const spell = SpellById[id];
+      this[spell.flag] = true;
+      this.ranks[id] = ranks[id] || 1;
+      this.learnOrder.push(id);
+    }
+    if (bar) {
+      bar.forEach((id, i) => {
+        if (id && i < slots && ids.includes(id)) {
+          this.bar[i] = id;
+        }
+      });
+    }
+    for (const id of ids) {
+      this.autoPrepare(id);
+    }
+    this.syncTierFlags();
+  }
+
+  // Survival experience: each level adds a little health and manergy and may
+  // open a slot on the bar (spellbar.js WizardLevels).
+  gainXp(amount) {
+    if (this.game.duelMode || this.dead || amount <= 0) {
+      return;
+    }
+    this.xp += amount;
+    const table = WizardLevels.xp;
+    while (this.level < WizardLevels.max && this.xp >= table[this.level + 1]) {
+      this.level++;
+      this.maxHp += WizardLevels.hp;
+      this.hp += WizardLevels.hp;
+      this.maxManergy += WizardLevels.manergy;
+      this.manergy += WizardLevels.manergy;
+      const opened = this.setSlotLimit(Math.max(this.slotLimit, WizardLevels.slotsAt(this.level)));
+      this.game.onPlayerLevel(this, opened);
+    }
   }
 
   update(k) {
@@ -365,11 +569,11 @@ export class Mage extends Entity {
       // the darts home in on the foe under (or near) the cursor, else on the spot
       const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
       castMissiles(game, this, 'player', aim, target);
-      this.cd.missile = this.cooldownOf(SpellById.missile.cd);
+      this.cd.missile = this.cooldownOf(missileTier(this).cd);
       stats.micount++;
       this.rig.swing();
     }
-    if (input.pressed('fireball') && this.canCast('fireball')) {
+    if (this.wants('fireball') && this.canCast('fireball')) {
       fire('fireball', aim);
       stats.fbcount++;
       let extra = this.bonus('fireballCost');
@@ -383,24 +587,24 @@ export class Mage extends Entity {
       this.spend('fireball', extra);
       this.rig.swing();
     }
-    if (input.pressed('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.lockLeft('ironshot') <= 0 && this.manergy > 40) {
+    if (this.wants('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.lockLeft('ironshot') <= 0 && this.manergy > 40) {
       fire('ironshot', aim);
       stats.iscount++;
       this.manergy -= 40;
       this.lockSchool('ironshot');
       if (this.is2Charges === 1) {
-        this.cd.ironshot = this.cooldownOf(SpellById.ironshot.cd);
+        this.cd.ironshot = this.cooldownOf(SpellById.ironshot.cd * rankCooldown(this, 'ironshot'));
       }
       this.is2Charges--;
       game.gfx.addShake(0.25);
       this.rig.swing();
     }
-    if (input.state('ray') && this.hasRay && this.manergy > 10) {
+    if (this.wants('ray', true) && this.hasRay && this.cd.ray <= 0 && this.manergy > 10) {
       fire('ray', aim + (Math.random() - 0.5) * 0.05);
       stats.lscount++;
       this.manergy -= 10;
     }
-    if (input.pressed('lightning') && this.canCast('lightning')) {
+    if (this.wants('lightning') && this.canCast('lightning')) {
       const target = game.nearestHostile(this, 300);
       if (target) {
         fire('lightning', this.angleTo(target));
@@ -409,7 +613,7 @@ export class Mage extends Entity {
         this.rig.swing();
       }
     }
-    if (input.pressed('stun') && this.canCast('stun')) {
+    if (this.wants('stun') && this.canCast('stun')) {
       const target = game.nearestHostile(this, 300);
       if (target) {
         fire('root', this.angleTo(target));
@@ -418,20 +622,21 @@ export class Mage extends Entity {
         this.rig.swing();
       }
     }
-    if (input.pressed('timestop') && this.canCast('timestop')) {
-      game.time.alterTimeScale(0.2, 0, 4, 0.2, this);
-      this.timestopFrames = this.timestopDuration;
+    if (this.wants('timestop') && this.canCast('timestop')) {
+      const power = rankPower(this, 'timestop');
+      game.time.alterTimeScale(0.2, 0, 4 * power, 0.2, this);
+      this.timestopFrames = this.timestopDuration * power;
       stats.tscount++;
       this.spend('timestop');
       game.fx.ring(c.x, c.y, { color: 0xffe080, radius: 600, life: 0.8 });
       game.onTimestop();
     }
-    if (input.pressed('image') && this.canCast('image')) {
+    if (this.wants('image') && this.canCast('image')) {
       game.spawn(MirrorImage, this.pos.x, this.pos.y, { source: this, timeOwner: this });
       stats.imcount++;
       this.spend('image');
     }
-    if (input.pressed('blink') && this.canCast('blink')) {
+    if (this.wants('blink') && this.canCast('blink')) {
       const fx = game.fx;
       fx.burst(c.x, c.y, 1.2, { color: 0xb070ff, count: 30, speed: 5, life: 0.5, size: 0.9 });
       // only blink onto open floor, never into walls or pillars
@@ -446,44 +651,45 @@ export class Mage extends Entity {
       stats.bkcount++;
       this.spend('blink');
       if (this.hasBk2) {
-        this.cd.blink = this.cooldownOf(200);
+        this.cd.blink = this.cooldownOf(200 * rankCooldown(this, 'blink'));
       }
     }
-    if (input.pressed('shield') && this.canCast('shield')) {
-      this.shieldFrames = this.shieldDuration * (1 + this.bonus('ward'));
+    if (this.wants('shield') && this.canCast('shield')) {
+      this.shieldFrames = this.shieldDuration * (1 + this.bonus('ward')) * rankPower(this, 'shield');
       stats.shcount++;
       this.spend('shield');
       game.fx.ring(c.x, c.y, { color: 0x60b0ff, radius: 50, life: 0.4 });
     }
-    if (input.pressed('haste') && this.canCast('haste')) {
-      this.hasteFrames = this.hasteDuration;
+    if (this.wants('haste') && this.canCast('haste')) {
+      this.hasteFrames = this.hasteDuration * rankPower(this, 'haste');
       stats.hscount++;
       this.spend('haste');
     }
-    if (input.pressed('invis') && this.canCast('invis')) {
-      this.invisFrames = this.invisDuration;
+    if (this.wants('invis') && this.canCast('invis')) {
+      this.invisFrames = this.invisDuration * rankPower(this, 'invis');
       stats.incount++;
       this.spend('invis');
       game.fx.burst(c.x, c.y, 1.2, { color: 0x8090a0, count: 20, speed: 3, life: 0.6, size: 1 });
     }
-    if (input.pressed('blizzard') && this.canCast('blizzard')) {
+    if (this.wants('blizzard') && this.canCast('blizzard')) {
       game.spawn(Zone, mouse.x, mouse.y, {
         kind: 'blizzard', team: 'player', radius: this.hasBz2 ? 192 : 96, tier: this.hasBz2 ? 1 : 0, life: 240, timeOwner: this
       });
       stats.bzcount++;
       this.spend('blizzard', this.hasBz2 ? 10 : 0);
     }
-    if (input.pressed('fear') && this.canCast('fear')) {
+    if (this.wants('fear') && this.canCast('fear')) {
+      const reach = (game.duelMode ? 450 : 400) * rankPower(this, 'fear');
       for (const enemy of game.hostilesOf('player')) {
-        if (enemy.canBeFeared && this.distanceTo(enemy) < (game.duelMode ? 450 : 400)) {
+        if (enemy.canBeFeared && this.distanceTo(enemy) < reach) {
           enemy.fear();
         }
       }
       stats.fecount++;
       this.spend('fear');
-      game.fx.ring(c.x, c.y, { color: 0xc040ff, radius: 400, life: 0.6 });
+      game.fx.ring(c.x, c.y, { color: 0xc040ff, radius: reach, life: 0.6 });
     }
-    if (input.pressed('pwkill') && this.canCast('pwkill')) {
+    if (this.wants('pwkill') && this.canCast('pwkill')) {
       const target = game.hoveredHostile();
       if (target) {
         game.powerWordKill(target);
@@ -491,7 +697,7 @@ export class Mage extends Entity {
         this.spend('pwkill');
       }
     }
-    if (input.pressed('telekinesis') && this.canCast('tele')) {
+    if (this.wants('tele') && this.canCast('tele')) {
       const item = game.hoveredItem();
       if (item) {
         game.fx.column(item.pos.x + item.size.x / 2, item.pos.y + item.size.y / 2, 20, { color: 0xc0a0ff, count: 20, rise: 3, life: 0.6 });

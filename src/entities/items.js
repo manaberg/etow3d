@@ -2,7 +2,9 @@ import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildScroll, buildPotion, buildStairs } from '../render/models.js';
 import { buildGearLoot } from '../render/gearModels.js';
-import { SpellBook } from './mage.js';
+import { SpellBook, SpellById } from './mage.js';
+import { BarSlots, CircleFloors, RankRules, ROMAN, rankOf } from './spellbar.js';
+import { actionKeyLabel } from '../core/bindings.js';
 import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
@@ -42,15 +44,19 @@ export class Item extends Entity {
   }
 }
 
-// Spellbook flags in the scroll numbering of the 2D game (1-15), then the
-// spells new to the 3D game.
-const SCROLL_SPELLS = [null, 'hasFireball', 'hasLightning', 'hasIronshot', 'hasBlink', 'hasTimestop', 'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasRay', 'hasInvis', 'hasFear', 'hasPwkill', 'hasTele',
-  'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph', 'hasDisintegrate', 'hasWeapon'];
-const SCROLL_UPGRADES = { 1: 'hasFb2', 2: 'hasLg2', 3: 'hasIs2', 4: 'hasBk2', 10: 'hasBz2', 14: 'hasPwk2' };
+// A survival scroll teaches a spell of the circles its floor has reached
+// (spellbar.js CircleFloors), or ranks up one its reader already knows; now
+// and then it adds a magic missile dart instead, until the third. A gold
+// (tier 1) scroll ranks up a spell on the reader's bar, so it goes to a spell
+// in use. What a scroll gives is decided when it is read.
+const MISSILE_SCROLL_CHANCE = 0.15;
 
-function spellName(flag) {
-  const spell = SpellBook.find((s) => s.flag === flag || s.tier === flag);
-  return spell ? spell.name : flag;
+function pick(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+export function scrollPool(depth) {
+  return SpellBook.filter((s) => s.flag && CircleFloors[s.circle] <= depth).map((s) => s.id);
 }
 
 export class Scroll extends Item {
@@ -61,31 +67,31 @@ export class Scroll extends Item {
   }
 
   init() {
-    this.spellnumber = Math.floor(Math.random() * (SCROLL_SPELLS.length - 1)) + 1;
     this.view = buildScroll(this.tier);
     this.game.gfx.add(this.view);
   }
 
-  isUsefulSpell(player, number) {
-    if (!player[SCROLL_SPELLS[number]]) {
-      return true;
-    }
-    const upgrade = SCROLL_UPGRADES[number];
-    return this.tier === 1 && !!upgrade && !player[upgrade];
-  }
-
-  // a scroll for a spell already known turns into one the player lacks
-  pickUsefulSpell(player) {
-    if (this.isUsefulSpell(player, this.spellnumber)) {
-      return this.spellnumber;
-    }
-    const useful = [];
-    for (let n = 1; n < SCROLL_SPELLS.length; n++) {
-      if (this.isUsefulSpell(player, n)) {
-        useful.push(n);
+  // The spell id it gives `player` ('missile' for a dart), or null when
+  // there is nothing left to learn from the circles open so far.
+  choose(player) {
+    const rankable = (id) => rankOf(player, id) < RankRules.max;
+    if (this.tier) {
+      const onBar = player.bar.filter((id, i) => id && i < player.slotLimit && rankable(id));
+      if (rankable('missile')) {
+        onBar.push('missile');
+      }
+      if (onBar.length) {
+        return pick(onBar);
       }
     }
-    return useful.length ? useful[Math.floor(Math.random() * useful.length)] : this.spellnumber;
+    const pool = scrollPool(this.game.depth);
+    const useful = (id) => id === 'missile' ? rankable(id) : (!player.knowsSpell(id) || rankable(id));
+    const id = rankable('missile') && Math.random() < MISSILE_SCROLL_CHANCE ? 'missile' : pick(pool);
+    if (useful(id)) {
+      return id;
+    }
+    const left = [...pool, 'missile'].filter(useful);
+    return left.length ? pick(left) : null;
   }
 
   pickUp(player) {
@@ -95,19 +101,20 @@ export class Scroll extends Item {
       this.kill();
       return;
     }
-    const n = this.pickUsefulSpell(player);
-    const flag = SCROLL_SPELLS[n];
-    const upgrade = SCROLL_UPGRADES[n];
+    const id = this.choose(player);
     let message;
-    if (player[flag] && this.tier === 1 && upgrade) {
-      player[upgrade] = true;
-      if (n === 3) {
-        player.is2Charges = 2;
-      }
-      message = spellName(flag) + ' :: TIER 2';
+    if (!id) {
+      player.manergy = player.maxManergy;
+      message = 'NOTHING NEW IN IT :: MANERGY RESTORED';
+    } else if (id === 'missile') {
+      player.rankUp('missile');
+      message = 'MAGIC MISSILE :: ' + player.missileTier + ' DARTS';
+    } else if (player.knowsSpell(id)) {
+      message = SpellById[id].name + ' :: RANK ' + ROMAN[player.rankUp(id)];
     } else {
-      message = (player[flag] ? 'ALREADY KNOWN :: ' : 'LEARNED :: ') + spellName(flag);
-      player[flag] = true;
+      const slot = player.learnSpell(id);
+      message = 'LEARNED :: ' + SpellById[id].name + ' :: ' +
+        (slot >= 0 ? 'ON ' + actionKeyLabel(BarSlots[slot].action) : 'IN YOUR SPELLBOOK (' + actionKeyLabel('spellbook') + ')');
     }
     this.game.stats.scrollcount++;
     this.game.pickupFx(this, this.tier ? 0xffd040 : 0xfff0c0);

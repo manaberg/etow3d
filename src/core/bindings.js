@@ -4,39 +4,26 @@
 // so any action can sit on any key or button. Escape always pauses and the
 // arrow keys always move; neither can be rebound.
 
-// Every action in the order the controls screen lists them. The defaults are
-// the 2D game's keys.
+// Every action in the order the controls screen lists them. Movement keeps
+// the 2D game's keys; spells sit on the bar's slots instead of a key each.
 export const Actions = [
   { id: 'up', label: 'Move up', group: 'Movement', key: 'KeyW' },
   { id: 'left', label: 'Move left', group: 'Movement', key: 'KeyA' },
   { id: 'down', label: 'Move down', group: 'Movement', key: 'KeyS' },
   { id: 'right', label: 'Move right', group: 'Movement', key: 'KeyD' },
   { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse0' },
-  { id: 'blink', label: 'Blink to cursor', group: 'Spells', key: 'Mouse2' },
-  { id: 'fireball', label: 'Fireball', group: 'Spells', key: 'KeyQ' },
-  { id: 'ironshot', label: 'Iron shot', group: 'Spells', key: 'KeyE' },
-  { id: 'lightning', label: 'Chain lightning', group: 'Spells', key: 'KeyF' },
-  { id: 'timestop', label: 'Time stop', group: 'Spells', key: 'KeyR' },
-  { id: 'haste', label: 'Haste', group: 'Spells', key: 'Digit1' },
-  { id: 'image', label: 'Mirror image', group: 'Spells', key: 'Digit2' },
-  { id: 'stun', label: 'Chain root', group: 'Spells', key: 'Digit3' },
-  { id: 'shield', label: 'Shield', group: 'Spells', key: 'Digit4' },
-  { id: 'blizzard', label: 'Blizzard', group: 'Spells', key: 'Digit5' },
-  { id: 'ray', label: 'Lifesteal (hold)', group: 'Spells', key: 'KeyG' },
-  { id: 'invis', label: 'Invisibility', group: 'Spells', key: 'KeyT' },
-  { id: 'fear', label: 'Fear', group: 'Spells', key: 'KeyC' },
-  { id: 'pwkill', label: 'Power word kill', group: 'Spells', key: 'KeyX' },
-  { id: 'telekinesis', label: 'Telekinesis', group: 'Spells', key: 'KeyV' },
-  { id: 'scorch', label: 'Scorching ray', group: 'Spells', key: 'KeyH' },
-  { id: 'cone', label: 'Cone of cold', group: 'Spells', key: 'KeyZ' },
-  { id: 'thunder', label: 'Thunderwave', group: 'Spells', key: 'KeyB' },
-  { id: 'meteor', label: 'Meteor swarm', group: 'Spells', key: 'Digit6' },
-  { id: 'guardians', label: 'Spirit guardians', group: 'Spells', key: 'Digit7' },
-  { id: 'cloud', label: 'Cloudkill', group: 'Spells', key: 'Digit8' },
-  { id: 'heal', label: 'Healing word', group: 'Spells', key: 'KeyY' },
-  { id: 'polymorph', label: 'Polymorph', group: 'Spells', key: 'KeyU' },
-  { id: 'disintegrate', label: 'Disintegrate', group: 'Spells', key: 'Digit9' },
-  { id: 'weapon', label: 'Spiritual weapon', group: 'Spells', key: 'Digit0' },
+  // the spell bar (entities/spellbar.js BarSlots): whatever spell is prepared
+  // in each slot, nearest to WASD first
+  { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'Mouse2' },
+  { id: 'slot2', label: 'Spell slot 2', group: 'Spells', key: 'KeyQ' },
+  { id: 'slot3', label: 'Spell slot 3', group: 'Spells', key: 'KeyE' },
+  { id: 'slot4', label: 'Spell slot 4', group: 'Spells', key: 'KeyR' },
+  { id: 'slot5', label: 'Spell slot 5', group: 'Spells', key: 'KeyF' },
+  { id: 'slot6', label: 'Spell slot 6', group: 'Spells', key: 'Digit1' },
+  { id: 'slot7', label: 'Spell slot 7', group: 'Spells', key: 'Digit2' },
+  { id: 'slot8', label: 'Spell slot 8', group: 'Spells', key: 'Digit3' },
+  { id: 'slot9', label: 'Spell slot 9', group: 'Spells', key: 'Digit4' },
+  { id: 'slot10', label: 'Spell slot 10', group: 'Spells', key: 'KeyC' },
   { id: 'mode_toggle', label: 'Spell mode / commander mode', group: 'Battle', key: 'Tab' },
   { id: 'regiment_all', label: 'Select all regiments', group: 'Battle', key: 'Backquote' },
   { id: 'order_charge', label: 'Selected: charge', group: 'Battle', key: 'KeyJ' },
@@ -45,6 +32,7 @@ export const Actions = [
   { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space' },
   { id: 'map', label: 'Larger map', group: 'Game', key: 'KeyM' },
   { id: 'inventory', label: 'Inventory', group: 'Game', key: 'KeyI' },
+  { id: 'spellbook', label: 'Spellbook', group: 'Game', key: 'KeyB' },
   { id: 'pause', label: 'Pause', group: 'Game', key: 'KeyP' }
 ];
 
@@ -58,7 +46,9 @@ const FIXED = {
 
 export const RESERVED = ['Escape'];
 
-const STORAGE_KEY = 'etow3d.bindings';
+// v2: spells moved from a key each to the bar's slots, so older saved
+// bindings are left behind once
+const STORAGE_KEY = 'etow3d.bindings.v2';
 
 let bindings = load();
 let byCode = index();

@@ -1,11 +1,12 @@
 import { Enemy } from './enemy.js';
-import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles } from './spells.js';
+import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, ArcanaCast, Meteor, arcanaZoneDamage } from './arcana.js';
 import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
+import { rankCooldown } from './spellbar.js';
 
 export function resolveDifficulty() {
   const source = (window.location.search || '') + (window.location.hash || '');
@@ -75,9 +76,14 @@ export class DuelWizard extends Enemy {
     // spells it can cast; null knows them all (classic duels), progressive
     // duels hand it a set (duelLoot.js)
     this.known = null;
+    // magic missile darts per cast (spells.js MissileTiers): all three in
+    // classic duels; progressive duels, battles and dark wizards set it
+    this.missileTier = 3;
     this.isWizard = true;
     // share of duel damage its spells deal to the player (survival floors)
     this.hitScale = 1;
+    // spell ranks (spellbar.js); its tier 2 spells count as rank II
+    this.ranks = {};
   }
 
   init() {
@@ -175,7 +181,7 @@ export class DuelWizard extends Enemy {
   }
 
   spend(spell, offensive) {
-    this.cdLeft[spell] = this.spellBook[spell].cd;
+    this.cdLeft[spell] = spell === 'missile' ? missileTier(this).cd : this.spellBook[spell].cd * rankCooldown(this, spell);
     this.manergy -= this.spellBook[spell].cost;
     this.lockSchool(spell);
     if (offensive) {
@@ -382,6 +388,7 @@ export class DuelWizard extends Enemy {
     if (!game.duelMode) {
       game.stats.bosscount++;
       game.dropScroll(this, 1);
+      game.onEnemySlain(this);
       return;
     }
     game.onDuelVictory();
@@ -604,7 +611,7 @@ export class DuelWizard extends Enemy {
     }
     const me = this.center();
     const pc = this.center(player);
-    const spellsLeft = loot.missing(this).length;
+    const spellsLeft = loot.options(this).length;
     let best = 0;
     for (const e of this.game.entities) {
       if (!e.isLoot || e.killed) {
@@ -680,15 +687,16 @@ export class DuelWizard extends Enemy {
     if (!this.ready('root') || this.manergy < 65 || player.shielded) {
       return false;
     }
-    const playerCanShield = player.cd.shield < 30 && player.manergy > 40;
-    const playerCanBlink = player.cd.blink <= 0 && player.manergy > 40;
+    const playerCanShield = player.prepared('shield') && player.cd.shield < 30 && player.manergy > 40;
+    const playerCanBlink = player.prepared('blink') && player.cd.blink <= 0 && player.manergy > 40;
     return !playerCanShield && (!playerCanBlink || this.ai.advanced);
   }
 
   playerHasAutoThreat(player) {
     // the player's lightning and root lock on to anything within 300
-    const lightning = player.hasLightning && player.cd.lightning <= 20 && player.manergy > 25;
-    const root = player.hasStun && player.cd.stun <= 20 && player.manergy > 25;
+    // only what the player has on the bar can be cast at it
+    const lightning = player.prepared('lightning') && player.cd.lightning <= 20 && player.manergy > 25;
+    const root = player.prepared('stun') && player.cd.stun <= 20 && player.manergy > 25;
     return lightning || root;
   }
 
@@ -1005,7 +1013,7 @@ export class DuelWizard extends Enemy {
     // iron shot: only when it will land
     if (this.ready('ironshot') && spare >= 40 && dist < 480 && this.clearOfShield(player, 'ironshot', dist)) {
       const arrival = this.arrivalFrames('ironshot', dist);
-      const shieldThreat = player.hasShield && player.cd.shield <= 0 && player.manergy > 40;
+      const shieldThreat = player.prepared('shield') && player.cd.shield <= 0 && player.manergy > 40;
       if (helpless || arrival <= 9 || (!shieldThreat && this.hitChance('ironshot', dist) > 0.7)) {
         this.fireBolt('ironshot', this.aimAngle('ironshot', t, true));
         if (this.ironCharges === 1) {

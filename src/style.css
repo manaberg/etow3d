@@ -328,6 +328,18 @@ button.danger {
   background: linear-gradient(180deg, #4aa0ff, #0a5bc5);
 }
 
+.bar-xp {
+  height: 11px;
+}
+
+.bar-xp .bar-fill {
+  background: linear-gradient(180deg, #ffd060, #a87a18);
+}
+
+.bar-xp .bar-text {
+  font-size: 8px;
+}
+
 .bar-text {
   position: absolute;
   inset: 0;
@@ -405,6 +417,25 @@ button.danger {
 
 .spell.starved .spell-name {
   color: #6a8ad0;
+}
+
+.spell.empty .spell-name,
+.spell.locked .spell-name {
+  color: var(--dim);
+  font-size: 9px;
+}
+
+.spell.locked {
+  opacity: 0.6;
+}
+
+.spell.locked .spell-key {
+  border-style: dashed;
+}
+
+.hud-book {
+  margin-top: 6px;
+  font-size: 9px;
 }
 
 .hud-hint {
@@ -797,6 +828,214 @@ button.rule.active {
 .hud button.inv-close {
   padding: 4px 10px;
   font-size: 11px;
+}
+
+.inv-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.hud button.inv-tab {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  transform: none;
+}
+
+.hud button.inv-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(255, 184, 90, 0.08);
+}
+
+/* the spellbook tab (ui/spellbook.js) */
+
+.sb-loadout {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 184, 90, 0.5);
+  background: rgba(255, 184, 90, 0.07);
+  font-size: 11px;
+}
+
+.sb-loadout-title {
+  color: var(--accent);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.sb-rival {
+  margin-top: 6px;
+  color: #ff8080;
+  font-size: 10px;
+}
+
+.sb-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+
+.hud button.sb-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 58px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  text-align: left;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  transform: none;
+}
+
+.hud button.sb-slot:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.hud button.sb-slot.selected,
+.hud button.sb-entry.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.hud button.sb-slot.empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+.hud button.sb-slot.locked {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: var(--dim);
+  cursor: default;
+}
+
+.sb-key {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sb-slot-name {
+  font-size: 9px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.sb-slot .spell-school {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: auto;
+  font-size: 8px;
+}
+
+.sb-slot .spell-tier {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  font-size: 8px;
+}
+
+.hud button.sb-slot.empty .sb-slot-name,
+.hud button.sb-slot.locked .sb-slot-name {
+  color: var(--dim);
+}
+
+.sb-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.hud button.sb-entry {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+  transform: none;
+}
+
+.hud button.sb-entry:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hud button.sb-entry.prepared {
+  background: rgba(74, 160, 255, 0.09);
+  border-color: rgba(74, 160, 255, 0.35);
+}
+
+.sb-name {
+  font-size: 10px;
+  min-width: 0;
+}
+
+.sb-rank {
+  font-size: 9px;
+  color: #ffd060;
+}
+
+.sb-where {
+  grid-column: 2 / 4;
+  font-size: 8px;
+  color: var(--dim);
+}
+
+.sb-where.on {
+  color: #8ab8f5;
+}
+
+.sb-rank-line {
+  color: var(--dim);
+  font-size: 10px;
+}
+
+.sb-rank-line.reached {
+  color: #d8cbb8;
+}
+
+.sb-rank-line.current {
+  color: #ffd060;
+}
+
+.sb-actions {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.sb-actions-label {
+  font-size: 9px;
+  color: var(--dim);
+  width: 100%;
+}
+
+.hud .sb-actions button {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.sb-note {
+  margin-top: 6px;
+  font-size: 9px;
 }
 
 .inv-slots {

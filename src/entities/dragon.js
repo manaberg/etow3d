@@ -468,6 +468,7 @@ export class Dragon extends Enemy {
     const game = this.game;
     game.stats.killcount++;
     game.stats.bosscount++;
+    game.onEnemySlain(this);
     const loot = this.spec.loot;
     // a hoard: scrolls, potions and a ring for the older ones
     for (let i = 0; i < Math.ceil(loot / 2); i++) {

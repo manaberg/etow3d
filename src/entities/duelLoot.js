@@ -2,11 +2,17 @@ import { Scroll, Potion } from './items.js';
 import { SpellBook } from './mage.js';
 import { DuelRules } from './duelRules.js';
 import { TILE } from '../core/constants.js';
+import { MAX_MISSILE_TIER } from './spells.js';
+import { BarSlots, WizardLevels, RankRules, ROMAN } from './spellbar.js';
+import { actionKeyLabel } from '../core/bindings.js';
 
-// Progressive duels: both wizards start with magic missile and one random
-// spell, and scrolls and potions keep appearing in the arena. Whoever touches
-// a scroll learns a spell they lack; potions heal or restore manergy. Classic
-// duels (everything known from the start) skip all of this.
+// Progressive duels: both wizards start with a one-dart magic missile and one
+// random spell, and scrolls and potions keep appearing in the arena. Whoever
+// touches a scroll learns a spell they lack or adds a dart to their magic
+// missile, until their six bar slots (WizardLevels.duelSlots) are full; after
+// that scrolls rank up a spell they have (spellbar.js). Potions heal or
+// restore manergy. Classic duels (everything known from the start) skip all
+// of this.
 
 // The duel spell book: the rival's spell id, the player's spellbook flag and
 // the tier 2 flag that comes with it (duels are fought with tier 2 spells).
@@ -38,9 +44,23 @@ export const DuelSpells = [
   { id: 'weapon', flag: 'hasWeapon' }
 ];
 
+// A scroll's other gift: one more magic missile dart (spells.js MissileTiers).
+export const MissileUpgrade = { id: 'missile', name: 'MAGIC MISSILE' };
+
 function spellName(entry) {
   const spell = SpellBook.find((s) => s.flag === entry.flag);
   return spell ? spell.name : entry.id.toUpperCase();
+}
+
+// The player's id for a duel spell (the rival calls chain root 'root').
+export function playerSpellId(entry) {
+  const spell = SpellBook.find((s) => s.flag === entry.flag);
+  return spell ? spell.id : entry.id;
+}
+
+// Duels are fought with the tier 2 spells, so those start at rank II.
+export function startRank(entry) {
+  return entry.tier ? 2 : 1;
 }
 
 function pick(list) {
@@ -57,48 +77,94 @@ export class DuelLoot {
 
   // Strip both duelists down to magic missile plus one random spell each.
   setup(player, rival) {
-    for (const entry of DuelSpells) {
-      player[entry.flag] = false;
-      if (entry.tier) {
-        player[entry.tier] = false;
-      }
-    }
-    player.hasTele = false;
+    player.resetSpells([], { slots: WizardLevels.duelSlots });
+    player.missileTier = 1;
+    rival.missileTier = 1;
     rival.known = new Set();
+    rival.ranks = {};
     this.learn(player, pick(DuelSpells), true);
     this.learn(rival, pick(DuelSpells), true);
   }
 
   knows(duelist, entry) {
+    if (entry === MissileUpgrade) {
+      return duelist.missileTier >= MAX_MISSILE_TIER;
+    }
     return duelist === this.game.player ? !!duelist[entry.flag] : duelist.known.has(entry.id);
   }
 
-  missing(duelist) {
-    return DuelSpells.filter((entry) => !this.knows(duelist, entry));
+  rank(duelist, entry) {
+    if (duelist === this.game.player) {
+      return duelist.ranks[playerSpellId(entry)] || startRank(entry);
+    }
+    return duelist.ranks[entry.id] || startRank(entry);
+  }
+
+  // Every bar slot holds a spell (the rival's six are the spells it knows).
+  full(duelist) {
+    if (duelist === this.game.player) {
+      return duelist.bar.slice(0, duelist.slotLimit).every(Boolean);
+    }
+    return duelist.known.size >= WizardLevels.duelSlots;
+  }
+
+  // What a scroll could give: a spell they lack (or a dart) while the bar has
+  // room, then a rank for a spell they have (or a dart).
+  options(duelist) {
+    const dart = duelist.missileTier < MAX_MISSILE_TIER ? [MissileUpgrade] : [];
+    if (!this.full(duelist)) {
+      return [...DuelSpells.filter((entry) => !this.knows(duelist, entry)), ...dart];
+    }
+    return [...DuelSpells.filter((entry) => this.knows(duelist, entry) && this.rank(duelist, entry) < RankRules.max), ...dart];
+  }
+
+  // A known spell one rank up.
+  rankUp(duelist, entry) {
+    const mine = duelist === this.game.player;
+    let rank;
+    if (mine) {
+      const id = playerSpellId(entry);
+      duelist.ranks[id] = this.rank(duelist, entry);
+      rank = duelist.rankUp(id);
+    } else {
+      rank = duelist.ranks[entry.id] = Math.min(RankRules.max, this.rank(duelist, entry) + 1);
+    }
+    const text = spellName(entry) + ' :: RANK ' + ROMAN[rank];
+    this.game.hud.toast(mine ? text : 'RIVAL\'S ' + text, mine ? '#f3e6c4' : '#ff7070');
   }
 
   learn(duelist, entry, quiet) {
     const hud = this.game.hud;
+    if (entry === MissileUpgrade) {
+      duelist.missileTier++;
+      const darts = MissileUpgrade.name + ' :: ' + duelist.missileTier + ' DARTS';
+      hud.toast(duelist === this.game.player ? darts : 'RIVAL\'S ' + darts, duelist === this.game.player ? '#f3e6c4' : '#ff7070');
+      return;
+    }
     if (duelist === this.game.player) {
-      duelist[entry.flag] = true;
-      if (entry.tier) {
-        duelist[entry.tier] = true;
-      }
-      hud.toast((quiet ? 'YOUR STARTING SPELL :: ' : 'LEARNED :: ') + spellName(entry), '#f3e6c4');
+      const slot = duelist.learnSpell(playerSpellId(entry), startRank(entry));
+      const where = slot >= 0 ? ' :: ON ' + actionKeyLabel(BarSlots[slot].action) : '';
+      hud.toast((quiet ? 'YOUR STARTING SPELL :: ' : 'LEARNED :: ') + spellName(entry) + where, '#f3e6c4');
     } else {
       duelist.known.add(entry.id);
+      duelist.ranks[entry.id] = startRank(entry);
       hud.toast((quiet ? 'RIVAL STARTS WITH :: ' : 'RIVAL LEARNED :: ') + spellName(entry), '#ff7070');
     }
   }
 
-  // A duelist touched a scroll: learn a spell they lack (or recover manergy
-  // when they already know everything).
+  // A duelist touched a scroll: learn a spell, add a dart or rank a spell up
+  // (or recover manergy when there is nothing left).
   takeScroll(duelist) {
-    const missing = this.missing(duelist);
-    if (missing.length) {
-      this.learn(duelist, pick(missing));
-    } else {
+    const options = this.options(duelist);
+    if (!options.length) {
       duelist.manergy = Math.min(duelist.maxManergy, duelist.manergy + DuelRules.progressive.blueManergy);
+      return;
+    }
+    const entry = pick(options);
+    if (entry !== MissileUpgrade && this.knows(duelist, entry)) {
+      this.rankUp(duelist, entry);
+    } else {
+      this.learn(duelist, entry);
     }
   }
 
@@ -132,7 +198,7 @@ export class DuelLoot {
       this.scrollTimer = p.scrollEvery;
       // stop dealing scrolls once both duelists know everything
       const rival = this.game.rival;
-      const needed = this.missing(this.game.player).length + (rival ? this.missing(rival).length : 0);
+      const needed = this.options(this.game.player).length + (rival ? this.options(rival).length : 0);
       if (scrolls < p.maxScrolls && needed > 0) {
         this.drop(Scroll);
       }

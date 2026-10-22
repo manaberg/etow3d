@@ -5,6 +5,7 @@ import { Arcana } from './arcana.js';
 import { buildSheep } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
 import { applyGearPools, gearStat, statOf } from './gear.js';
+import { rankPower } from './spellbar.js';
 
 // Damage reflected enemy bolts deal when a shield sends them back.
 const REFLECTED_DAMAGE = { iceshard: 30, stormbolt: 60, acidbolt: 50, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
@@ -93,9 +94,8 @@ export class Enemy extends Entity {
     const fx = game.fx;
     switch (p.kind) {
       case 'missile':
-        // one of three darts: a third of the 2D game's single missile each,
-        // and a third of the gear's missile damage
-        this.hurt(17 + statOf(player, 'missileDamage') / 3, 'force');
+        // each dart hits like the 2D game's single missile, plus gear
+        this.hurt(51 + statOf(player, 'missileDamage'), 'force');
         fx.burst(c.x, c.y, 1.4, { color: [0xb070ff, 0xffffff], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
@@ -149,7 +149,7 @@ export class Enemy extends Entity {
         p.kill();
         break;
       case 'ray':
-        this.hurt(15, 'necrotic');
+        this.hurt(15 * rankPower(player, 'ray'), 'necrotic');
         this.vel.x /= 3;
         this.vel.y /= 3;
         if (player && !player.killed) {
@@ -163,7 +163,7 @@ export class Enemy extends Entity {
         p.kill();
         break;
       case 'scorch':
-        this.hurt(Arcana.scorch.damage, 'fire');
+        this.hurt(Arcana.scorch.damage * rankPower(player, 'scorch'), 'fire');
         fx.burst(c.x, c.y, 1.4, { color: [0xff5020, 0xffc040], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
@@ -200,9 +200,9 @@ export class Enemy extends Entity {
     if (zone.kind === 'blizzard') {
       this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k, 'cold');
     } else if (zone.kind === 'guardians') {
-      this.hp -= this.resisted(Arcana.guardians.dps / 60 * k, 'radiant');
+      this.hp -= this.resisted(Arcana.guardians.dps / 60 * k * rankPower(zone.timeOwner, 'guardians'), 'radiant');
     } else if (zone.kind === 'cloud') {
-      this.hp -= this.resisted(Arcana.cloud.dps / 60 * k, 'poison');
+      this.hp -= this.resisted(Arcana.cloud.dps / 60 * k * rankPower(zone.timeOwner, 'cloud'), 'poison');
     }
   }
 

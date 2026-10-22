@@ -1,4 +1,5 @@
-import { SpellBook } from '../entities/mage.js';
+import { SpellById } from '../entities/mage.js';
+import { BarSlots, WizardLevels, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
 import { Rarities } from '../entities/gear.js';
 import { InventoryScreen } from './inventory.js';
 import { DungeonLevels } from '../world/levels.js';
@@ -10,6 +11,7 @@ import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
 import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
 import { DuelRules } from '../entities/duelRules.js';
+import { missileTier } from '../entities/spells.js';
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -63,25 +65,24 @@ export class Hud {
     const bars = el('div', 'hud-bars', left);
     this.hpBar = this.makeBar(bars, 'HP', 'hp');
     this.myBar = this.makeBar(bars, 'MY', 'my');
+    // survival levels (spellbar.js WizardLevels)
+    this.xpBar = game.duelMode ? null : this.makeBar(bars, 'LV', 'xp');
 
     el('div', 'hud-heading', left, 'HOTKEY / SPELL / COOLDOWN');
     const list = el('div', 'hud-spells', left);
-    this.spellRows = SpellBook.map((spell) => {
+    // magic missile on its own key, then the bar's slots (spellbar.js)
+    this.spellRows = [null, ...BarSlots].map((slot, i) => {
       const row = el('div', 'spell', list);
-      const key = el('span', 'spell-key', row, actionKeyLabel(spell.action || spell.id));
-      const school = DuelRules.schools[DuelRules.schoolOf(spell.id)];
-      if (school) {
-        const tag = el('span', 'spell-school', row, school.tag);
-        tag.style.color = school.color;
-        tag.title = school.name;
-      }
-      const name = el('span', 'spell-name', row, spell.name);
-      const tier = el('span', 'spell-tier', row, 'T2');
+      const key = el('span', 'spell-key', row, '');
+      const school = el('span', 'spell-school', row, '');
+      const name = el('span', 'spell-name', row, '');
+      const tier = el('span', 'spell-tier', row, '');
       const cd = el('div', 'spell-cd', row);
       const fill = el('div', 'spell-cd-fill', cd);
-      return { spell, row, key, name, tier, fill, shown: null };
+      return { action: slot ? slot.action : 'missile', index: i - 1, row, key, school, name, tier, cd, fill, state: null, spellId: undefined };
     });
     this.hint = el('div', 'hud-hint', left, 'Find scrolls to learn spells.');
+    this.bookLine = el('div', 'map-line dim hud-book', left, '');
     // what the wizard wears, and the key to the inventory
     this.gearHeading = el('div', 'hud-heading', left, '');
     this.gearList = el('div', 'hud-gear', left);
@@ -190,8 +191,8 @@ export class Hud {
     this.slowTint = 1;
   }
 
-  showInventory(open) {
-    this.inventoryScreen.show(open);
+  showInventory(open, tab) {
+    this.inventoryScreen.show(open, tab);
   }
 
   // The worn gear's names in their rarity colours, redrawn when it changes.
@@ -274,41 +275,24 @@ export class Hud {
     this.myBar.fill.style.width = Math.max(0, Math.min(1, player.manergy / player.maxManergy) * 100) + '%';
     setText(this.myBar.text, Math.max(0, Math.round(player.manergy)) + ' / ' + player.maxManergy);
 
+    if (this.xpBar) {
+      const table = WizardLevels.xp;
+      const top = player.level >= WizardLevels.max;
+      const span = top ? 1 : table[player.level + 1] - table[player.level];
+      const into = top ? 1 : player.xp - table[player.level];
+      this.xpBar.fill.style.width = Math.max(0, Math.min(1, into / span)) * 100 + '%';
+      setText(this.xpBar.text, 'LEVEL ' + player.level + (top ? ' :: MAX' : ' :: ' + Math.floor(into) + ' / ' + span + ' XP'));
+    }
+
     const keysChanged = this.keysVersion !== bindingsVersion();
     this.keysVersion = bindingsVersion();
-    let known = 0;
     for (const r of this.spellRows) {
-      if (keysChanged) {
-        setText(r.key, actionKeyLabel(r.spell.action || r.spell.id));
-      }
-      const spell = r.spell;
-      const has = !spell.flag || player[spell.flag];
-      if (r.shown !== has) {
-        r.row.style.display = has ? '' : 'none';
-        r.shown = has;
-      }
-      if (!has) {
-        continue;
-      }
-      known++;
-      r.tier.style.display = spell.tier && player[spell.tier] ? '' : 'none';
-      let left = player.cd[spell.id];
-      let frac = spell.cd > 0 ? 1 - left / spell.cd : 1;
-      // in duels a cast locks the rest of its school for a moment
-      const lock = player.lockLeft(spell.id);
-      if (lock > left) {
-        left = lock;
-        frac = Math.min(frac, 1 - lock / DuelRules.schools[DuelRules.schoolOf(spell.id)].lockout);
-      }
-      r.fill.style.width = (frac * 100) + '%';
-      const affordable = player.manergy > spell.need && !(spell.id === 'ironshot' && player.is2Charges <= 0 && left > 0);
-      r.row.classList.toggle('cooling', left > 0);
-      r.row.classList.toggle('starved', left <= 0 && !affordable);
-      if (spell.id === 'ironshot' && player.hasIs2) {
-        setText(r.name, spell.name + ' x' + player.is2Charges);
-      }
+      this.updateSpellRow(r, player, keysChanged);
     }
-    this.hint.style.display = known <= 1 && !game.duelMode ? '' : 'none';
+    const known = player.learnOrder.filter((id) => player.knowsSpell(id)).length;
+    this.hint.style.display = known === 0 && !game.duelMode ? '' : 'none';
+    const waiting = player.waitingInBook().length;
+    setText(this.bookLine, known ? actionKeyLabel('spellbook') + ' :: SPELLBOOK  ' + known + (waiting ? ' KNOWN :: ' + waiting + ' NOT ON THE BAR' : ' KNOWN') : '');
     this.updateGear(player, keysChanged);
 
     if (game.duelMode) {
@@ -324,6 +308,75 @@ export class Hud {
     this.drawLabels();
   }
 
+  // One row of the spell list: magic missile, a slot's spell, an empty slot,
+  // or (survival) the next slot still to open.
+  updateSpellRow(r, player, keysChanged) {
+    const game = this.game;
+    let state;
+    let id = null;
+    if (r.index < 0) {
+      state = 'spell';
+      id = 'missile';
+    } else if (r.index < player.slotLimit) {
+      id = player.bar[r.index];
+      state = id ? 'spell' : 'empty';
+    } else if (r.index === player.slotLimit && !game.duelMode && player.level < WizardLevels.max) {
+      state = 'locked';
+    } else {
+      state = 'hidden';
+    }
+    if (r.state !== state || r.spellId !== id || keysChanged) {
+      r.state = state;
+      r.spellId = id;
+      r.row.style.display = state === 'hidden' ? 'none' : '';
+      r.row.classList.toggle('empty', state === 'empty');
+      r.row.classList.toggle('locked', state === 'locked');
+      setText(r.key, actionKeyLabel(r.action));
+      const school = id ? DuelRules.schools[DuelRules.schoolOf(id)] : null;
+      setText(r.school, school ? school.tag : '');
+      r.school.style.color = school ? school.color : '';
+      r.school.title = school ? school.name : '';
+      if (state === 'empty') {
+        setText(r.name, 'EMPTY :: ' + actionKeyLabel('spellbook') + ' SPELLBOOK');
+      } else if (state === 'locked') {
+        setText(r.name, 'OPENS AT LEVEL ' + BarSlots[r.index].level);
+      } else if (id) {
+        setText(r.name, SpellById[id].name);
+      }
+      r.cd.style.visibility = id ? '' : 'hidden';
+    }
+    if (!id) {
+      r.tier.style.display = 'none';
+      r.row.classList.remove('cooling', 'starved');
+      return;
+    }
+    const spell = SpellById[id];
+    const rank = rankOf(player, id);
+    r.tier.style.display = id !== 'missile' && rank >= 2 ? '' : 'none';
+    setText(r.tier, ROMAN[rank]);
+    let left = player.cd[id];
+    // magic missile's cooldown grows with its darts
+    // (or, just put on the bar, the longer wait before it can be cast)
+    const base = id === 'missile' ? missileTier(player).cd : player.cooldownOf(spell.cd * rankCooldown(player, id));
+    const full = left > base ? Math.max(left, player.cdFull[id] || 0) : base;
+    let frac = full > 0 ? 1 - left / full : 1;
+    // in duels a cast locks the rest of its school for a moment
+    const lock = player.lockLeft(id);
+    if (lock > left) {
+      left = lock;
+      frac = Math.min(frac, 1 - lock / DuelRules.schools[DuelRules.schoolOf(id)].lockout);
+    }
+    r.fill.style.width = (frac * 100) + '%';
+    const affordable = player.manergy > spell.need && !(id === 'ironshot' && player.is2Charges <= 0 && left > 0);
+    r.row.classList.toggle('cooling', left > 0);
+    r.row.classList.toggle('starved', left <= 0 && !affordable);
+    if (id === 'ironshot' && player.hasIs2) {
+      setText(r.name, spell.name + ' x' + player.is2Charges);
+    } else if (id === 'missile') {
+      setText(r.name, spell.name + (player.missileTier > 1 ? ' x' + player.missileTier : ''));
+    }
+  }
+
   updateRival() {
     const rival = this.game.rival;
     if (!rival) {
@@ -334,7 +387,7 @@ export class Hud {
     setText(this.rivalHp.text, Math.max(0, Math.round(rival.hp)) + '');
     this.rivalMy.fill.style.width = Math.max(0, rival.manergy / rival.maxManergy * 100) + '%';
     setText(this.rivalMy.text, Math.round(rival.manergy) + '');
-    const spells = rival.known ? ' :: SPELLS ' + (rival.known.size + 1) : '';
+    const spells = (rival.known ? ' :: SPELLS ' + (rival.known.size + 1) : '') + ' :: MISSILE x' + rival.missileTier;
     setText(this.rivalInfo, 'TACTIC :: ' + rival.tactic.toUpperCase() + spells);
   }
 
@@ -405,7 +458,7 @@ export class Hud {
     el('p', null, card, why + ' Score :: you ' + score.player + ' - ' + score.enemy + ' rival.');
     el('p', 'dim', card, 'Battle ' + next + ' of 5 is ' + nextSize + ' a side, against the rival\'s ' + nextFoe.toLowerCase() + '.' + (rivalLearns ? ' The rival learns ' + rivalLearns + '.' : ''));
     if (choices.length) {
-      el('p', null, card, 'Choose a spell to learn:');
+      el('p', null, card, 'Choose a spell, a dart or a rank:');
       const buttons = el('div', 'buttons draft', card);
       for (const c of choices) {
         const b = el('button', null, buttons, c.name);

@@ -38,16 +38,27 @@ export const BoltKinds = {
 
 const FLY_HEIGHT = 1.45;
 
-// Magic missile looses three darts. Each leaves on its own random arc
+// Magic missile looses one dart, or more once a wizard has read more magic
+// missile scrolls (`MissileTiers`). Each dart leaves on its own random arc
 // (`spread` radians off the aim), curves in on the target while it homes
 // (`homeFrames`, turning faster as it goes, from `turn[0]` to `turn[1]`
 // radians a frame) and then flies straight on, so a late sidestep dodges.
-export const MissileVolley = { count: 3, spread: [0.35, 1.0], homeFrames: 40, turn: [0.03, 0.11], wobble: 0.04 };
+export const MissileVolley = { spread: [0.35, 1.0], homeFrames: 40, turn: [0.03, 0.11], wobble: 0.04 };
+
+// Magic missile by tier: darts per cast and the cooldown in frames. Each tier
+// adds a dart but casts a little slower, so it gains less than it seems.
+export const MissileTiers = [null, { darts: 1, cd: 24 }, { darts: 2, cd: 34 }, { darts: 3, cd: 44 }];
+export const MAX_MISSILE_TIER = 3;
+
+export function missileTier(caster) {
+  return MissileTiers[Math.max(1, Math.min(MAX_MISSILE_TIER, caster.missileTier || 1))];
+}
 
 // `target` is the body to home in on, or a point {x, y}.
 export function castMissiles(game, caster, team, angle, target, settings = {}) {
   const c = caster.center();
-  const { count, spread } = MissileVolley;
+  const { spread } = MissileVolley;
+  const count = missileTier(caster).darts;
   for (let i = 0; i < count; i++) {
     const side = i - (count - 1) / 2;
     const off = side === 0

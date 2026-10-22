@@ -107,8 +107,12 @@ function renderMenuControls() {
     menuControls.appendChild(div);
   };
   row(['up', 'left', 'down', 'right'].map(actionKeyLabel), 'move');
+  // the spell bar's ten slots share one line
+  const slots = Actions.filter((a) => /^slot\d+$/.test(a.id));
   for (const action of Actions) {
-    if (action.group !== 'Movement') {
+    if (action === slots[0]) {
+      row(slots.map((a) => actionKeyLabel(a.id)), 'the spells on your bar (more slots open as you level)');
+    } else if (action.group !== 'Movement' && !slots.includes(action)) {
       row([actionKeyLabel(action.id)], action.label.toLowerCase());
     }
   }

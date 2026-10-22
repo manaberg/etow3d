@@ -1,10 +1,12 @@
 import { Slots, Rarities, Stats, formatStat, slotFits } from '../entities/gear.js';
 import { actionKeyLabel } from '../core/bindings.js';
+import { SpellbookPanel } from './spellbook.js';
 
 // The inventory screen: the worn gear in its five slots, the bag, the
 // wizard's resulting stats, and the selected item's properties compared
 // with what it would replace. It sits at the right so the wizard stays in
-// view in the middle, wearing each change as it is made.
+// view in the middle, wearing each change as it is made. Its second tab is
+// the spellbook (ui/spellbook.js).
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -73,6 +75,9 @@ export class InventoryScreen {
     // the item shown in the details panel: { item, slot } (slot when worn)
     this.selected = null;
     this.hovered = null;
+    // 'gear' or 'spells'
+    this.tab = 'gear';
+    this.spellbook = new SpellbookPanel(this, game);
   }
 
   get inventory() {
@@ -80,11 +85,16 @@ export class InventoryScreen {
     return player ? player.inventory : null;
   }
 
-  show(open) {
+  show(open, tab = 'gear') {
+    const opening = open && this.node.classList.contains('hidden');
     this.node.classList.toggle('hidden', !open);
     if (open) {
-      this.selected = null;
-      this.hovered = null;
+      if (opening || tab !== this.tab) {
+        this.selected = null;
+        this.hovered = null;
+        this.spellbook.reset();
+      }
+      this.tab = tab;
       this.render();
     }
   }
@@ -134,11 +144,23 @@ export class InventoryScreen {
       return;
     }
     const head = el('div', 'inv-head', node);
-    el('h2', null, head, 'INVENTORY');
-    const close = el('button', 'secondary inv-close', head, 'Close');
+    const tabs = el('div', 'inv-tabs', head);
+    for (const [tab, label, action] of [['gear', 'GEAR', 'inventory'], ['spells', 'SPELLBOOK', 'spellbook']]) {
+      const b = el('button', 'inv-tab' + (this.tab === tab ? ' active' : ''), tabs, label);
+      b.type = 'button';
+      b.title = label.toLowerCase() + ' (' + actionKeyLabel(action) + ')';
+      b.setAttribute('aria-pressed', String(this.tab === tab));
+      b.onclick = () => this.show(true, tab);
+    }
+    const close = el('button', 'secondary inv-close', head, this.game.loadout ? 'Start' : 'Close');
     close.type = 'button';
-    close.title = 'Close (' + actionKeyLabel('inventory') + ' or Esc)';
+    close.title = 'Close (' + actionKeyLabel(this.tab === 'spells' ? 'spellbook' : 'inventory') + ' or Esc)';
     close.onclick = () => this.game.toggleInventory(false);
+    if (this.tab === 'spells') {
+      this.details = null;
+      this.spellbook.render(node);
+      return;
+    }
 
     el('div', 'hud-heading', node, 'WORN');
     const worn = el('div', 'inv-slots', node);

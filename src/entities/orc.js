@@ -246,6 +246,7 @@ export class Orc extends Enemy {
       stats.orccount++;
     }
     game.rollOrcLoot(this);
+    game.onEnemySlain(this);
     this.dropGear();
     game.deathFx(this);
     this.kill();

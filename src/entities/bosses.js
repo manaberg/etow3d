@@ -102,6 +102,7 @@ export class Clericorc extends Enemy {
     game.stats.bosscount++;
     game.dropScroll(this, 1);
     game.dropRing(this);
+    game.onEnemySlain(this);
     this.dropGear();
     game.deathFx(this);
     this.kill();
@@ -194,6 +195,7 @@ export class Mageorc extends Enemy {
     game.stats.bosscount++;
     game.dropScroll(this, 1);
     game.dropRing(this);
+    game.onEnemySlain(this);
     this.dropGear();
     game.deathFx(this);
     this.kill();
@@ -353,6 +355,7 @@ export class Boss extends Enemy {
     const game = this.game;
     game.stats.killcount++;
     game.stats.bosscount++;
+    game.onEnemySlain(this);
     game.deathFx(this);
     this.kill();
     // below his throne the dragons wait; the run ends only if he is the last floor

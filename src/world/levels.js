@@ -1,3 +1,5 @@
+import { WizardLevels } from '../entities/spellbar.js';
+
 // Twenty floors: ten from the upper halls down to the warlord, then ten more
 // down through the dragons' lairs to the great golden wyrm. Every floor rolls
 // a new dungeon; deeper floors have more rooms, more and tougher foes, and
@@ -44,7 +46,8 @@ export const DungeonLevels = {
   ],
 
   // The dark wizard waiting on every floor: the duel rival's brain, knowing
-  // magic missile plus `spells(depth)` others drawn at random each floor.
+  // magic missile plus `spells(depth)` others drawn at random each floor (no
+  // more than a player that deep has slots on the bar), at `rank(depth)`.
   // Its spells hit the player at `hitScale` of their duel damage, since the
   // survival mage has far fewer hit points than a duelist.
   wizard: {
@@ -53,7 +56,14 @@ export const DungeonLevels = {
       return 280 + depth * 40;
     },
     spells(depth) {
-      return depth - 1;
+      return Math.min(depth - 1, WizardLevels.slotsAt(WizardLevels.levelAt(depth)));
+    },
+    rank(depth) {
+      return depth >= 15 ? 3 : (depth >= 8 ? 2 : 1);
+    },
+    // magic missile darts (spells.js MissileTiers)
+    missileTier(depth) {
+      return depth >= 6 ? 3 : (depth >= 3 ? 2 : 1);
     },
     difficulty(depth) {
       return depth >= 6 ? 'hard' : 'normal';
