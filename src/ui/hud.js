@@ -2,7 +2,7 @@ import { SpellById } from '../entities/mage.js';
 import { BarSlots, WizardLevels, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
 import { Rarities } from '../entities/gear.js';
 import { InventoryScreen } from './inventory.js';
-import { DungeonLevels } from '../world/levels.js';
+import { DungeonLevels, Races } from '../world/levels.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
 import { Dragon } from '../entities/dragon.js';
@@ -35,6 +35,17 @@ function setText(node, text) {
 
 // Everything drawn over the 3D view: bars, spell list, minimap, labels above
 // monsters, banners, toasts and the pause and end screens.
+// A regiment's name, short enough for its card.
+const SHORT = { INFANTRY: 'INF', SLINGERS: 'MISSILE', KNIGHTS: 'KNIGHTS', 'SHOCK TROOPS': 'SHOCK', MYSTICS: 'MYSTICS', DRAGONS: 'DRAGONS' };
+function shortName(name) {
+  for (const long in SHORT) {
+    if (name.startsWith(long)) {
+      return SHORT[long] + name.slice(long.length);
+    }
+  }
+  return name;
+}
+
 export class Hud {
   constructor(root, game) {
     this.root = root;
@@ -101,6 +112,7 @@ export class Hud {
       const box = el('div', 'hud-battle', right);
       this.battleScore = el('div', 'battle-score', box);
       this.battleArmies = el('div', 'map-line', box);
+      this.battleDragons = el('div', 'map-line', box);
       this.battleMode = el('div', 'map-line battle-mode', box);
       this.battleKeys = el('div', 'map-line dim', box);
       this.dragBox = el('div', 'drag-box', root);
@@ -393,8 +405,10 @@ export class Hud {
 
   updateBattle() {
     const battle = this.game.battle;
-    setText(this.battleScore, 'BATTLE ' + (battle.round + 1) + ' / 5 :: YOU ' + battle.score.player + ' - ' + battle.score.enemy + ' RIVAL');
-    setText(this.battleArmies, 'ARMIES :: ' + battle.armyCount('player') + ' VS ' + battle.armyCount('enemy'));
+    setText(this.battleScore, 'YOUR ' + Races[battle.races.player].name + ' VS THE RIVAL\'S ' + Races[battle.races.enemy].name);
+    const dragons = { player: battle.dragonCount('player'), enemy: battle.dragonCount('enemy') };
+    setText(this.battleArmies, 'ARMIES :: ' + (battle.armyCount('player') - dragons.player) + ' VS ' + (battle.armyCount('enemy') - dragons.enemy));
+    setText(this.battleDragons, 'DRAGONS :: ' + dragons.player + ' VS ' + dragons.enemy);
     setText(this.battleMode, (battle.commander ? 'COMMANDER MODE' : 'SPELL MODE') + ' :: ' + actionKeyLabel('mode_toggle') + ' TO SWITCH');
     this.battleMode.classList.toggle('commander', battle.commander);
     setText(this.battleKeys, battle.commander
@@ -415,8 +429,8 @@ export class Hud {
       const r = card.regiment;
       card.node.classList.toggle('selected', battle.selected.has(r.id));
       card.node.classList.toggle('lost', r.alive === 0);
-      setText(card.count, r.alive + ' / ' + r.size);
-      setText(card.order, { hold: 'HOLD', charge: 'CHARGE', follow: 'FOLLOW', attack: 'ATTACK' }[r.order]);
+      setText(card.count, r.alive + '');
+      setText(card.order, { hold: 'HLD', charge: 'CHG', follow: 'FLW', attack: 'ATK' }[r.order]);
       card.fill.style.width = (r.alive / r.size * 100) + '%';
     }
   }
@@ -426,8 +440,8 @@ export class Hud {
     this.regimentCards = battle.regiments.player.map((regiment) => {
       const node = el('button', 'regiment', this.regimentBar);
       node.type = 'button';
-      node.title = 'Click to select, shift-click to add';
-      el('span', 'regiment-name', node, regiment.name);
+      node.title = regiment.name + ' :: click to select, shift-click to add';
+      el('span', 'regiment-name', node, shortName(regiment.name));
       const count = el('span', 'regiment-count', node, '');
       const order = el('span', 'regiment-order', node, '');
       const bar = el('div', 'regiment-bar', node);
@@ -437,8 +451,8 @@ export class Hud {
     });
   }
 
-  // A new battle was deployed: fresh map, banner while the armies form up.
-  onBattleRound(battle) {
+  // The battle was deployed: fresh map, banner while the armies form up.
+  onBattleStart(battle) {
     if (!this.minimap) {
       return;
     }
@@ -448,32 +462,13 @@ export class Hud {
     this.buildRegimentCards(battle);
   }
 
-  // Between battles: the result, the score, and three spells to choose from.
-  showBattleDraft({ winner, why, score, next, nextSize, nextFoe, choices, rivalLearns, onPick }) {
-    const screen = this.endScreen;
-    screen.innerHTML = '';
-    screen.classList.remove('hidden');
-    const card = el('div', 'card end' + (winner === 'player' ? ' win' : ''), screen);
-    el('h2', null, card, winner === 'player' ? 'BATTLE WON' : 'BATTLE LOST');
-    el('p', null, card, why + ' Score :: you ' + score.player + ' - ' + score.enemy + ' rival.');
-    el('p', 'dim', card, 'Battle ' + next + ' of 5 is ' + nextSize + ' a side, against the rival\'s ' + nextFoe.toLowerCase() + '.' + (rivalLearns ? ' The rival learns ' + rivalLearns + '.' : ''));
-    if (choices.length) {
-      el('p', null, card, 'Choose a spell, a dart or a rank:');
-      const buttons = el('div', 'buttons draft', card);
-      for (const c of choices) {
-        const b = el('button', null, buttons, c.name);
-        b.onclick = () => onPick(c.id);
-      }
-    } else {
-      const buttons = el('div', 'buttons', card);
-      const b = el('button', null, buttons, 'Next battle');
-      b.onclick = () => onPick(null);
-    }
-  }
-
   updateMap() {
     const game = this.game;
-    this.minimap.draw();
+    // a battle's thousands of dots are redrawn on every third frame
+    this.mapFrame = (this.mapFrame || 0) + 1;
+    if (!game.battle || this.mapFrame % 3 === 0) {
+      this.minimap.draw();
+    }
     let room = game.currentRoomIndex >= 0 ? game.world.rooms[game.currentRoomIndex].label : 'CORRIDOR';
     if (game.battleMode) {
       room = 'THE BATTLEFIELD';
@@ -510,8 +505,11 @@ export class Hud {
     const game = this.game;
     const battle = game.battle;
     if (battle && !battle.fighting && game.state === 'playing') {
-      const n = battle.armySize;
-      setText(this.bannerTitle, 'BATTLE ' + (battle.round + 1) + ' OF 5 :: ' + n + ' VS ' + n);
+      const count = (side) => {
+        const dragons = battle.dragonCount(side);
+        return (battle.armyCount(side) - dragons).toLocaleString('en') + ' ' + Races[battle.races[side]].name + ' AND ' + dragons + (dragons === 1 ? ' DRAGON' : ' DRAGONS');
+      };
+      setText(this.bannerTitle, 'THE BATTLE :: ' + count('player') + ' VS ' + count('enemy'));
       setText(this.bannerText, 'DEPLOY YOUR REGIMENTS :: ' + actionKeyLabel('descend') + ' TO ATTACK NOW :: ' + Math.ceil(battle.deploy / 60));
       this.banner.style.opacity = '1';
       return;
@@ -578,9 +576,16 @@ export class Hud {
     }
     ctx.font = '600 11px "Silkscreen", "Courier New", monospace';
     ctx.textAlign = 'center';
+    // battles: soldiers' bars only near the camera, and not zoomed far out
+    const view = game.battle ? (game.battle.commander ? game.battle.cam : player.center()) : null;
+    const barRange = game.gfx.zoom * 24 * 1.4;
+    const soldierBars = !game.battle || game.gfx.zoom < 110;
     for (const e of game.entities) {
-      if (e.side && e.rig && !e.killed && e.hp < e.maxHp) {
-        // battle orcs: a small bar in their side's colour once they are hurt
+      if (e.side && e.rig && !e.isDragon && !e.killed && e.hp < e.maxHp) {
+        // battle soldiers: a small bar in their side's colour once they are hurt
+        if (!soldierBars || Math.abs(e._cx - view.x) > barRange || Math.abs(e._cy - view.y) > barRange) {
+          continue;
+        }
         const c = e.center();
         const p = game.gfx.project(c.x, c.y, e.rig.height + 0.3);
         if (p && p.x > -30 && p.y > -30 && p.x < w + 30 && p.y < h + 30) {
@@ -594,7 +599,7 @@ export class Hud {
       if (e.killed || !(e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof Dragon || e instanceof DuelWizard)) {
         continue;
       }
-      if (e.invis || e.distanceTo(player) > 900 || !e.rig) {
+      if (e.invis || (!e.side && e.distanceTo(player) > 900) || !e.rig) {
         continue;
       }
       const c = e.center();
@@ -603,12 +608,17 @@ export class Hud {
         continue;
       }
       const big = e instanceof Boss || e instanceof DuelWizard || e.miniBoss || e.isBoss;
+      // battle dragons: bars from anywhere, names only up close
+      const named = !e.side || game.gfx.zoom < 80;
       const bw = big ? 90 : 48;
       const ratioHp = Math.max(0, Math.min(1, e.hp / e.maxHp));
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(p.x - bw / 2 - 1, p.y - 1, bw + 2, 7);
-      ctx.fillStyle = e.aggro || game.duelMode ? '#e33' : '#a55';
+      ctx.fillStyle = e.side === 'player' ? '#5a9aff' : (e.aggro || game.duelMode ? '#e33' : '#a55');
       ctx.fillRect(p.x - bw / 2, p.y, bw * ratioHp, 5);
+      if (!named) {
+        continue;
+      }
       const text = (e.label ? e.label + ' ' : '') + Math.max(0, Math.round(e.hp));
       ctx.fillStyle = 'rgba(0,0,0,0.7)';
       ctx.fillText(text, p.x + 1, p.y - 4);

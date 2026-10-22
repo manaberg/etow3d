@@ -83,7 +83,8 @@ export class Minimap {
         continue;
       }
       for (const [Kind, hot, cold] of colors) {
-        if (e instanceof Kind) {
+        // battle dragons are drawn with their army
+        if (e instanceof Kind && !e.side) {
           const c = e.center();
           const r = e instanceof Orc ? 1 : 2;
           ctx.fillStyle = e.aggro ? hot : cold;
@@ -91,12 +92,20 @@ export class Minimap {
         }
       }
     }
-    // battle armies: blue and red
-    for (const e of game.entities) {
-      if (e.side && !e.killed) {
-        const c = e.center();
-        ctx.fillStyle = e.side === 'player' ? '#5a9aff' : '#ff4a4a';
-        ctx.fillRect(Math.floor(c.x * scale) - 1, Math.floor(c.y * scale) - 1, 2, 2);
+    // battle armies: blue and red, dragons bigger and brighter
+    for (const side of ['player', 'enemy']) {
+      ctx.fillStyle = side === 'player' ? '#5a9aff' : '#ff4a4a';
+      for (const e of game.entities) {
+        if (e.side === side && !e.killed && !e.isDragon) {
+          ctx.fillRect(Math.floor((e.pos.x + 24) * scale) - 1, Math.floor((e.pos.y + 24) * scale) - 1, 2, 2);
+        }
+      }
+      ctx.fillStyle = side === 'player' ? '#a8d0ff' : '#ffb0a0';
+      for (const e of game.entities) {
+        if (e.side === side && !e.killed && e.isDragon) {
+          const c = e.center();
+          ctx.fillRect(Math.floor(c.x * scale) - 3, Math.floor(c.y * scale) - 3, 6, 6);
+        }
       }
     }
     // duel loot: scrolls gold, potions red or blue (the rival stays hidden)

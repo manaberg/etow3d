@@ -1,55 +1,90 @@
 import * as THREE from 'three';
-import { Mage, SpellBook } from './mage.js';
+import { Mage } from './mage.js';
 import { DuelWizard } from './duelWizard.js';
 import { Soldier } from './soldier.js';
-import { DuelSpells, MissileUpgrade, playerSpellId, startRank } from './duelLoot.js';
-import { MAX_MISSILE_TIER } from './spells.js';
-import { WizardLevels, RankRules, ROMAN } from './spellbar.js';
+import { BattleDragon } from './battleDragon.js';
+import { DragonAges, ChromaticColors } from './dragon.js';
+import { DuelSpells, playerSpellId, startRank } from './duelLoot.js';
+import { MirrorImage } from './spells.js';
+import { WizardLevels } from './spellbar.js';
 import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
+import { BoltRenderer } from '../render/boltRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 
-// Battle mode: a best-of-five match between two wizards, each leading an
-// army across open country. The player picks their army's race (orcs,
-// dwarves, humans or elves); the rival fields a different race every
-// battle. Every battle is 500 a side, and
-// the armies are split into regiments by unit type (infantry, slingers,
-// knights, shock troops, mystics) that the player commands one by one or
-// together: charge, march to a point and hold it, or follow the wizard.
-// Both wizards start with magic missile and one random spell; after every
-// battle the player picks one of three: a new spell, another magic missile
-// dart or a rank for a spell they have (spellbar.js), and the rival learns one.
-// A battle is lost when your wizard falls or your army is wiped out. Wizards
-// follow the duel rules (damage between them, school lockouts); orcs take
-// the dungeon damage, so a fireball wrecks a regiment.
+// Battle mode: one great battle between two wizards, each leading a vast army
+// across open country. Both armies are drawn at random, race and all, but
+// from the same budget of points (`classCost` and `raceCost` below), so a
+// horde of cheap grunts meets a smaller host of brutes and knights, and both
+// sides field the same number of dragons of the same ages. The armies are
+// split into regiments by unit type (infantry, slingers, knights, shock
+// troops, mystics, dragons) that the player commands one by one or together:
+// charge, march to a point and hold it, or follow the wizard. Both wizards
+// start with ten random spells on a ten-slot bar and every magic missile dart.
+// The battle is lost when your wizard falls or your army is wiped out.
+// Wizards follow the duel rules (damage between them, school lockouts);
+// soldiers take the dungeon damage, so a fireball wrecks a regiment.
 export const BattleRules = {
-  // orcs per side in each battle
-  armies: [500, 500, 500, 500, 500],
-  winsNeeded: 3,
-  draftChoices: 3,
-  // battle orcs are hardier than dungeon orcs, so wizards shape a battle
-  // instead of deleting an army with magic missiles
+  // soldiers a side in an army of average cost; ?army=N on the URL (or the
+  // menu) sets another size, within `armyRange`
+  army: 5000,
+  armyRange: [200, 12000],
+  // both wizards start with this many random spells, all on the bar, and
+  // with every magic missile dart
+  spells: 10,
+  missileTier: 3,
+  // battle soldiers are hardier than dungeon orcs, so wizards shape a battle
+  // instead of deleting an army with magic missiles; dragons likewise
   hpScale: 2,
+  dragonHpScale: 2,
   // frames to arrange the regiments before the battle starts (Space starts early)
-  deployFrames: 900,
-  // regiments larger than this are split in two
-  maxRegiment: 50,
+  deployFrames: 1500,
+  // about this many regiments a side, never smaller than minRegiment
+  regiments: 16,
+  minRegiment: 40,
+  maxCols: 24,
   spacing: 44,
-  // share of each regiment type per battle
-  shares: [
-    { infantry: 0.6, slingers: 0.4 },
-    { infantry: 0.45, slingers: 0.3, knights: 0.25 },
-    { infantry: 0.35, slingers: 0.25, knights: 0.2, shock: 0.2 },
-    { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 },
-    { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 }
-  ],
-  // open battlefield in dungeon cells (2 tiles each) for an army of n a side:
-  // wide for the battle lines, deep enough for three lines on either side
-  field(n) {
-    const w = 64 + Math.round(n * 0.3);
-    const h = 52 + Math.round(n * 0.24);
-    return { cols: w + 6, rows: h + 6, roomCount: 1, minRoomW: w, maxRoomW: w, minRoomH: h, maxRoomH: h, outcrops: 10 + Math.round(n / 8) };
+  // the widest a line of regiments may stand before it is split in two, the
+  // open ground between the two front lines, and around the armies (px)
+  maxLine: 9000,
+  noMansLand: 1300,
+  margin: 600,
+  // what a soldier is worth in points, by class (an orc grunt is 1) and race
+  classCost: { grunt: 0.85, slinger: 1.1, knight: 1.4, shaman: 2.8, berserker: 1.3, brute: 2.4, warlock: 3.2 },
+  raceCost: { orc: 1, dwarf: 1.2, human: 1.04, elf: 0.91 },
+  // each regiment type's usual share of an army's points; every battle
+  // rolls each share between `roll` of it and may leave out a rarer type
+  shares: { infantry: 0.34, slingers: 0.22, knights: 0.14, shock: 0.16, mystics: 0.14 },
+  roll: [0.4, 1.6],
+  dropChance: 0.15,
+  // dragons: one a side for every `dragonEvery` soldiers (at least one), of
+  // ages drawn from `dragonAges`; both sides get the same ages
+  dragonEvery: 650,
+  dragonAges: { wyrmling: 3, young: 4, adult: 3, ancient: 1 },
+  // dragons' bites and breath hit soldiers this many times harder than the mage
+  dragonVsTroops: 5,
+
+  // The battlefield (in dungeon cells, two tiles each) around armies standing
+  // `width` px wide and `depth` px deep each, facing across no man's land.
+  field(width, depth) {
+    const cell = TILE * 2;
+    const w = Math.ceil((width + this.margin * 2) / cell);
+    const h = Math.ceil((depth * 2 + this.noMansLand + this.margin * 2) / cell);
+    // rocks scatter over the middle band of the field, between the armies
+    const outcrops = Math.round(w * h / 700);
+    const band = this.noMansLand / (h * cell);
+    return {
+      cols: w + 6, rows: h + 6, roomCount: 1, minRoomW: w, maxRoomW: w, minRoomH: h, maxRoomH: h,
+      outcrops, outcropBand: [0.5 - band * 0.6, 0.5 + band * 0.6]
+    };
+  },
+
+  // The army size asked for on the URL, or the default.
+  armySize() {
+    const m = (typeof window !== 'undefined' ? window.location.search : '').match(/[?&]army=(\d+)/i);
+    const n = m ? parseInt(m[1], 10) : this.army;
+    return Math.max(this.armyRange[0], Math.min(this.armyRange[1], n));
   }
 };
 
@@ -58,11 +93,15 @@ export const RegimentKinds = {
   slingers: { name: 'SLINGERS', classes: { slinger: 1 } },
   knights: { name: 'KNIGHTS', classes: { knight: 1 } },
   shock: { name: 'SHOCK TROOPS', classes: { berserker: 2, brute: 1 } },
-  mystics: { name: 'MYSTICS', classes: { shaman: 1, warlock: 1 } }
+  mystics: { name: 'MYSTICS', classes: { shaman: 1, warlock: 1 } },
+  dragons: { name: 'DRAGONS', classes: {} }
 };
 
-const NUMERALS = ['', ' I', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
-const GRID = 128;
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX'];
+// the spatial grid's cell, px
+const GRID = 64;
+// far-off dragons stand this far apart in their line
+const DRAGON_SPACING = 260;
 
 function pickWeighted(weights) {
   let total = 0;
@@ -83,29 +122,38 @@ function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export function spellLabel(entry, darts) {
-  if (entry === MissileUpgrade) {
-    return MissileUpgrade.name + ' :: ' + darts + ' DARTS';
+function shuffle(list) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
   }
-  const spell = SpellBook.find((s) => s.flag === entry.flag);
-  return spell ? spell.name : entry.id.toUpperCase();
+  return list;
+}
+
+// What one soldier of a regiment type costs on average, for a race.
+function kindCost(kind, race) {
+  const classes = RegimentKinds[kind].classes;
+  let total = 0;
+  let cost = 0;
+  for (const c in classes) {
+    total += classes[c];
+    cost += classes[c] * BattleRules.classCost[c];
+  }
+  return cost / total * BattleRules.raceCost[race];
 }
 
 export class Battle {
   constructor(game) {
     this.game = game;
-    this.round = 0;
-    this.score = { player: 0, enemy: 0 };
-    const playerRace = Races[game.race] ? game.race : pick(Object.keys(Races));
-    this.races = { player: playerRace, enemy: null };
-    this.rollRivalRace();
-    this.playerSpells = new Set([pick(DuelSpells).id]);
-    this.rivalSpells = new Set([pick(DuelSpells).id]);
-    // spell ranks by duel spell id, and the player's bar between battles
-    this.ranks = { player: {}, enemy: {} };
-    this.playerBar = null;
-    // magic missile darts per cast; the draft can add more (MissileUpgrade)
-    this.missileTiers = { player: 1, enemy: 1 };
+    this.size = BattleRules.armySize();
+    // both armies are random: any two different races
+    const races = shuffle(Object.keys(Races));
+    this.races = { player: races[0], enemy: races[1] };
+    // ten spells each, drawn apart
+    this.spells = {
+      player: shuffle(DuelSpells.slice()).slice(0, BattleRules.spells),
+      enemy: shuffle(DuelSpells.slice()).slice(0, BattleRules.spells)
+    };
     this.fighting = false;
     this.deploy = 0;
     this.fightFrames = 0;
@@ -113,11 +161,19 @@ export class Battle {
     this.soldiers = { player: [], enemy: [] };
     this.regiments = { player: [], enemy: [] };
     this.selected = new Set();
-    this.grid = new Map();
+    // the spatial grid, rebuilt every step by counting sort: the bodies in
+    // cell c are cellItems[cellStart[c]] up to cellItems[cellStart[c + 1]]
+    this.bodies = [];
+    this.cellStart = new Int32Array(2);
+    this.cellFill = new Int32Array(2);
+    this.cellItems = [];
+    this.gridSize = GRID;
+    this.gridCols = 1;
+    this.gridRows = 1;
     this.over = false;
     this.markers = null;
     // commander mode (Tab): the wizard stands, the camera roams, the mouse
-    // selects and orders regiments. Battles open in it, for deployment.
+    // selects and orders regiments. The battle opens in it, for deployment.
     this.commander = true;
     this.cam = { x: 0, y: 0 };
     this.drag = null;
@@ -125,63 +181,140 @@ export class Battle {
     this.attachMouse();
   }
 
-  // The rival's army for the next battle: any race but the player's, and not
-  // the one it just fielded.
-  rollRivalRace() {
-    const last = this.races.enemy;
-    const options = Object.keys(Races).filter((r) => r !== this.races.player && r !== last);
-    this.races.enemy = pick(options);
-  }
+  // ------------------------------------------------------------- the armies
 
-  rankOf(side, entry) {
-    return this.ranks[side][entry.id] || startRank(entry);
-  }
-
-  // What a side could gain between battles: new spells, a dart, and ranks
-  // for the spells it has, as { kind, entry } ('learn', 'dart', 'rank').
-  draftPool(side) {
-    const known = side === 'player' ? this.playerSpells : this.rivalSpells;
-    const learn = DuelSpells.filter((e) => !known.has(e.id)).map((entry) => ({ kind: 'learn', entry }));
-    if (this.missileTiers[side] < MAX_MISSILE_TIER) {
-      learn.push({ kind: 'dart', entry: MissileUpgrade });
+  // A random army worth `budget` points: each regiment type's share of the
+  // points rolled around its usual share (a rarer type may stay home), then
+  // as many soldiers of it as those points buy for the race.
+  rollArmy(race, budget) {
+    const shares = {};
+    let total = 0;
+    for (const kind in BattleRules.shares) {
+      const [lo, hi] = BattleRules.roll;
+      let w = BattleRules.shares[kind] * (lo + Math.random() * (hi - lo));
+      if (kind !== 'infantry' && Math.random() < BattleRules.dropChance) {
+        w = 0;
+      }
+      shares[kind] = w;
+      total += w;
     }
-    const rank = DuelSpells.filter((e) => known.has(e.id) && this.rankOf(side, e) < RankRules.max).map((entry) => ({ kind: 'rank', entry }));
-    return { learn, rank };
-  }
-
-  draftLabel(side, choice) {
-    if (choice.kind === 'dart') {
-      return spellLabel(MissileUpgrade, this.missileTiers[side] + 1);
+    const counts = {};
+    for (const kind in shares) {
+      counts[kind] = Math.round(budget * shares[kind] / total / kindCost(kind, race));
     }
-    const name = spellLabel(choice.entry);
-    return choice.kind === 'rank' ? name + ' :: RANK ' + ROMAN[this.rankOf(side, choice.entry) + 1] : name;
+    return counts;
   }
 
-  takeDraft(side, choice) {
-    if (choice.kind === 'dart') {
-      this.missileTiers[side]++;
-    } else if (choice.kind === 'rank') {
-      this.ranks[side][choice.entry.id] = this.rankOf(side, choice.entry) + 1;
-    } else {
-      (side === 'player' ? this.playerSpells : this.rivalSpells).add(choice.entry.id);
+  // The same dragons for both sides: one per `dragonEvery` soldiers, of
+  // random ages; each side's are of random colours.
+  rollDragons() {
+    const n = Math.max(1, Math.round(this.size / BattleRules.dragonEvery));
+    const ages = [];
+    for (let i = 0; i < n; i++) {
+      ages.push(pickWeighted(BattleRules.dragonAges));
     }
+    // the oldest first, so they stand in the middle of their line
+    const order = Object.keys(DragonAges);
+    return ages.sort((a, b) => order.indexOf(b) - order.indexOf(a));
   }
 
-  get armySize() {
-    return BattleRules.armies[Math.min(this.round, BattleRules.armies.length - 1)];
+  // Splits an army into regiments and lines them up, relative to the middle
+  // of its front: infantry and shock troops in front with knights on the
+  // flanks, slingers behind them, then mystics, then the dragons. `back` is
+  // how far behind the front a regiment's middle stands.
+  planArmy(side, counts, dragons) {
+    const sp = BattleRules.spacing;
+    const regimentSize = Math.max(BattleRules.minRegiment, Math.ceil(this.size / BattleRules.regiments));
+    const regiments = [];
+    for (const kind in counts) {
+      const total = counts[kind];
+      const parts = Math.ceil(total / regimentSize);
+      for (let p = 0; p < parts; p++) {
+        const size = Math.floor(total / parts) + (p < total % parts ? 1 : 0);
+        if (size > 0) {
+          regiments.push({ kind, size, name: RegimentKinds[kind].name + (parts > 1 ? ' ' + (ROMAN[p + 1] || p + 1) : '') });
+        }
+      }
+    }
+    for (const r of regiments) {
+      r.cols = Math.max(4, Math.min(BattleRules.maxCols, Math.ceil(Math.sqrt(r.size * 2.5))));
+      r.ranks = Math.ceil(r.size / r.cols);
+      r.spacing = sp;
+      r.width = r.cols * sp;
+      r.depth = r.ranks * sp;
+    }
+    if (dragons.length) {
+      regiments.push({
+        kind: 'dragons', size: dragons.length, name: RegimentKinds.dragons.name, ages: dragons,
+        colors: dragons.map(() => pick(ChromaticColors)),
+        cols: dragons.length, ranks: 1, spacing: DRAGON_SPACING, width: dragons.length * DRAGON_SPACING, depth: DRAGON_SPACING
+      });
+    }
+    const front = regiments.filter((r) => r.kind === 'infantry' || r.kind === 'shock');
+    // knights alternate between the two flanks of the front line
+    regiments.filter((r) => r.kind === 'knights').forEach((r, i) => (i % 2 === 0 ? front.unshift(r) : front.push(r)));
+    const groups = [front, ...['slingers', 'mystics', 'dragons'].map((k) => regiments.filter((r) => r.kind === k))];
+    // a line wider than maxLine splits into two, one behind the other
+    const lines = [];
+    for (const group of groups) {
+      let line = [];
+      let width = 0;
+      for (const r of group) {
+        if (line.length && width + r.width > BattleRules.maxLine) {
+          lines.push(line);
+          line = [];
+          width = 0;
+        }
+        line.push(r);
+        width += r.width + 60;
+      }
+      if (line.length) {
+        lines.push(line);
+      }
+    }
+    let back = 0;
+    let widest = 0;
+    for (const line of lines) {
+      const total = line.reduce((s, r) => s + r.width, 0) + (line.length - 1) * 60;
+      widest = Math.max(widest, total);
+      let x = -total / 2;
+      let deepest = 0;
+      for (const r of line) {
+        r.at = { x: x + r.width / 2, back: back + r.depth / 2 };
+        x += r.width + 60;
+        deepest = Math.max(deepest, r.depth);
+      }
+      back += deepest + 110;
+    }
+    // the wizard stands behind it all
+    return { side, regiments, width: widest, depth: back + 160, wizardBack: back + 60 };
   }
 
-  // ------------------------------------------------------------- rounds
-
-  startRound() {
+  start() {
     const game = this.game;
-    const n = this.armySize;
-    game.buildWorld(BattleRules.field(n));
+    const races = this.races;
+    // both armies are bought with the points of an average army of this size
+    let reference = 0;
+    let shareTotal = 0;
+    for (const kind in BattleRules.shares) {
+      reference += BattleRules.shares[kind] * kindCost(kind, 'orc');
+      shareTotal += BattleRules.shares[kind];
+    }
+    this.budget = this.size * reference / shareTotal;
+    const dragons = this.rollDragons();
+    const plans = {
+      player: this.planArmy('player', this.rollArmy(races.player, this.budget), dragons),
+      enemy: this.planArmy('enemy', this.rollArmy(races.enemy, this.budget), dragons)
+    };
+    game.buildWorld(BattleRules.field(Math.max(plans.player.width, plans.enemy.width), Math.max(plans.player.depth, plans.enemy.depth)));
     game.gfx.setBattlefield(true);
     if (!game.army) {
       game.army = new ArmyRenderer(game.gfx);
     }
     game.army.clear();
+    if (!game.bolts) {
+      game.bolts = new BoltRenderer(game.gfx);
+    }
     this.clearMarkers();
     const room = game.world.getMainRoom();
     const left = room.x * TILE;
@@ -189,35 +322,41 @@ export class Battle {
     const width = room.w * TILE;
     const height = room.h * TILE;
     this.bounds = { left, top, right: left + width, bottom: top + height };
-    const mid = left + width / 2;
+    const dungeon = game.world.dungeon;
+    this.gridCols = Math.ceil(dungeon.cols * TILE * 2 / GRID) + 1;
+    this.gridRows = Math.ceil(dungeon.rows * TILE * 2 / GRID) + 1;
+    this.cellStart = new Int32Array(this.gridCols * this.gridRows + 1);
+    this.cellFill = new Int32Array(this.gridCols * this.gridRows);
+    const mid = { x: left + width / 2, y: top + height / 2 };
     this.regiments = { player: [], enemy: [] };
     // the player's army along the bottom of the field advancing up the screen,
     // the rival's along the top (dir is the way each army faces, in y)
-    const wizardPlayer = this.deployArmy('player', n, top + height * 0.75, mid, -1);
-    const wizardEnemy = this.deployArmy('enemy', n, top + height * 0.25, mid, 1);
+    const half = BattleRules.noMansLand / 2;
+    const wizardPlayer = this.deployArmy(plans.player, mid.y + half, mid.x, -1);
+    const wizardEnemy = this.deployArmy(plans.enemy, mid.y - half, mid.x, 1);
 
     const pl = game.spawn(Mage, wizardPlayer.x - 24, wizardPlayer.y - 24);
     game.player = pl;
     game.configureDuelPlayer(pl);
-    const known = DuelSpells.filter((entry) => this.playerSpells.has(entry.id));
+    const known = this.spells.player;
     const ranks = {};
     for (const entry of known) {
-      ranks[playerSpellId(entry)] = this.rankOf('player', entry);
+      ranks[playerSpellId(entry)] = startRank(entry);
     }
-    pl.resetSpells(known.map(playerSpellId), { slots: WizardLevels.battleSlots, ranks, bar: this.playerBar });
-    pl.missileTier = this.missileTiers.player;
+    pl.resetSpells(known.map(playerSpellId), { slots: WizardLevels.battleSlots, ranks });
+    pl.missileTier = BattleRules.missileTier;
     const rival = game.spawn(DuelWizard, wizardEnemy.x - 24, wizardEnemy.y - 24, { difficulty: game.difficulty });
-    rival.known = new Set(this.rivalSpells);
+    rival.known = new Set(this.spells.enemy.map((e) => e.id));
     rival.ranks = {};
-    for (const entry of DuelSpells.filter((e) => this.rivalSpells.has(e.id))) {
-      rival.ranks[entry.id] = this.rankOf('enemy', entry);
+    for (const entry of this.spells.enemy) {
+      rival.ranks[entry.id] = startRank(entry);
     }
-    rival.missileTier = this.missileTiers.enemy;
+    rival.missileTier = BattleRules.missileTier;
     game.rival = rival;
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
     this.commander = true;
-    this.cam = { x: wizardPlayer.x, y: wizardPlayer.y - 320 };
+    this.cam = { x: wizardPlayer.x, y: wizardPlayer.y - 600 };
     this.fighting = false;
     this.fightFrames = 0;
     this.deploy = BattleRules.deployFrames;
@@ -225,85 +364,38 @@ export class Battle {
     this.buildMarkers();
     game.state = 'playing';
     if (game.hud.minimap) {
-      game.hud.onBattleRound(this);
+      game.hud.onBattleStart(this);
     }
   }
 
-  // Splits an army into regiments by type and lays them out in three lines
-  // facing the enemy: infantry and shock troops in front with knights on the
-  // flanks, slingers behind them, mystics at the back. Lines run across the
-  // field (x) and the army faces along y. Returns where the wizard stands,
-  // behind it all.
-  deployArmy(side, n, frontY, midX, dir) {
+  // Puts a planned army on the field with its front at frontY, facing `dir`
+  // (in y). Returns where the wizard stands.
+  deployArmy(plan, frontY, midX, dir) {
     const game = this.game;
-    const shares = BattleRules.shares[Math.min(this.round, BattleRules.shares.length - 1)];
-    const sp = BattleRules.spacing;
-    const kinds = Object.keys(shares);
-    const counts = {};
-    let assigned = 0;
-    for (const k of kinds) {
-      counts[k] = Math.floor(n * shares[k]);
-      assigned += counts[k];
-    }
-    counts[kinds[0]] += n - assigned;
-    const regiments = [];
-    for (const kind of kinds) {
-      const total = counts[kind];
-      const parts = Math.max(1, Math.ceil(total / BattleRules.maxRegiment));
-      for (let p = 0; p < parts; p++) {
-        const size = Math.floor(total / parts) + (p < total % parts ? 1 : 0);
-        if (size > 0) {
-          regiments.push({ kind, size, name: RegimentKinds[kind].name + (parts > 1 ? NUMERALS[p + 1] : '') });
-        }
-      }
-    }
-    // formation: wide lines a few ranks deep
-    for (const r of regiments) {
-      r.cols = Math.max(4, Math.min(16, Math.ceil(Math.sqrt(r.size * 2.5))));
-      r.ranks = Math.ceil(r.size / r.cols);
-      r.width = r.cols * sp;
-      r.depth = r.ranks * sp;
-    }
-    const front = regiments.filter((r) => r.kind === 'infantry' || r.kind === 'shock');
-    // knights alternate between the two flanks of the front line
-    regiments.filter((r) => r.kind === 'knights').forEach((r, i) => (i % 2 === 0 ? front.unshift(r) : front.push(r)));
-    const lines = [front, regiments.filter((r) => r.kind === 'slingers'), regiments.filter((r) => r.kind === 'mystics')];
-    let lineY = frontY;
-    for (const line of lines) {
-      if (!line.length) {
-        continue;
-      }
-      const total = line.reduce((s, r) => s + r.width, 0) + (line.length - 1) * 60;
-      let x = midX - total / 2;
-      let deepest = 0;
-      for (const r of line) {
-        r.point = this.clampPoint({ x: x + r.width / 2, y: lineY - dir * r.depth / 2 });
-        x += r.width + 60;
-        deepest = Math.max(deepest, r.depth);
-      }
-      lineY -= dir * (deepest + 110);
-    }
-    // reserve instanced slots per look, then spawn every soldier in its slot
+    const side = plan.side;
     const race = this.races[side];
+    // reserve instanced slots per look, then spawn every soldier in its slot
     const looks = {};
-    const plan = [];
-    for (const r of regiments) {
-      const classes = [];
-      for (let i = 0; i < r.size; i++) {
-        classes.push(pickWeighted(RegimentKinds[r.kind].classes));
+    const classes = plan.regiments.map((r) => {
+      const list = [];
+      if (r.kind === 'dragons') {
+        return list;
       }
-      plan.push(classes);
-      for (const c of classes) {
+      for (let i = 0; i < r.size; i++) {
+        const c = pickWeighted(RegimentKinds[r.kind].classes);
+        list.push(c);
         const look = raceLook(race, c);
         looks[look] = (looks[look] || 0) + 1;
       }
-    }
+      return list;
+    });
     for (const look in looks) {
       if (ArmyRenderer.available(look)) {
         game.army.reserve(look, side, looks[look]);
       }
     }
-    regiments.forEach((r, ri) => {
+    plan.regiments.forEach((r, ri) => {
+      const point = this.clampPoint({ x: midX + r.at.x, y: frontY - dir * r.at.back });
       const regiment = {
         id: side + '-' + ri,
         side,
@@ -312,29 +404,55 @@ export class Battle {
         size: r.size,
         cols: r.cols,
         ranks: r.ranks,
+        spacing: r.spacing,
         dir,
-        point: r.point,
+        point,
         order: 'hold',
         units: [],
-        centroid: { x: r.point.x, y: r.point.y },
+        centroid: { x: point.x, y: point.y },
+        anchor: null,
         alive: r.size
       };
-      plan[ri].forEach((orcClass, i) => {
+      for (let i = 0; i < r.size; i++) {
         const col = i % r.cols;
         const rank = Math.floor(i / r.cols);
         const slot = {
-          x: (col - (r.cols - 1) / 2) * sp,
-          y: -dir * (rank - (r.ranks - 1) / 2) * sp
+          x: (col - (r.cols - 1) / 2) * r.spacing,
+          y: -dir * (rank - (r.ranks - 1) / 2) * r.spacing
         };
-        let spot = { x: r.point.x + slot.x - 24, y: r.point.y + slot.y - 24 };
-        if (!game.world.canStandAt(spot.x, spot.y, 48, 48)) {
-          spot = game.world.getRoomSpawnPoint(game.world.getMainRoom(), 3);
+        if (r.kind === 'dragons') {
+          const age = r.ages[i];
+          const size = DragonAges[age].size;
+          const spot = this.standNear(point.x + slot.x - size / 2, point.y + slot.y - size / 2, size);
+          regiment.units.push(game.spawn(BattleDragon, spot.x, spot.y, { side, age, color: r.colors[i], regiment, slot }));
+        } else {
+          const spot = this.standNear(point.x + slot.x - 24, point.y + slot.y - 24, 48);
+          regiment.units.push(game.spawn(Soldier, spot.x, spot.y, { side, race, orcClass: classes[ri][i], regiment, slot }));
         }
-        regiment.units.push(game.spawn(Soldier, spot.x, spot.y, { side, race, orcClass, regiment, slot }));
-      });
+      }
       this.regiments[side].push(regiment);
     });
-    return this.clampPoint({ x: midX, y: lineY + dir * 60 });
+    return this.clampPoint({ x: midX, y: frontY - dir * plan.wizardBack });
+  }
+
+  // The nearest spot to (x, y) where a body of `size` can stand: rocks push
+  // a soldier out of its place in the ranks, not across the field.
+  standNear(x, y, size) {
+    const world = this.game.world;
+    if (world.canStandAt(x, y, size, size)) {
+      return { x, y };
+    }
+    for (let r = 24; r <= 480; r += 24) {
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2;
+        const sx = x + Math.cos(a) * r;
+        const sy = y + Math.sin(a) * r;
+        if (world.canStandAt(sx, sy, size, size)) {
+          return { x: sx, y: sy };
+        }
+      }
+    }
+    return world.getRoomSpawnPoint(world.getMainRoom(), 3, size);
   }
 
   clampPoint(p) {
@@ -371,14 +489,14 @@ export class Battle {
       const mine = this.armyCount('player');
       const theirs = this.armyCount('enemy');
       if (theirs === 0 && mine > 0) {
-        this.endRound('player', 'The rival’s army is destroyed.');
+        this.end('player', 'The rival’s army is destroyed.');
       } else if (mine === 0 && theirs > 0) {
-        this.endRound('enemy', 'Your army is destroyed.');
+        this.end('enemy', 'Your army is destroyed.');
       } else if (mine === 0 && theirs === 0) {
         const rival = game.rival;
         const playerShare = game.player.hp / game.player.maxHp;
         const rivalShare = rival && !rival.killed ? rival.hp / rival.maxHp : 0;
-        this.endRound(playerShare >= rivalShare ? 'player' : 'enemy', 'Both armies are destroyed.');
+        this.end(playerShare >= rivalShare ? 'player' : 'enemy', 'Both armies are destroyed.');
       }
     }
   }
@@ -386,7 +504,7 @@ export class Battle {
   beginFight() {
     this.fighting = true;
     this.deploy = 0;
-    this.game.hud.toast('BATTLE ' + (this.round + 1) + ' :: YOUR ' + Races[this.races.player].name + ' AGAINST THE ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
+    this.game.hud.toast('YOUR ' + Races[this.races.player].name + ' AGAINST THE RIVAL’S ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
   }
 
   // Backquote selects all; the order keys apply to whatever is selected (in
@@ -411,15 +529,18 @@ export class Battle {
     }
     if (input.pressed('order_hold')) {
       // march to the cursor and hold, keeping the regiments' layout
-      const cx = chosen.reduce((s, r) => s + r.point.x, 0) / chosen.length;
-      const cy = chosen.reduce((s, r) => s + r.point.y, 0) / chosen.length;
-      const g = input.ground;
-      for (const r of chosen) {
-        r.point = this.clampPoint({ x: g.x + (r.point.x - cx), y: g.y + (r.point.y - cy) });
-      }
-      this.order(chosen, 'hold');
+      this.marchTo(chosen, input.ground);
       game.hud.toast(this.selectionName(chosen) + ' :: MARCH AND HOLD', '#7fb2ff');
     }
+  }
+
+  marchTo(regiments, g) {
+    const cx = regiments.reduce((s, r) => s + r.point.x, 0) / regiments.length;
+    const cy = regiments.reduce((s, r) => s + r.point.y, 0) / regiments.length;
+    for (const r of regiments) {
+      r.point = this.clampPoint({ x: g.x + (r.point.x - cx), y: g.y + (r.point.y - cy) });
+    }
+    this.order(regiments, 'hold');
   }
 
   order(regiments, order, target) {
@@ -432,7 +553,7 @@ export class Battle {
         const dx = r.centroid.x - w.x;
         const dy = r.centroid.y - w.y;
         const d = Math.hypot(dx, dy) || 1;
-        const keep = Math.min(d, 160 + Math.max(r.cols, r.ranks) * BattleRules.spacing * 0.5);
+        const keep = Math.min(d, 160 + Math.max(r.cols, r.ranks) * r.spacing * 0.5);
         r.followOffset = { x: dx / d * keep, y: dy / d * keep };
       }
       r.order = order;
@@ -467,9 +588,9 @@ export class Battle {
   // Mouse in commander mode: left click or drag selects, right click orders.
   attachMouse() {
     const canvas = this.game.gfx.canvas;
-    const on = (type, fn) => {
-      canvas.addEventListener(type, fn);
-      this.listeners.push([type, fn]);
+    const on = (type, fn, target = canvas) => {
+      target.addEventListener(type, fn);
+      this.listeners.push([target, type, fn]);
     };
     const local = (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -486,13 +607,14 @@ export class Battle {
         this.rightClick(m);
       }
     });
+    // a drag may cross and end over the HUD: follow it on the window
     on('mousemove', (e) => {
       if (this.drag) {
         const m = local(e);
         this.drag.x1 = m.x;
         this.drag.y1 = m.y;
       }
-    });
+    }, window);
     on('mouseup', (e) => {
       if (e.button !== 0 || !this.drag) {
         return;
@@ -504,26 +626,24 @@ export class Battle {
       } else {
         this.boxSelect(d, d.add);
       }
-    });
+    }, window);
   }
 
-  // The unit nearest a screen point, within a little slack.
+  // The unit nearest a screen point, within a little slack (more for dragons).
   unitAt(screen, side) {
     const g = this.game.gfx.pickGround(screen);
     if (!g) {
       return null;
     }
-    const probe = { center: () => g };
     let best = null;
-    let bestD = 40;
-    for (const e of this.near(probe, 48, side)) {
-      const c = e.center();
-      const d = Math.hypot(c.x - g.x, c.y - g.y);
-      if (d < bestD) {
+    let bestD = Infinity;
+    this.eachNear(g.x, g.y, 100, side, (e) => {
+      const d = Math.hypot(e._cx - g.x, e._cy - g.y);
+      if (d < Math.max(40, e.size.x * 0.7) && d < bestD) {
         bestD = d;
         best = e;
       }
-    }
+    });
     return best;
   }
 
@@ -536,7 +656,7 @@ export class Battle {
     }
   }
 
-  // Every regiment with an orc inside the dragged box.
+  // Every regiment with a soldier inside the dragged box.
   boxSelect(d, add) {
     const gfx = this.game.gfx;
     const x0 = Math.min(d.x0, d.x1);
@@ -579,16 +699,11 @@ export class Battle {
     if (!g) {
       return;
     }
-    const cx = chosen.reduce((s, r) => s + r.point.x, 0) / chosen.length;
-    const cy = chosen.reduce((s, r) => s + r.point.y, 0) / chosen.length;
-    for (const r of chosen) {
-      r.point = this.clampPoint({ x: g.x + (r.point.x - cx), y: g.y + (r.point.y - cy) });
-    }
-    this.order(chosen, 'hold');
+    this.marchTo(chosen, g);
     game.fx.ring(g.x, g.y, { color: 0x7fb2ff, radius: 60, life: 0.4 });
   }
 
-  // For an attacking regiment: the closest live orc of the regiment it was
+  // For an attacking regiment: the closest live unit of the regiment it was
   // sent against (or the wizard). Null once that target is gone.
   attackFoe(unit) {
     const t = unit.regiment.attackTarget;
@@ -634,12 +749,16 @@ export class Battle {
 
   selectionName(regiments) {
     const alive = this.regiments.player.filter((r) => r.alive > 0);
-    return regiments.length === alive.length ? 'ALL REGIMENTS' : regiments.map((r) => r.name).join(', ');
+    if (regiments.length === alive.length) {
+      return 'ALL REGIMENTS';
+    }
+    return regiments.length > 3 ? regiments.length + ' REGIMENTS' : regiments.map((r) => r.name).join(', ');
   }
 
   // The rival's generalship: the line charges, slingers advance into range,
-  // knights swing round a flank before riding in, mystics guard their wizard;
-  // when the wizard is hurt and pressed, the shock troops fall back to it too.
+  // knights swing round a flank before riding in, mystics guard their wizard,
+  // dragons go for whatever is nearest; when the wizard is hurt and pressed,
+  // the shock troops fall back to it too.
   commandRival() {
     const game = this.game;
     const rival = game.rival;
@@ -647,11 +766,11 @@ export class Battle {
       return;
     }
     let pressing = 0;
-    for (const u of this.near(rival, 260, 'player')) {
+    this.eachNear(rival._cx, rival._cy, 260, 'player', (u) => {
       if (!u.isWizard) {
         pressing++;
       }
-    }
+    });
     const endangered = pressing >= 3 && rival.hp < rival.maxHp * 0.6;
     const midX = (this.bounds.left + this.bounds.right) / 2;
     for (const r of this.regiments.enemy) {
@@ -660,7 +779,7 @@ export class Battle {
           r.followOffset = { x: (r.kind === 'shock' ? 1 : -1) * 90, y: -120 * r.dir };
         }
         r.order = 'follow';
-      } else if (r.kind === 'knights' && this.fightFrames < 420) {
+      } else if (r.kind === 'knights' && this.fightFrames < 600) {
         r.order = 'hold';
         if (!r.flanking) {
           const flank = r.point.x < midX ? this.bounds.left + 160 : this.bounds.right - 160;
@@ -675,22 +794,17 @@ export class Battle {
 
   // ------------------------------------------------------------- bookkeeping
 
+  // Once a step: who is alive on each side, each regiment's count, centre and
+  // anchor (its soldier nearest that centre), and the spatial grid. Every body
+  // in the grid keeps its centre (_cx, _cy) and side (_side) for the step.
   refreshLists() {
     const game = this.game;
     const player = [];
     const enemy = [];
-    const grid = new Map();
-    const add = (e) => {
-      const c = e.center();
-      const key = Math.floor(c.x / GRID) + ',' + Math.floor(c.y / GRID);
-      let cell = grid.get(key);
-      if (!cell) {
-        cell = [];
-        grid.set(key, cell);
-      }
-      cell.push(e);
-    };
+    this.bodies.length = 0;
+    const add = (e, side) => this.place(e, side);
     for (const side of ['player', 'enemy']) {
+      const list = side === 'player' ? player : enemy;
       for (const r of this.regiments[side]) {
         r.alive = 0;
         let sx = 0;
@@ -699,33 +813,102 @@ export class Battle {
           if (u.killed) {
             continue;
           }
-          const c = u.center();
-          sx += c.x;
-          sy += c.y;
+          this.place(u, side);
+          sx += u._cx;
+          sy += u._cy;
           r.alive++;
-          (side === 'player' ? player : enemy).push(u);
-          add(u);
+          list.push(u);
         }
-        if (r.alive) {
-          r.centroid = { x: sx / r.alive, y: sy / r.alive };
+        if (!r.alive) {
+          r.anchor = null;
+          continue;
         }
+        const cx = sx / r.alive;
+        const cy = sy / r.alive;
+        r.centroid = { x: cx, y: cy };
+        let best = Infinity;
+        let x0 = Infinity;
+        let x1 = -Infinity;
+        let y0 = Infinity;
+        let y1 = -Infinity;
+        for (const u of r.units) {
+          if (!u.killed) {
+            const d = Math.abs(u._cx - cx) + Math.abs(u._cy - cy);
+            if (d < best) {
+              best = d;
+              r.anchor = u;
+            }
+            x0 = Math.min(x0, u._cx);
+            x1 = Math.max(x1, u._cx);
+            y0 = Math.min(y0, u._cy);
+            y1 = Math.max(y1, u._cy);
+          }
+        }
+        r.box = { x0, x1, y0, y1 };
       }
     }
     this.soldiers = { player: player.slice(), enemy: enemy.slice() };
     if (game.player && !game.player.dead) {
       player.push(game.player);
-      add(game.player);
+      add(game.player, 'player');
     }
     if (game.rival && !game.rival.killed) {
       enemy.push(game.rival);
-      add(game.rival);
+      add(game.rival, 'enemy');
+    }
+    // the wizards' decoys draw fire like the wizards
+    for (const e of game.entities) {
+      if (e instanceof MirrorImage && !e.killed) {
+        add(e, e.source === game.player ? 'player' : 'enemy');
+      }
     }
     this.lists = { player, enemy };
-    this.grid = grid;
+    this.sortGrid();
+  }
+
+  // Counts the bodies per cell, then lays them out cell by cell.
+  sortGrid() {
+    const start = this.cellStart;
+    const fill = this.cellFill;
+    const bodies = this.bodies;
+    const items = this.cellItems;
+    start.fill(0);
+    for (let i = 0; i < bodies.length; i++) {
+      start[bodies[i]._cell + 1]++;
+    }
+    for (let c = 1; c < start.length; c++) {
+      start[c] += start[c - 1];
+    }
+    fill.set(start.subarray(0, fill.length));
+    items.length = bodies.length;
+    for (let i = 0; i < bodies.length; i++) {
+      const e = bodies[i];
+      items[fill[e._cell]++] = e;
+    }
+  }
+
+  // Files a body in the grid with its centre and side for this step.
+  place(e, side) {
+    const cx = e.pos.x + e.size.x / 2;
+    const cy = e.pos.y + e.size.y / 2;
+    e._cx = cx;
+    e._cy = cy;
+    e._side = side;
+    let gx = Math.floor(cx / GRID);
+    let gy = Math.floor(cy / GRID);
+    gx = gx < 0 ? 0 : (gx >= this.gridCols ? this.gridCols - 1 : gx);
+    gy = gy < 0 ? 0 : (gy >= this.gridRows ? this.gridRows - 1 : gy);
+    e._cell = gy * this.gridCols + gx;
+    this.bodies.push(e);
   }
 
   armyCount(side) {
     return this.soldiers[side].length;
+  }
+
+  dragonCount(side) {
+    const r = this.regiments[side].find((reg) => reg.kind === 'dragons');
+    return r ? r.alive : 0;
   }
 
   units(side) {
@@ -733,70 +916,152 @@ export class Battle {
   }
 
   sideOf(e) {
-    return e.side || (e === this.game.player ? 'player' : 'enemy');
+    return e._side || e.side || (e === this.game.player ? 'player' : 'enemy');
+  }
+
+  // Calls fn for every body (of `side`, or both) whose centre lies within r
+  // (a square) of (x, y), as of this step's grid.
+  eachNear(x, y, r, side, fn) {
+    const cols = this.gridCols;
+    const x0 = Math.max(0, Math.floor((x - r) / GRID));
+    const x1 = Math.min(cols - 1, Math.floor((x + r) / GRID));
+    const y0 = Math.max(0, Math.floor((y - r) / GRID));
+    const y1 = Math.min(this.gridRows - 1, Math.floor((y + r) / GRID));
+    const start = this.cellStart;
+    const items = this.cellItems;
+    for (let gy = y0; gy <= y1; gy++) {
+      for (let gx = x0; gx <= x1; gx++) {
+        const c = gy * cols + gx;
+        for (let i = start[c], end = start[c + 1]; i < end; i++) {
+          const e = items[i];
+          if (e.killed || (side && e._side !== side)) {
+            continue;
+          }
+          if (Math.abs(e._cx - x) <= r && Math.abs(e._cy - y) <= r) {
+            fn(e);
+          }
+        }
+      }
+    }
   }
 
   // Everything within r (a square) of an entity, optionally one side only.
   near(entity, r, side) {
     const c = entity.center();
     const out = [];
-    const x0 = Math.floor((c.x - r) / GRID);
-    const x1 = Math.floor((c.x + r) / GRID);
-    const y0 = Math.floor((c.y - r) / GRID);
-    const y1 = Math.floor((c.y + r) / GRID);
-    for (let gy = y0; gy <= y1; gy++) {
-      for (let gx = x0; gx <= x1; gx++) {
-        const cell = this.grid.get(gx + ',' + gy);
-        if (!cell) {
-          continue;
-        }
-        for (const e of cell) {
-          if (e.killed || (side && this.sideOf(e) !== side)) {
-            continue;
-          }
-          const ec = e.center();
-          if (Math.abs(ec.x - c.x) <= r && Math.abs(ec.y - c.y) <= r) {
-            out.push(e);
-          }
-        }
-      }
-    }
+    this.eachNear(c.x, c.y, r, side, (e) => out.push(e));
     return out;
   }
 
-  // The closest foe within maxR, searching outward through the grid; wizards
-  // count as a little further away than the orc in front of you.
+  // The closest foe within maxR; wizards count as a little further away than
+  // the soldier in front of you, and fighters on foot cannot reach a dragon
+  // in the air. Foes close by come from the grid; further off, from the
+  // ranks of the nearest enemy regiments.
   nearestFoe(unit, maxR) {
     const foeSide = unit.side === 'player' ? 'enemy' : 'player';
-    const c = unit.center();
+    const cx = unit.pos.x + unit.size.x / 2;
+    const cy = unit.pos.y + unit.size.y / 2;
+    const grounded = !unit.range && !unit.isDragon;
     let best = null;
     let bestD = Infinity;
     const consider = (f) => {
-      if (f.invis || f.killed) {
+      if (f.killed || f.invis || (grounded && f.flying)) {
         return;
       }
-      const fc = f.center();
-      const d = Math.hypot(fc.x - c.x, fc.y - c.y) * (f.isWizard ? 1.3 : 1);
+      const dx = f._cx - cx;
+      const dy = f._cy - cy;
+      const d = Math.sqrt(dx * dx + dy * dy) * (f.isWizard ? 1.3 : 1);
       if (d < bestD && d <= maxR) {
         bestD = d;
         best = f;
       }
     };
-    for (let r = GRID; r <= Math.min(maxR, 1024); r *= 2) {
-      for (const f of this.near(unit, r, foeSide)) {
-        consider(f);
-      }
-      if (best && bestD <= r) {
-        return best;
+    // how far each enemy regiment's ranks are (the gap to its bounding box)
+    const regiments = this.regiments[foeSide];
+    let gap = Infinity;
+    for (const reg of regiments) {
+      if (reg.alive && reg.box) {
+        const b = reg.box;
+        reg.gap = Math.max(b.x0 - cx, 0, cx - b.x1, b.y0 - cy, 0, cy - b.y1);
+        gap = Math.min(gap, reg.gap);
+      } else {
+        reg.gap = Infinity;
       }
     }
-    if (best || maxR <= 1024) {
-      return best;
+    const wizard = foeSide === 'player' ? this.game.player : this.game.rival;
+    const wizardUp = wizard && !wizard.killed && !wizard.dead && wizard._side === foeSide;
+    if (wizardUp) {
+      gap = Math.min(gap, Math.max(Math.abs(wizard._cx - cx), Math.abs(wizard._cy - cy)));
     }
-    for (const f of this.lists[foeSide]) {
-      consider(f);
+    if (gap > maxR) {
+      return null;
+    }
+    if (gap <= GRID * 4) {
+      // close: search outward through the grid
+      for (let r = GRID * 2; r <= Math.min(maxR, GRID * 8); r *= 2) {
+        this.eachNear(cx, cy, r, foeSide, consider);
+        if (best && bestD <= r) {
+          return best;
+        }
+      }
+    }
+    // further off: head for the heart (the anchor) of the nearest regiment,
+    // or the wizard; the grid takes over once the ranks are close
+    for (const reg of regiments) {
+      const f = reg.anchor;
+      if (!f || reg.gap > maxR || (grounded && f.flying)) {
+        continue;
+      }
+      const b = reg.box;
+      const dx = Math.max(b.x0 - cx, 0, cx - b.x1);
+      const dy = Math.max(b.y0 - cy, 0, cy - b.y1);
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < bestD) {
+        bestD = d;
+        best = f;
+      }
+    }
+    if (wizardUp && !wizard.invis) {
+      const d = Math.hypot(wizard._cx - cx, wizard._cy - cy) * 1.3;
+      if (d < bestD && d <= maxR) {
+        best = wizard;
+      }
     }
     return best;
+  }
+
+  // A bolt in flight against the bodies of the other side around it.
+  strike(p, k) {
+    const team = p.team;
+    const foeSide = team === 'player' ? 'enemy' : 'player';
+    const px = p.pos.x;
+    const py = p.pos.y;
+    const r = p.size.x / 2 + 70;
+    const cols = this.gridCols;
+    const cx = px + p.size.x / 2;
+    const cy = py + p.size.y / 2;
+    const x0 = Math.max(0, Math.floor((cx - r) / GRID));
+    const x1 = Math.min(cols - 1, Math.floor((cx + r) / GRID));
+    const y0 = Math.max(0, Math.floor((cy - r) / GRID));
+    const y1 = Math.min(this.gridRows - 1, Math.floor((cy + r) / GRID));
+    const start = this.cellStart;
+    const items = this.cellItems;
+    for (let gy = y0; gy <= y1; gy++) {
+      for (let gx = x0; gx <= x1; gx++) {
+        const c = gy * cols + gx;
+        for (let i = start[c], end = start[c + 1]; i < end; i++) {
+          const e = items[i];
+          if (e._side !== foeSide || e.killed || !p.touches(e)) {
+            continue;
+          }
+          // iron shot is not used up by a hit: it pierces and keeps dealing damage
+          e.takeSpell(p, k);
+          if (p.killed || p.team !== team) {
+            return;
+          }
+        }
+      }
+    }
   }
 
   // Where a unit stands for its regiment's hold or follow order.
@@ -822,7 +1087,7 @@ export class Battle {
     this.markers = { group, items: [] };
     const pole = new THREE.CylinderGeometry(0.06, 0.06, 4.2, 6);
     const flag = new THREE.PlaneGeometry(1.4, 0.9);
-    const ringGeo = new THREE.RingGeometry(0.94, 1, 48).rotateX(-Math.PI / 2);
+    const strip = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const dest = new THREE.RingGeometry(0.7, 1, 24).rotateX(-Math.PI / 2);
     const poleMat = new THREE.MeshLambertMaterial({ color: 0x4a3420 });
     for (const side of ['player', 'enemy']) {
@@ -834,7 +1099,15 @@ export class Battle {
         const f = new THREE.Mesh(flag, flagMat);
         f.position.set(0.72, 3.7, 0);
         banner.add(p, f);
-        const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0.8, depthWrite: false }));
+        // big armies are seen from far off: the banners grow with them
+        banner.scale.setScalar(Math.max(1, Math.sqrt(r.size / 50)) * (r.kind === 'dragons' ? 1.4 : 1));
+        // the selection: a gold frame round the regiment's ranks
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0.8, depthWrite: false });
+        const ring = new THREE.Group();
+        for (let i = 0; i < 4; i++) {
+          ring.add(new THREE.Mesh(strip, ringMat));
+        }
+        ring.material = ringMat;
         const marker = new THREE.Mesh(dest, new THREE.MeshBasicMaterial({ color: TEAM_COLORS[side].ring, transparent: true, opacity: 0.5, depthWrite: false }));
         group.add(banner, ring, marker);
         this.markers.items.push({ r, banner, flag: f, ring, marker });
@@ -866,10 +1139,26 @@ export class Battle {
       }
       m.banner.position.set(r.centroid.x * UNIT, 0, r.centroid.y * UNIT);
       m.flag.rotation.y = Math.sin(time * 2 + r.size) * 0.3;
-      const spread = Math.max(r.cols, r.ranks) * BattleRules.spacing * 0.6 * UNIT;
-      m.ring.position.set(r.centroid.x * UNIT, 0.06, r.centroid.y * UNIT);
-      m.ring.scale.set(spread, 1, spread);
-      m.ring.material.opacity = 0.55 + Math.sin(time * 4) * 0.2;
+      if (m.ring.visible && r.box) {
+        // the frame hugs the ranks as they stand
+        const b = r.box;
+        const pad = r.kind === 'dragons' ? 80 : 30;
+        const x0 = (b.x0 - pad) * UNIT;
+        const x1 = (b.x1 + pad) * UNIT;
+        const z0 = (b.y0 - pad) * UNIT;
+        const z1 = (b.y1 + pad) * UNIT;
+        const t = 0.22;
+        const [top, bottom, left, right] = m.ring.children;
+        top.position.set((x0 + x1) / 2, 0.07, z0);
+        top.scale.set(x1 - x0 + t, 1, t);
+        bottom.position.set((x0 + x1) / 2, 0.07, z1);
+        bottom.scale.set(x1 - x0 + t, 1, t);
+        left.position.set(x0, 0.07, (z0 + z1) / 2);
+        left.scale.set(t, 1, z1 - z0);
+        right.position.set(x1, 0.07, (z0 + z1) / 2);
+        right.scale.set(t, 1, z1 - z0);
+        m.ring.material.opacity = 0.6 + Math.sin(time * 4) * 0.2;
+      }
       m.marker.position.set(r.point.x * UNIT, 0.05, r.point.y * UNIT);
       m.marker.scale.set(1.6, 1, 1.6);
     }
@@ -879,86 +1168,40 @@ export class Battle {
 
   onWizardDown(side) {
     if (side === 'player') {
-      this.endRound('enemy', 'Your wizard fell.');
+      this.end('enemy', 'Your wizard fell.');
     } else {
-      this.endRound('player', 'The rival wizard fell.');
+      this.end('player', 'The rival wizard fell.');
     }
   }
 
-  endRound(winner, why) {
+  end(winner, why) {
     if (this.over) {
       return;
     }
     this.over = true;
     const game = this.game;
-    this.score[winner]++;
-    game.state = 'intermission';
-    const matchOver = this.score[winner] >= BattleRules.winsNeeded || this.round + 1 >= BattleRules.armies.length;
-    if (matchOver) {
-      const won = this.score.player > this.score.enemy;
-      game.state = 'over';
-      if (won) {
-        game.stats.wincount++;
-      }
-      game.hud.showEnd({
-        title: won ? 'BATTLE WON' : 'BATTLE LOST',
-        text: why + ' Final score ' + this.score.player + ' : ' + this.score.enemy + ' against the rival (' + game.difficulty.toUpperCase() + ').',
-        stats: game.stats,
-        duel: true,
-        win: won
-      });
-      return;
+    const won = winner === 'player';
+    game.state = 'over';
+    if (won) {
+      game.stats.wincount++;
     }
-    // between battles: the player drafts one of three (one a rank when they
-    // have a spell to rank up, the rest new spells while any are left), the
-    // rival learns one
-    if (game.player) {
-      this.playerBar = game.player.bar.slice();
-    }
-    const pool = this.draftPool('player');
-    const choices = [];
-    const take = (list) => list.splice(Math.floor(Math.random() * list.length), 1)[0];
-    if (pool.rank.length) {
-      choices.push(take(pool.rank));
-    }
-    while (choices.length < BattleRules.draftChoices && (pool.learn.length || pool.rank.length)) {
-      choices.push(take(pool.learn.length ? pool.learn : pool.rank));
-    }
-    // the rank choice goes last
-    choices.sort((a, b) => (a.kind === 'rank') - (b.kind === 'rank'));
-    const rivalPool = this.draftPool('enemy');
-    const rivalPick = rivalPool.learn.length ? pick(rivalPool.learn) : (rivalPool.rank.length ? pick(rivalPool.rank) : null);
-    const rivalLearns = rivalPick ? this.draftLabel('enemy', rivalPick) : null;
-    this.rollRivalRace();
-    game.hud.showBattleDraft({
-      winner,
-      why,
-      score: this.score,
-      next: this.round + 2,
-      nextSize: BattleRules.armies[this.round + 1],
-      nextFoe: Races[this.races.enemy].name,
-      choices: choices.map((c, i) => ({ id: i, name: this.draftLabel('player', c) })),
-      rivalLearns,
-      onPick: (i) => {
-        if (i !== null && choices[i]) {
-          this.takeDraft('player', choices[i]);
-        }
-        if (rivalPick) {
-          this.takeDraft('enemy', rivalPick);
-        }
-        this.round++;
-        this.over = false;
-        this.startRound();
-      }
+    const left = this.armyCount('player') + ' of your ' + Races[this.races.player].name.toLowerCase() + ' and ' +
+      this.armyCount('enemy') + ' of the rival’s ' + Races[this.races.enemy].name.toLowerCase() + ' still stand.';
+    game.hud.showEnd({
+      title: won ? 'BATTLE WON' : 'BATTLE LOST',
+      text: why + ' ' + left + ' (' + game.difficulty.toUpperCase() + ')',
+      stats: game.stats,
+      duel: true,
+      win: won
     });
   }
 
   dispose() {
     this.clearMarkers();
-    const canvas = this.game.gfx.canvas;
-    for (const [type, fn] of this.listeners) {
-      canvas.removeEventListener(type, fn);
+    for (const [target, type, fn] of this.listeners) {
+      target.removeEventListener(type, fn);
     }
     this.listeners = [];
   }
 }
+

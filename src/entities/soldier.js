@@ -120,15 +120,17 @@ export class Soldier extends Enemy {
       }
       this.sees = this.target ? game.hasRoomLineOfSight(this, this.target) : false;
       this.retarget = 18 + Math.random() * 12;
-    } else if (this.retarget <= 0 || !this.target || this.target.killed || this.target.dead) {
+    } else if (this.retarget <= 0 || !this.target || this.target.killed || this.target.dead || (!this.range && this.target.flying)) {
       // charging orcs look far for a fight; others only around them
       this.target = battle.nearestFoe(this, order === 'charge' ? Infinity : (this.range || 260));
       this.sees = this.target ? game.hasRoomLineOfSight(this, this.target) : false;
       this.retarget = 18 + Math.random() * 12;
     }
     if (this.isHealer && this.healCooldown <= 0 && battle.fighting) {
+      // nobody to heal: look again in a moment
+      this.healCooldown = 15;
       for (const ally of battle.near(this, 300, this.side)) {
-        if (ally !== this && ally.alive && ally.hp < ally.maxHp * 0.5) {
+        if (ally !== this && ally.alive && !ally.isWizard && ally.hp < ally.maxHp * 0.5) {
           ally.hp = Math.min(ally.maxHp, ally.hp + 90);
           this.healCooldown = 200;
           game.healFx(ally);
@@ -170,6 +172,19 @@ export class Soldier extends Enemy {
     this.moveBody(k);
   }
 
+  // Out in the open (no rock within three tiles) a step needs no collision.
+  move(k) {
+    const pf = this.game.world.pathfinder;
+    const tx = Math.floor((this.pos.x + this.size.x / 2) / pf.tilesize);
+    const ty = Math.floor((this.pos.y + this.size.y / 2) / pf.tilesize);
+    if (tx >= 0 && ty >= 0 && tx < pf.width && ty < pf.height && pf.clearance[ty * pf.width + tx] >= 3) {
+      this.pos.x += this.vel.x * k / 60;
+      this.pos.y += this.vel.y * k / 60;
+      return null;
+    }
+    return super.move(k);
+  }
+
   // Straight at the goal across the open field; walls and rocks slide us along.
   steer(x, y, speed, slack = 2) {
     const c = this.center();
@@ -209,23 +224,46 @@ export class Soldier extends Enemy {
   }
 
   // Elbow room from neighbours, so regiments read as ranks and not a blob.
+  // Every soldier makes room on every other step, twice as hard: the ranks
+  // look the same, for half the work.
   separate(battle) {
-    const c = this.center();
-    for (const other of battle.near(this, 40)) {
-      if (other === this || other.isWizard) {
-        continue;
-      }
-      const oc = other.center();
-      const dx = c.x - oc.x;
-      const dy = c.y - oc.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 > 0.01 && d2 < 40 * 40) {
-        const d = Math.sqrt(d2);
-        const push = (40 - d) * (other.side === this.side ? 3 : 1.5);
-        this.vel.x += (dx / d) * push;
-        this.vel.y += (dy / d) * push;
+    if ((this.id + battle.game.navFrame) % 2) {
+      return;
+    }
+    const cx = this._cx;
+    const cy = this._cy;
+    const cols = battle.gridCols;
+    const start = battle.cellStart;
+    const items = battle.cellItems;
+    const grid = battle.gridSize;
+    const x0 = Math.max(0, Math.floor((cx - 40) / grid));
+    const x1 = Math.min(cols - 1, Math.floor((cx + 40) / grid));
+    const y0 = Math.max(0, Math.floor((cy - 40) / grid));
+    const y1 = Math.min(battle.gridRows - 1, Math.floor((cy + 40) / grid));
+    let px = 0;
+    let py = 0;
+    for (let gy = y0; gy <= y1; gy++) {
+      for (let gx = x0; gx <= x1; gx++) {
+        const c = gy * cols + gx;
+        for (let i = start[c], end = start[c + 1]; i < end; i++) {
+          const other = items[i];
+          if (other === this || other.killed || other.isWizard || other.isDragon) {
+            continue;
+          }
+          const dx = cx - other._cx;
+          const dy = cy - other._cy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > 0.01 && d2 < 40 * 40) {
+            const d = Math.sqrt(d2);
+            const push = (40 - d) * (other._side === this.side ? 6 : 3) / d;
+            px += dx * push;
+            py += dy * push;
+          }
+        }
       }
     }
+    this.vel.x += px;
+    this.vel.y += py;
   }
 
   shoot(target) {
@@ -242,7 +280,8 @@ export class Soldier extends Enemy {
   }
 
   melee(target) {
-    if (this.attackCooldown > 0 || !this.closeTo(target)) {
+    // a dragon in the air is out of reach of swords
+    if (this.attackCooldown > 0 || target.flying || !this.closeTo(target)) {
       return;
     }
     this.attackCooldown = this.attackMax;
@@ -277,7 +316,7 @@ export class Soldier extends Enemy {
       game.stats.killcount++;
       game.stats.orccount++;
     }
-    game.deathFx(this);
+    game.deathFx(this, true);
     this.kill();
   }
 

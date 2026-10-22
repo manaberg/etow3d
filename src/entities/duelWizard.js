@@ -289,8 +289,17 @@ export class DuelWizard extends Enemy {
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
       this.hp -= (zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k;
-    } else if (zone.kind === 'guardians' || zone.kind === 'cloud') {
+    } else if ((zone.kind === 'guardians' || zone.kind === 'cloud') && zone.timeOwner) {
       const dmg = arcanaZoneDamage(zone, k);
+      this.hp -= dmg;
+      this.onDuelDamage(dmg);
+    } else if (zone.kind === 'fire') {
+      // battles: the ground the player's dragons set burning, as for the mage
+      this.hp -= 10;
+      this.onDuelDamage(10);
+      zone.kill();
+    } else if (zone.kind === 'cloud' || zone.kind === 'acid' || zone.kind === 'meteors') {
+      const dmg = (zone.kind === 'acid' ? 0.35 : zone.kind === 'meteors' ? 0.3 : 0.25) * k;
       this.hp -= dmg;
       this.onDuelDamage(dmg);
     }
@@ -536,13 +545,15 @@ export class DuelWizard extends Enemy {
   watchArmy() {
     const me = this.center();
     this.foes = [];
-    for (const u of this.game.battle.units('player')) {
-      const c = u.center();
-      const d = Math.hypot(c.x - me.x, c.y - me.y);
-      if (d < 520) {
-        this.foes.push({ unit: u, x: c.x, y: c.y, d });
+    this.game.battle.eachNear(me.x, me.y, 520, 'player', (u) => {
+      if (u.isWizard) {
+        return;
       }
-    }
+      const d = Math.hypot(u._cx - me.x, u._cy - me.y);
+      if (d < 520) {
+        this.foes.push({ unit: u, x: u._cx, y: u._cy, d });
+      }
+    });
     this.foes.sort((a, b) => a.d - b.d);
   }
 
@@ -666,6 +677,18 @@ export class DuelWizard extends Enemy {
     this.navDir = null;
     this.navPull = 0;
     if (!goal) {
+      return;
+    }
+    if (this.game.battle) {
+      // open country: straight for it (a flow field over a whole
+      // battlefield is too dear to rebuild this often)
+      const me = this.center();
+      const g = goal.center();
+      const len = Math.hypot(g.x - me.x, g.y - me.y);
+      if (len > 0) {
+        this.navDir = { x: (g.x - me.x) / len, y: (g.y - me.y) / len };
+        this.navPull = pull;
+      }
       return;
     }
     // borrow the shared chase navigation, keep only the direction it picks

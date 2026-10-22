@@ -4,6 +4,7 @@ import { resolveDifficulty } from './entities/duelWizard.js';
 import { loadModels } from './render/models.js';
 import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
+import { BattleRules } from './entities/battle.js';
 
 // Same URLs as the 2D game: /?mode=duel&ai=hard starts a duel, ?mode=survival
 // the descent, ?mode=battle&ai=hard a battle. Without a mode the main menu is shown.
@@ -39,12 +40,12 @@ const modelsReady = loadModels();
 
 // Duel options: progressive rules (one spell, loot the rest) unless
 // ?rules=classic, fought in the rooms dungeon unless ?map=arena. Battle
-// armies are orcs unless ?race=dwarf|human|elf|random.
-const raceParam = (window.location.search.match(/[?&]race=(orc|dwarf|human|elf|random)/i) || [])[1];
+// armies are BattleRules.army a side unless ?army=N.
+const armyParam = (window.location.search.match(/[?&]army=(\d+)/i) || [])[1];
 const duelOptions = {
   rules: /[?&]rules=classic/i.test(window.location.search) ? 'classic' : 'progressive',
   map: /[?&]map=arena/i.test(window.location.search) ? 'arena' : 'rooms',
-  race: raceParam ? raceParam.toLowerCase() : 'orc'
+  army: armyParam || String(BattleRules.army)
 };
 function showDuelOptions() {
   for (const key of Object.keys(duelOptions)) {
@@ -77,7 +78,6 @@ function start(mode, difficulty) {
     difficulty,
     rules: duelOptions.rules,
     map: duelOptions.map,
-    race: duelOptions.race,
     onExit(action) {
       if (action === 'restart') {
         start(mode, difficulty);
@@ -132,7 +132,7 @@ for (const button of menu.querySelectorAll('[data-mode]')) {
       query = '?mode=duel&ai=' + ai + (duelOptions.rules === 'classic' ? '&rules=classic' : '') +
         (duelOptions.map === 'arena' ? '&map=arena' : '');
     } else if (mode === 'battle') {
-      query = '?mode=battle&ai=' + ai + (duelOptions.race !== 'orc' ? '&race=' + duelOptions.race : '');
+      query = '?mode=battle&ai=' + ai + '&army=' + duelOptions.army;
     }
     history.replaceState(null, '', window.location.pathname + query);
     modelsReady.then(() => start(mode, ai));

@@ -126,14 +126,17 @@ export class Gfx {
     const sky = on ? 0x9aa6b0 : 0x07070a;
     this.scene.background.setHex(sky);
     this.scene.fog.color.setHex(sky);
-    this.scene.fog.near = on ? 70 : 26;
-    this.scene.fog.far = on ? 190 : 58;
-    this.zoomMax = on ? 90 : 40;
-    this.zoomTarget = on ? 46 : 26;
+    // great battles are watched from high above
+    this.scene.fog.near = on ? 120 : 26;
+    this.scene.fog.far = on ? 420 : 58;
+    this.camera.far = on ? 700 : 400;
+    this.camera.updateProjectionMatrix();
+    this.zoomMax = on ? 180 : 40;
+    this.zoomTarget = on ? 70 : 26;
   }
 
   zoomBy(steps) {
-    const step = this.zoomMax > 40 ? 5 : 2.5;
+    const step = this.zoomMax > 40 ? Math.max(5, this.zoomTarget * 0.1) : 2.5;
     this.zoomTarget = clamp(this.zoomTarget + steps * step, this.zoomMin, this.zoomMax);
   }
 

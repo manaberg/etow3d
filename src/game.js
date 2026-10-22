@@ -12,7 +12,7 @@ import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
 import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
-import { Zone, MirrorImage } from './entities/spells.js';
+import { Zone, MirrorImage, Projectile } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.js';
 import { Kits, outfit, rollGear } from './entities/gear.js';
 import { DuelLoot, DuelSpells, startRank } from './entities/duelLoot.js';
@@ -35,6 +35,9 @@ const PWKILL = {
   tier2: { target: 300, splash: 230, radius: 230 }
 };
 
+// the zones that slow whoever stands in them
+const SLOWING_ZONES = new Set(['blizzard', 'guardians', 'gloom']);
+
 const STAT_KEYS = [
   'wincount', 'killcount', 'bosscount', 'micount', 'fbcount', 'lgcount', 'iscount', 'bzcount', 'bkcount',
   'hscount', 'tscount', 'shcount', 'lscount', 'imcount', 'fecount', 'incount', 'crcount', 'tlcount', 'pwkcount',
@@ -42,15 +45,13 @@ const STAT_KEYS = [
 ];
 
 export class Game {
-  constructor({ container, hudRoot, mode, difficulty, rules, map, race, onExit }) {
+  constructor({ container, hudRoot, mode, difficulty, rules, map, onExit }) {
     this.mode = mode;
     // battles are duels between two wizards with armies: they share the duel
     // rules (spell damage, global cooldown, the rival's brain and HUD panel)
     this.battleMode = mode === 'battle';
     this.duelMode = mode === 'duel' || this.battleMode;
     this.battle = null;
-    // the player's army in battles: orc, dwarf, human, elf or random
-    this.race = race || 'orc';
     this.difficulty = difficulty || 'hard';
     // duels are progressive (start with one spell, loot the rest) unless classic
     this.progressive = mode === 'duel' && rules !== 'classic';
@@ -95,7 +96,7 @@ export class Game {
 
     if (this.battleMode) {
       this.battle = new Battle(this);
-      this.battle.startRound();
+      this.battle.start();
     } else if (this.duelMode) {
       this.startDuel();
     } else {
@@ -103,7 +104,7 @@ export class Game {
     }
     this.hud.build();
     if (this.battle) {
-      this.hud.onBattleRound(this.battle);
+      this.hud.onBattleStart(this.battle);
     }
     if (this.mode === 'duel' && !this.progressive) {
       this.loadout = true;
@@ -586,14 +587,16 @@ export class Game {
   }
 
   listHostiles(team) {
+    // battle soldiers and dragons belong to a side; dungeon dragons have none
     if (team === 'player') {
       return this.entities.filter((e) => !e.killed && (
-        e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof Dragon || e instanceof DuelWizard ||
-        (e instanceof MirrorImage && e.source !== this.player) || (e instanceof Soldier && e.side === 'enemy')
+        e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || (e instanceof Dragon && e.side !== 'player') ||
+        e instanceof DuelWizard || (e instanceof MirrorImage && e.source !== this.player) || (e instanceof Soldier && e.side === 'enemy')
       ));
     }
     return this.entities.filter((e) => !e.killed && (
-      e === this.player || (e instanceof MirrorImage && e.source === this.player) || (e instanceof Soldier && e.side === 'player')
+      e === this.player || (e instanceof MirrorImage && e.source === this.player) ||
+      ((e instanceof Soldier || e instanceof Dragon) && e.side === 'player')
     ));
   }
 
@@ -655,17 +658,42 @@ export class Game {
   // Slow factor from the zones covering an entity (blizzards of the other side).
   zoneSlow(entity) {
     let slow = 1;
-    const friendlyTeam = entity === this.player || (entity instanceof MirrorImage && entity.source === this.player) ? 'player' : 'enemy';
-    for (const e of this.entities) {
-      if (e instanceof Zone && !e.killed && e.kind === 'blizzard' && e.team !== friendlyTeam && e.covers(entity)) {
+    // battle soldiers and dragons carry their side
+    const friendlyTeam = entity.side || (entity === this.player || (entity instanceof MirrorImage && entity.source === this.player) ? 'player' : 'enemy');
+    this.liveZones();
+    for (const e of this._slowZones) {
+      if (e.killed || e.team === friendlyTeam || !e.covers(entity)) {
+        continue;
+      }
+      if (e.kind === 'blizzard') {
         slow = Math.min(slow, entity.slowIn ? entity.slowIn(e) : 0.5);
-      } else if (e instanceof Zone && !e.killed && e.kind === 'guardians' && e.team !== friendlyTeam && e.covers(entity)) {
+      } else if (e.kind === 'guardians') {
         slow = Math.min(slow, 0.6);
-      } else if (e instanceof Zone && !e.killed && e.kind === 'gloom' && e.team !== friendlyTeam && e.covers(entity)) {
+      } else if (e.kind === 'gloom') {
         slow = Math.min(slow, 0.55);
       }
     }
     return slow;
+  }
+
+  // The bolts in flight, gathered once a step: magic missiles look for
+  // bolts to shoot down.
+  liveBolts() {
+    if (this._boltFrame !== this.navFrame || !this._bolts) {
+      this._boltFrame = this.navFrame;
+      this._bolts = this.entities.filter((e) => e instanceof Projectile && !e.killed);
+    }
+    return this._bolts;
+  }
+
+  // The zones on the ground, gathered once a step: every moving body asks.
+  liveZones() {
+    if (this._zoneFrame !== this.navFrame || !this._zones) {
+      this._zoneFrame = this.navFrame;
+      this._zones = this.entities.filter((e) => e instanceof Zone && !e.killed);
+      this._slowZones = this._zones.filter((e) => SLOWING_ZONES.has(e.kind));
+    }
+    return this._zones;
   }
 
   // The word kills around its target too: every orc within the splash takes
@@ -889,8 +917,13 @@ export class Game {
     this.fx.ring(c.x, c.y, { color: 0x60ff80, radius: 50, life: 0.5 });
   }
 
-  deathFx(entity) {
+  deathFx(entity, light) {
     const c = entity.center();
+    if (light) {
+      // battles: thousands fall, so a little spray each
+      this.fx.burst(c.x, c.y, 1.2, { color: [0x8a1010, 0xd02020], count: 8, speed: 4, life: 0.5, size: 1, gravity: 9, lift: 2 });
+      return;
+    }
     const big = entity.size.x > 48 ? 2 : 1;
     this.fx.burst(c.x, c.y, 1.2 * big, { color: [0x8a1010, 0xd02020, 0x401010], count: 40 * big, speed: 5 * big, life: 0.7, size: 1.1 * big, gravity: 9, lift: 2 });
     this.fx.burst(c.x, c.y, 0.5, { color: 0x403830, count: 16 * big, speed: 2 * big, life: 1.2, size: 2 * big, flat: true, drag: 3 });
@@ -1154,9 +1187,13 @@ export class Game {
 
   render(dt) {
     const time = this.elapsed;
+    if (this.army) {
+      this.army.begin();
+    }
     for (const e of this.entities) {
-      // instanced battle orcs have no view of their own but still pose
-      if (e.view || e.instance) {
+      // instanced battle orcs and batched bolts have no view of their own
+      // but still pose
+      if (e.view || e.instance || e.batched) {
         e.syncView(time, dt);
       }
     }
@@ -1165,6 +1202,9 @@ export class Game {
     }
     if (this.army) {
       this.army.flush();
+    }
+    if (this.bolts) {
+      this.bolts.flush();
     }
     const player = this.player;
     let focus = player ? player.center() : { x: 0, y: 0 };
@@ -1203,6 +1243,9 @@ export class Game {
     }
     if (this.army) {
       this.army.dispose();
+    }
+    if (this.bolts) {
+      this.bolts.dispose();
     }
     this.input.dispose();
     this.hud.dispose();

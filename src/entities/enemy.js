@@ -10,6 +10,8 @@ import { rankPower } from './spellbar.js';
 // Damage reflected enemy bolts deal when a shield sends them back.
 const REFLECTED_DAMAGE = { iceshard: 30, stormbolt: 60, acidbolt: 50, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
 const CHAIN_MEMORY = 45;
+// most foes a chain jumps to at once in a battle
+const CHAIN_JUMPS = 24;
 // share of its speed a chilled monster keeps
 const CHILL_SLOW = 0.4;
 
@@ -104,7 +106,8 @@ export class Enemy extends Entity {
         p.kill();
         this.explode(c);
         // in battles the blast catches the whole regiment around the hit
-        for (const other of (game.battle ? game.hostilesOf(p.team) : game.orcs())) {
+        const caught = game.battle ? game.battle.near(this, this.fireSplash + 60, p.team === 'player' ? 'enemy' : 'player') : game.orcs();
+        for (const other of caught) {
           if (other !== this && other.alive && other.distanceTo(this) < this.fireSplash) {
             other.hurt(101, 'fire');
           }
@@ -174,17 +177,28 @@ export class Enemy extends Entity {
     }
   }
 
-  // Lightning and chain root jump to every foe of the caster within 400px.
+  // Lightning and chain root jump to every foe of the caster within 400px
+  // (in a battle's packed ranks, to the nearest CHAIN_JUMPS of them).
   spreadChain(kind, stampKey, team = 'player') {
     const game = this.game;
     const c = this.center();
-    for (const other of game.hostilesOf(team)) {
+    const pool = game.battle ? game.battle.near(this, 400, team === 'player' ? 'enemy' : 'player') : game.hostilesOf(team);
+    const jumps = [];
+    for (const other of pool) {
       if (other === this || !other.alive || !(stampKey in other)) {
         continue;
       }
-      if (other.distanceTo(this) < 400 && game.navFrame - other[stampKey] >= CHAIN_MEMORY) {
-        game.spawn(Projectile, c.x, c.y, { kind, angle: this.angleTo(other), team });
+      const d = other.distanceTo(this);
+      if (d < 400 && game.navFrame - other[stampKey] >= CHAIN_MEMORY) {
+        jumps.push({ other, d });
       }
+    }
+    if (game.battle && jumps.length > CHAIN_JUMPS) {
+      jumps.sort((a, b) => a.d - b.d);
+      jumps.length = CHAIN_JUMPS;
+    }
+    for (const { other } of jumps) {
+      game.spawn(Projectile, c.x, c.y, { kind, angle: this.angleTo(other), team });
     }
   }
 
@@ -201,8 +215,18 @@ export class Enemy extends Entity {
       this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k, 'cold');
     } else if (zone.kind === 'guardians') {
       this.hp -= this.resisted(Arcana.guardians.dps / 60 * k * rankPower(zone.timeOwner, 'guardians'), 'radiant');
-    } else if (zone.kind === 'cloud') {
+    } else if (zone.kind === 'cloud' && zone.timeOwner) {
       this.hp -= this.resisted(Arcana.cloud.dps / 60 * k * rankPower(zone.timeOwner, 'cloud'), 'poison');
+    } else if (zone.kind === 'cloud') {
+      // battles: a green dragon's poison
+      this.hp -= this.resisted(1.2 * k, 'poison');
+    } else if (zone.kind === 'fire') {
+      // battles: ground a red dragon set burning
+      this.hp -= this.resisted(1.5 * k, 'fire');
+    } else if (zone.kind === 'acid') {
+      this.hp -= this.resisted(1.2 * k, 'poison');
+    } else if (zone.kind === 'meteors') {
+      this.hp -= this.resisted(0.8 * k, 'fire');
     }
   }
 

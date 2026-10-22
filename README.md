@@ -63,30 +63,54 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 
 Three modes; the main menu explains each in full under **How each mode works**.
 
-**Battle.** You and a rival wizard each lead an army (blue against red) across open
-grassland ringed by cliffs. You pick your army's race on the menu (orcs, dwarves, humans,
-elves or random; `?race=dwarf` in the URL) and the rival fields a different race every
-battle. The races share the orcs' seven classes under their own names, models and missiles
-(`Races` in `src/world/levels.js`): dwarves are slow and take 30% more killing and shoot
-crossbows; humans are a little tougher, harder hitting and longer ranged than orcs; elves are
-quick and shoot a quarter further and straighter, but are frail. A match is best of five, and every battle is
-500 a side. Armies are split into regiments by type (infantry, slingers, knights, shock
-troops, mystics), each with a banner, deployed in lines with yours along the bottom of the
-screen facing up the field; you rearrange them before the battle (Space starts it early). Tab
-switches between spell mode (you play the wizard) and commander mode (the wizard stands, the
-camera roams, click or drag to select regiments, right-click to march them or to attack an
-enemy regiment); the J/K/L keys (charge, march and hold, follow) work in both. The orcs fight by class (brawlers close in, slingers and warlocks
-keep range, knights charge, shamans heal) and you turn the fight with spells: fireballs and
-blizzards into packed ranks, lightning chaining through them. The rival commands its own
-regiments (line charges, knights flank, mystics guard it). Orcs are drawn instanced
-(`src/render/armyRenderer.js`) and find foes and neighbours through a spatial grid, so 400 orcs
-cost about a millisecond a step. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
-with a one-dart magic missile and one random spell and eight bar slots; after each battle you
-draft one of three: a new spell, another magic missile dart or a rank for a spell you have
-(one of the three is a rank whenever there is one to take), and the rival learns one. Your bar
-keeps its order from battle to battle. Duel rules apply between the wizards, including the
-school lockouts. Battle orcs have double the dungeon orcs' health (`BattleRules` in
-`src/entities/battle.js`).
+**Battle.** One great battle, fought to the end: you and a rival wizard each lead a vast
+army (blue against red) across open grassland ringed by cliffs. The menu sets the size,
+about 3,000, 5,000 (the default), 8,000 or 12,000 a side (`?army=N` in the URL sets any
+other from 200 to 12,000); where a machine cannot keep up, the battle runs in slow motion.
+
+Both armies are random but equal (`BattleRules` in `src/entities/battle.js`). Each side is a
+different race, drawn at random, and rolls its own mix of regiment types around their usual
+shares (a rarer type may stay home), but both armies are bought with the same budget of
+points: every class has a price (`classCost`, a grunt 0.85 and a warlock 3.2) and every race
+a multiplier (`raceCost`), so a costly army is a smaller one. The prices were tuned by
+fighting armies against each other with the wizards left out: matched race against race and
+mix against mix, on both sides of the field, they come out about as even as two identical
+armies do. The races share the orcs' seven classes
+under their own names, models and missiles (`Races` in `src/world/levels.js`): dwarves are
+slow and take 30% more killing and shoot crossbows; humans are a little tougher, harder
+hitting and longer ranged than orcs; elves are quick and shoot a quarter further and
+straighter, but are frail.
+
+Dragons fight on both sides (`src/entities/battleDragon.js`): one for about every 650
+soldiers, the same ages for both armies (wyrmlings to ancients) in random colours. They
+follow their regiment's orders like soldiers, fly over the lines to reach a foe, breathe
+through whole regiments (fire and acid leave burning ground and pools, poison a cloud, frost
+a blizzard, lightning stuns), and the older ones sweep with their tails, beat their wings,
+roar foes into flight and cast their colour's spell. Soldiers on foot cannot reach a dragon
+in the air, but archers and spells can. Their bites and breath hit soldiers five times as
+hard as they would the mage (`dragonVsTroops`), and they have twice their dungeon health.
+
+Armies are split into regiments by type (infantry, slingers, knights, shock troops, mystics,
+dragons), about sixteen a side, each with a banner, deployed in lines with yours along the
+bottom of the screen facing up the field; you have 25 seconds to rearrange them before the
+battle starts (Space starts it early). Tab switches between spell mode (you play the wizard)
+and commander mode (the wizard stands, the camera roams and zooms far out, click or drag to
+select regiments, right-click to march them or to attack an enemy regiment); the J/K/L keys
+(charge, march and hold, follow) work in both. Soldiers fight by class (brawlers close in,
+slingers and warlocks keep range, knights charge, shamans heal) and you turn the fight with
+spells: fireballs and blizzards into packed ranks, lightning chaining through them (to the
+nearest 24 in a battle). The rival commands its own regiments (line charges, knights flank,
+mystics guard it). Both wizards start with ten random spells on a ten-slot bar and a
+three-dart magic missile, and duel rules apply between them, including the school lockouts.
+The battle is lost when your wizard falls or your army, dragons included, is destroyed.
+Battle soldiers have double the dungeon orcs' health.
+
+Armies this size are simulated and drawn with care for speed. Soldiers find foes and
+neighbours through a spatial grid rebuilt every step by counting sort, and bolts, zones and
+splashes only look at the grid cells around them. Soldiers are drawn instanced
+(`src/render/armyRenderer.js`): near the camera the full model with swinging limbs, further
+off a coarse copy in one piece, and nothing off screen; the armies' arrows, stones and bolts
+are instanced too (`src/render/boltRenderer.js`).
 
 **Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
 through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
@@ -115,7 +139,7 @@ E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to
   10 and 12, and C at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
   spell waiting in the book. Duels and battles have no levels: progressive duels open six
-  slots, classic duels and battles eight.
+  slots, classic duels eight and battles all ten.
 - **Circles** (survival). A scroll only teaches spells of the circles its floor has reached:
   circle I from floor 1, II from floor 3, III from floor 6 and IV from floor 9 (table below).
 - **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
@@ -158,8 +182,8 @@ E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
 little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
 game's single missile (51, plus gear); between wizards a dart deals 36. Survival scrolls are
-magic missile scrolls 15% of the time until the third dart; progressive duels and battles
-start both wizards at one dart (scrolls or the battle draft add more), classic duels give
+magic missile scrolls 15% of the time until the third dart; progressive duels start both
+wizards at one dart (scrolls add more), classic duels and battles give
 both all three, and the dungeon's dark wizards have two from depth 3 and three from depth 6.
 
 Every spell belongs to a school of magic, shown beside it in the spell list:
