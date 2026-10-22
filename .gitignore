@@ -6,3 +6,4 @@ data/*.sqlite-*
 *.log
 __pycache__/
 *.blend1
+.firebase/

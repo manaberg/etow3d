@@ -33,6 +33,14 @@ npm start          # http://localhost:8080 (PORT and SESSION_SECRET are read fro
 The game also runs from any static host (`dist/` after `npm run build`); runs are then just
 not saved.
 
+`firebase.json` publishes `dist/` to the `etow3d` site in the `flubber-8ae55` Firebase
+project, live at https://etow3d.web.app (static only, so runs aren't saved there):
+
+```sh
+npm run build
+npx firebase-tools deploy --only hosting
+```
+
 URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=duel&ai=normal|hard|insane`
 starts a duel, and `/` shows the main menu.
 

@@ -1,0 +1,21 @@
+{
+  "hosting": {
+    "site": "etow3d",
+    "public": "dist",
+    "ignore": [
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  }
+}
