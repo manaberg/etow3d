@@ -4,6 +4,8 @@
 //   FIREBASE_SERVICE_ACCOUNT=<service account JSON, or the same base64-encoded> \
 //     node scripts/deploy-hosting.mjs
 //
+// `--dry-run` lists what would go up and stops there (no credentials needed).
+//
 // The site, the folder to publish, what to leave out and the headers come
 // from firebase.json (hosting.site, hosting.public, hosting.ignore,
 // hosting.headers), the project from .firebaserc. The CLI
@@ -106,6 +108,12 @@ function collectFiles(dir) {
 async function main() {
   const site = hosting.site || project;
   const dir = path.resolve(root, hosting.public || '.');
+  if (process.argv.includes('--dry-run')) {
+    const { files } = collectFiles(dir);
+    console.log(Object.keys(files).sort().join('\n'));
+    console.log(`${Object.keys(files).length} files from ${path.relative(root, dir) || '.'} would go to ${site} (${project})`);
+    return;
+  }
   const token = await accessToken(serviceAccount());
   const call = async (url, method = 'GET', body) => {
     const res = await fetch(url.startsWith('http') ? url : API + url, {
