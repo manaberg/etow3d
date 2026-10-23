@@ -97,6 +97,8 @@ export class DuelWizard extends Enemy {
       this.cdLeft[spell] = 0;
     }
     this.ironCharges = 2;
+    // power word kill being spoken: { left } frames
+    this.channel = null;
     // the spells it has cast, for the one it teaches when slain
     this.castSpells = new Set();
     this.frame = 0;
@@ -196,6 +198,36 @@ export class DuelWizard extends Enemy {
       // attacking breaks invisibility
       this.invisFrames = 0;
     }
+  }
+
+  // Power word kill being spoken, one frame: it stands still; a root, fear or
+  // polymorph breaks it off. It lands if the player is still alive, visible
+  // and in sight; otherwise it costs nothing but a moment's pause.
+  speakWord(player) {
+    const game = this.game;
+    this.vel.x = 0;
+    this.vel.y = 0;
+    if (this.isStunned || this.isFeared || this.sheepFrames > 0) {
+      this.channel = null;
+      this.cdLeft.pwkill = Math.max(this.cdLeft.pwkill, 60);
+      return;
+    }
+    const me = this.center();
+    if (Math.random() < 0.6) {
+      game.fx.emit(me.x, me.y, 2.2, { color: [0x9a40ff, 0x200830], life: 0.5, size: 0.7, vy: 2 });
+    }
+    if (--this.channel.left > 0) {
+      return;
+    }
+    this.channel = null;
+    const pc = player ? player.center() : null;
+    if (!player || player.dead || player.invis || !this.canSee(pc.x, pc.y)) {
+      this.cdLeft.pwkill = Math.max(this.cdLeft.pwkill, 60);
+      return;
+    }
+    game.skullFx(pc.x, pc.y);
+    DuelRules.applyHit(player, 'pwkill', this, this.hitScale);
+    this.spend('pwkill', true);
   }
 
   // Survival: the spell (the player's id) its scroll teaches when slain, one
@@ -362,7 +394,9 @@ export class DuelWizard extends Enemy {
       this.acc -= 1;
       this.frame++;
       this.tickTimers();
-      if (player && !player.dead && !game.duelMode && !game.updateAggro(this, player, game.hasRoomLineOfSight(this, player))) {
+      if (this.channel) {
+        this.speakWord(player);
+      } else if (player && !player.dead && !game.duelMode && !game.updateAggro(this, player, game.hasRoomLineOfSight(this, player))) {
         game.idleEntity(this);
       } else if (player && !player.dead && !deploying) {
         this.inSlowZone = game.zoneSlow(this) < 1;
@@ -1011,13 +1045,14 @@ export class DuelWizard extends Enemy {
     if (this.invis && !helpless && !(this.tactic === 'engage' && dist < 290)) {
       return;
     }
-    // power word kill cannot be dodged or reflected
+    // power word kill cannot be dodged or reflected, but it takes a second
+    // to speak, standing still (speakWord)
     if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill * this.hitScale) &&
       Math.random() < this.ai.pwkillRate) {
-      const pc = player.center();
-      game.skullFx(pc.x, pc.y);
-      DuelRules.applyHit(player, 'pwkill', this, this.hitScale);
-      this.spend('pwkill', true);
+      this.channel = { left: DuelRules.pwkillCast };
+      this.vel.x = 0;
+      this.vel.y = 0;
+      game.hud.toast((game.duelMode ? 'THE RIVAL' : 'THE DARK WIZARD') + ' SPEAKS A WORD OF DEATH', '#c040ff');
       return;
     }
     // time stop: everyone crawls except us, then unload

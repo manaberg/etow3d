@@ -5,6 +5,10 @@ export const DuelRules = {
   hp: 700,
   stunFrames: 120,
   fearFrames: 120,
+  // power word kill is spoken over this many frames, standing still (any
+  // caster: the mage, the rival, the dark wizards); a root, fear or
+  // polymorph breaks it off
+  pwkillCast: 60,
   rayHeal: 3,
   damage: {
     // per dart: a cast looses one to three by tier (spells.js MissileTiers),

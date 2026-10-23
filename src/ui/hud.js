@@ -69,6 +69,10 @@ export class Hud {
     root.classList.toggle('battle', !!game.battleMode);
 
     this.labels = el('canvas', 'hud-labels', root);
+    // a spell being spoken (power word kill): its name and how far along
+    this.castBar = el('div', 'hud-castbar hidden', root);
+    this.castFill = el('div', 'hud-castbar-fill', this.castBar);
+    el('div', 'hud-castbar-text', this.castBar, 'POWER WORD KILL');
     // item names on the floor (drawLootLabels), toggled by a key
     this.lootNames = true;
     this.itemTags = [];
@@ -292,6 +296,11 @@ export class Hud {
     setText(this.hpBar.text, Math.max(0, Math.round(player.hp)) + '');
     this.myBar.fill.style.width = Math.max(0, Math.min(1, player.manergy / player.maxManergy) * 100) + '%';
     setText(this.myBar.text, Math.max(0, Math.round(player.manergy)) + ' / ' + player.maxManergy);
+    const ch = player.channel;
+    this.castBar.classList.toggle('hidden', !ch);
+    if (ch) {
+      this.castFill.style.width = Math.min(100, (1 - ch.left / ch.total) * 100) + '%';
+    }
 
     if (this.xpBar) {
       const table = WizardLevels.xp;

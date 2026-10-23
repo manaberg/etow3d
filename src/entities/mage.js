@@ -92,6 +92,8 @@ export class Mage extends Entity {
     this.walkTo = null;
     this.walkBest = Infinity;
     this.walkStall = 0;
+    // a spell being spoken (power word kill): { target, left, total }
+    this.channel = null;
     // cooldown frames left per spell (0 = ready), and the length of a wait
     // longer than the spell's own cooldown (one just put on the bar)
     this.cdFull = {};
@@ -449,7 +451,7 @@ export class Mage extends Entity {
     this.tickTimers(k);
     // battles: while the armies deploy, or while the wizard commands them,
     // it stands still and casts nothing (but still regenerates and can fall)
-    const standing = !!game.battle && (!game.battle.fighting || game.battle.commander);
+    const standing = (!!game.battle && (!game.battle.fighting || game.battle.commander)) || !!this.channel;
     this.updateLootClick();
 
     // movement
@@ -512,7 +514,9 @@ export class Mage extends Entity {
       this.hp = Math.min(this.maxHp, this.hp + mend / 60 * k);
     }
 
-    if (!standing && this.sheepFrames <= 0) {
+    if (this.channel) {
+      this.speakWord(k);
+    } else if (!standing && this.sheepFrames <= 0) {
       this.castSpells();
     }
     this.move(k);
@@ -750,11 +754,11 @@ export class Mage extends Entity {
       game.fx.ring(c.x, c.y, { color: 0xc040ff, radius: reach, life: 0.6 });
     }
     if (this.wants('pwkill') && this.canCast('pwkill')) {
+      // the word takes a second to speak, standing still (speakWord)
       const target = game.hoveredHostile();
       if (target) {
-        game.powerWordKill(target);
-        stats.pwkcount++;
-        this.spend('pwkill');
+        this.channel = { target, left: DuelRules.pwkillCast, total: DuelRules.pwkillCast };
+        this.rig.swing();
       }
     }
     if (this.wants('tele') && this.canCast('tele')) {
@@ -767,6 +771,37 @@ export class Mage extends Entity {
       }
     }
     castArcana(this);
+  }
+
+  // Power word kill being spoken: the mage stands still for its cast; a root,
+  // fear or polymorph breaks it off. It lands on the foe it was spoken at if
+  // that one is still alive and in sight, and otherwise costs nothing.
+  speakWord(k) {
+    const game = this.game;
+    const ch = this.channel;
+    if (this.isStunned || this.isFeared || this.sheepFrames > 0 || this.dead) {
+      this.channel = null;
+      game.hud.toast('POWER WORD KILL :: BROKEN OFF', '#c090ff');
+      return;
+    }
+    ch.left -= k;
+    const c = this.center();
+    if (Math.random() < 0.6) {
+      game.fx.emit(c.x, c.y, 2.2, { color: [0x9a40ff, 0x200830], life: 0.5, size: 0.7, vy: 2 });
+    }
+    if (ch.left > 0) {
+      return;
+    }
+    this.channel = null;
+    const target = ch.target;
+    const t = target.center();
+    if (target.killed || target.hp <= 0 || target.invis || !game.world.hasLineOfSight(c.x, c.y, t.x, t.y)) {
+      game.hud.toast('POWER WORD KILL :: THE WORD FINDS NO ONE', '#c090ff');
+      return;
+    }
+    game.powerWordKill(target);
+    game.stats.pwkcount++;
+    this.spend('pwkill');
   }
 
   // A bolt reached the mage.

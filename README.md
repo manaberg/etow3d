@@ -247,7 +247,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | disintegrate (a ray into the first enemy in line) | III | +30% damage |
 | time stop | IV | +30% duration |
 | meteor swarm at the cursor | IV | +30% damage |
-| power word kill (hover an enemy) | IV | a wider, deeper splash |
+| power word kill (hover an enemy; a one-second cast standing still, which a root, fear or polymorph breaks off) | IV | a wider, deeper splash |
 
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
@@ -356,8 +356,13 @@ are full, and after that raises a spell's rank (potions heal or restore manergy)
 runs for loot when it is worth it and tells you what it learned. **Classic** duels
 (`?rules=classic`, or the toggle on the menu) put every spell in the book, the ten D&D spells
 included: the duel opens on the spellbook to choose the eight spells for your bar (free until
-you start; the last loadout is remembered), and shows the eight the rival brings (shield, blink
-and fireball, and five at random).
+you start), and shows the eight the rival brings (shield, blink and fireball, and five at
+random). There each slot also gets a key of its own, the **duel keys**, which hold only in
+classic duels and take over whatever else that key does (movement, camera, missile, pause,
+inventory and spellbook keys stay put). **Save as my loadout** keeps the bar and its keys for
+the next classic duels; **Default loadout** brings back the built-in one: fireball on Q, iron
+shot on E, chain root on F, blink on R, disintegrate on G, shield on 4, chain lightning on 1
+and time stop on 2.
 Instead of a global cooldown, a cast locks the rest of its school for the school's lockout
 (table above), so spells of different schools can be woven back to back; magic missile and
 lifesteal never lock (`DuelRules.schools`). Survival has no lockouts. The rival wizard reads the

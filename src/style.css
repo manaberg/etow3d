@@ -243,6 +243,37 @@ button.danger {
   inset: 0;
 }
 
+.hud-castbar {
+  position: absolute;
+  left: 50%;
+  bottom: 120px;
+  width: 220px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+  border: 1px solid rgba(192, 144, 255, 0.7);
+  background: rgba(10, 6, 16, 0.8);
+  overflow: hidden;
+}
+
+.hud-castbar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #4a1a8a, #c090ff);
+}
+
+.hud-castbar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #f0e6ff;
+  text-shadow: 0 1px 2px #000;
+}
+
 .hud-vignette {
   position: absolute;
   inset: 0;
@@ -879,6 +910,39 @@ button.rule.active {
   color: var(--accent);
   font-size: 13px;
   margin-bottom: 4px;
+}
+
+.sb-keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.hud button.sb-keybind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 6px;
+  font-size: 9px;
+  text-align: left;
+}
+
+.hud button.sb-keybind.capturing {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sb-keybind-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sb-key-status {
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 11px;
 }
 
 .sb-rival {

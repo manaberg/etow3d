@@ -17,22 +17,23 @@ import { Zone, MirrorImage, Projectile } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.js';
 import { Kits, outfit, rollGear } from './entities/gear.js';
 import { DuelLoot, DuelSpells, startRank } from './entities/duelLoot.js';
-import { actionKeyLabel } from './core/bindings.js';
+import { actionKeyLabel, currentSlotKeys, setSlotKeys } from './core/bindings.js';
 import { setting } from './core/settings.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
 
-// Classic duels: the player's eight spells before they choose (spell ids,
-// placed in order), the spells the rival always takes, and where the
-// player's last loadout is kept.
 // camera: radians turned per pixel the mouse is dragged, and per second a
 // turn key is held, at 100% (the controls screen scales both)
 const CAMERA_DRAG = 0.003;
 const CAMERA_TURN = 1.4;
-const CLASSIC_LOADOUT = ['blink', 'fireball', 'lightning', 'shield', 'ironshot', 'haste', 'image', 'timestop'];
+// Classic duels: the default loadout (the bar's eight spells in slot order,
+// and a key for each slot that holds only in classic duels), the spells the
+// rival always takes, and where the player's own loadout is kept.
+const CLASSIC_LOADOUT = ['fireball', 'ironshot', 'stun', 'blink', 'disintegrate', 'shield', 'lightning', 'timestop'];
+const CLASSIC_KEYS = { slot1: 'KeyQ', slot2: 'KeyE', slot3: 'KeyF', slot4: 'KeyR', slot5: 'KeyG', slot6: 'Digit4', slot7: 'Digit1', slot8: 'Digit2' };
 const RIVAL_CORE = ['shield', 'blink', 'fireball'];
-const LOADOUT_KEY = 'etow3d.loadout';
+const LOADOUT_KEY = 'etow3d.duelLoadout';
 
 // Power word kill: damage to the target (at least its own pwkillDamage) and to
 // every orc within the splash radius around it.
@@ -250,25 +251,40 @@ export class Game {
     }
   }
 
-  // The player's classic loadout: the last one chosen, or the default.
+  // The player's classic loadout, { bar, keys }: the one they saved, or the
+  // default.
   savedLoadout() {
     try {
-      const bar = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
-      if (Array.isArray(bar)) {
-        return bar;
+      const saved = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
+      if (saved && Array.isArray(saved.bar)) {
+        return { bar: saved.bar, keys: { ...CLASSIC_KEYS, ...(saved.keys || {}) } };
       }
     } catch {
       // the default then
     }
-    return null;
+    return this.defaultLoadout();
   }
 
+  defaultLoadout() {
+    return { bar: CLASSIC_LOADOUT.slice(), keys: { ...CLASSIC_KEYS } };
+  }
+
+  // Keeps the bar and the duel keys as they are now for the next classic
+  // duels. Returns whether it could.
   saveLoadout(player) {
     try {
-      localStorage.setItem(LOADOUT_KEY, JSON.stringify(player.bar));
+      localStorage.setItem(LOADOUT_KEY, JSON.stringify({ bar: player.bar.slice(0, player.slotLimit), keys: currentSlotKeys() }));
+      return true;
     } catch {
-      // not kept: the default comes back next time
+      return false;
     }
+  }
+
+  // Puts a loadout on the player's bar and keys (the loadout screen).
+  applyLoadout(player, loadout) {
+    const known = player.learnOrder.slice();
+    player.resetSpells(known, { slots: player.slotLimit, ranks: player.ranks, bar: loadout.bar });
+    setSlotKeys(loadout.keys);
   }
 
   configureDuelPlayer(player) {
@@ -291,7 +307,12 @@ export class Game {
       ranks[id] = 2;
     }
     const order = [...CLASSIC_LOADOUT, ...ids.filter((id) => !CLASSIC_LOADOUT.includes(id))];
-    player.resetSpells(order, { slots: WizardLevels.classicSlots, ranks, bar: this.savedLoadout() });
+    const loadout = this.savedLoadout();
+    player.resetSpells(order, { slots: WizardLevels.classicSlots, ranks, bar: loadout.bar });
+    // classic duels play on the loadout's own keys
+    if (!this.progressive) {
+      setSlotKeys(loadout.keys);
+    }
     // the 2D duel's five rings come built in
     player.innate = { ...DuelInnate };
     player.is2Charges = 3;
@@ -1092,7 +1113,6 @@ export class Game {
       if (this.loadout) {
         // the classic duel starts
         this.loadout = false;
-        this.saveLoadout(this.player);
       }
     }
   }
@@ -1312,6 +1332,8 @@ export class Game {
 
   dispose() {
     cancelAnimationFrame(this.frameHandle);
+    // duel keys hold only in their duel
+    setSlotKeys(null);
     for (const e of this.entities) {
       e.dispose();
     }

@@ -61,6 +61,10 @@ const OLD_KEY = 'etow3d.bindings.v2';
 const MOVED = ['camera_drag', 'missile', 'slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9', 'slot10'];
 
 let bindings = load();
+// Classic duels put the bar's slots on keys of the player's duel loadout
+// (game.js): while set, the slots answer to these keys instead, and they take
+// over whatever else those keys do outside duels.
+let slotKeys = null;
 let byCode = index();
 let version = 0;
 const listeners = new Set();
@@ -115,20 +119,31 @@ function save() {
 function index() {
   const map = { ...FIXED };
   for (const id in bindings) {
-    if (bindings[id]) {
+    if (bindings[id] && !(slotKeys && id in slotKeys)) {
       map[bindings[id]] = id;
+    }
+  }
+  if (slotKeys) {
+    for (const id in slotKeys) {
+      if (slotKeys[id]) {
+        map[slotKeys[id]] = id;
+      }
     }
   }
   return map;
 }
 
-function changed() {
+function refresh() {
   byCode = index();
   version++;
-  save();
   for (const fn of listeners) {
     fn();
   }
+}
+
+function changed() {
+  save();
+  refresh();
 }
 
 // The action a key code or mouse button triggers, if any.
@@ -137,7 +152,48 @@ export function actionFor(code) {
 }
 
 export function bindingOf(action) {
-  return bindings[action];
+  return slotKeys && action in slotKeys ? slotKeys[action] : bindings[action];
+}
+
+// ------------------------------------------------------------ duel slot keys
+
+// Actions a duel slot key may not take over.
+const KEPT = ['up', 'left', 'down', 'right', 'missile', 'camera_drag', 'camera_left', 'camera_right', 'camera_reset', 'pause', 'inventory', 'spellbook'];
+
+// Puts the bar's slots on their own keys ({ slot1: 'KeyQ', ... }), or back
+// on the bindings (null).
+export function setSlotKeys(keys) {
+  slotKeys = keys ? { ...keys } : null;
+  refresh();
+}
+
+export function currentSlotKeys() {
+  return slotKeys ? { ...slotKeys } : null;
+}
+
+// Why `code` cannot be a duel slot key (the action it must keep), or null.
+export function slotKeyBlocker(code) {
+  if (RESERVED.includes(code) || code in FIXED) {
+    return 'fixed';
+  }
+  const kept = KEPT.find((id) => bindings[id] === code);
+  return kept ? Actions.find((a) => a.id === kept).label : null;
+}
+
+// Puts a slot on `code` in the duel keys; a slot already on it takes the old
+// key in exchange. Returns false when the key must stay what it is.
+export function bindSlotKey(action, code) {
+  if (!slotKeys || !(action in slotKeys) || slotKeyBlocker(code)) {
+    return false;
+  }
+  for (const id in slotKeys) {
+    if (id !== action && slotKeys[id] === code) {
+      slotKeys[id] = slotKeys[action];
+    }
+  }
+  slotKeys[action] = code;
+  refresh();
+  return true;
 }
 
 // Binds `code` to `action`. An action already on that code takes the old
@@ -205,5 +261,5 @@ export function keyLabel(code) {
 }
 
 export function actionKeyLabel(action) {
-  return keyLabel(bindings[action]);
+  return keyLabel(bindingOf(action));
 }

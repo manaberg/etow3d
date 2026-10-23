@@ -88,6 +88,9 @@ export class InventoryScreen {
   show(open, tab = 'gear') {
     const opening = open && this.node.classList.contains('hidden');
     this.node.classList.toggle('hidden', !open);
+    if (!open) {
+      this.spellbook.stopCapture();
+    }
     if (open) {
       if (opening || tab !== this.tab) {
         this.selected = null;
