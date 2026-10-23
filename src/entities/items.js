@@ -59,6 +59,21 @@ export function scrollPool(depth) {
   return SpellBook.filter((s) => s.flag && CircleFloors[s.circle] <= depth).map((s) => s.id);
 }
 
+// Learns a spell, ranks up one already known, or (`id` 'missile') adds a
+// magic missile dart, and says so. Scrolls and the trials' spoils (mirror.js).
+export function studySpell(player, id) {
+  if (id === 'missile') {
+    player.rankUp('missile');
+    return 'MAGIC MISSILE :: ' + player.missileTier + ' DARTS';
+  }
+  if (player.knowsSpell(id)) {
+    return SpellById[id].name + ' :: RANK ' + ROMAN[player.rankUp(id)];
+  }
+  const slot = player.learnSpell(id);
+  return 'LEARNED :: ' + SpellById[id].name + ' :: ' +
+    (slot >= 0 ? 'ON ' + actionKeyLabel(BarSlots[slot].action) : 'IN YOUR SPELLBOOK (' + actionKeyLabel('spellbook') + ')');
+}
+
 export class Scroll extends Item {
   defaults() {
     super.defaults();
@@ -95,26 +110,13 @@ export class Scroll extends Item {
   }
 
   pickUp(player) {
-    if (this.game.duelLoot) {
-      this.game.duelLoot.takeScroll(player);
-      this.game.pickupFx(this, 0xfff0c0);
-      this.kill();
-      return;
-    }
     const id = this.choose(player);
     let message;
     if (!id) {
       player.manergy = player.maxManergy;
       message = 'NOTHING NEW IN IT :: MANERGY RESTORED';
-    } else if (id === 'missile') {
-      player.rankUp('missile');
-      message = 'MAGIC MISSILE :: ' + player.missileTier + ' DARTS';
-    } else if (player.knowsSpell(id)) {
-      message = SpellById[id].name + ' :: RANK ' + ROMAN[player.rankUp(id)];
     } else {
-      const slot = player.learnSpell(id);
-      message = 'LEARNED :: ' + SpellById[id].name + ' :: ' +
-        (slot >= 0 ? 'ON ' + actionKeyLabel(BarSlots[slot].action) : 'IN YOUR SPELLBOOK (' + actionKeyLabel('spellbook') + ')');
+      message = studySpell(player, id);
     }
     this.game.stats.scrollcount++;
     this.game.pickupFx(this, this.tier ? 0xffd040 : 0xfff0c0);
@@ -144,6 +146,7 @@ export class Potion extends Item {
   }
 
   pickUp(player) {
+    // in a duel trial the duel's potions (duelLoot.js), which either wizard can drink
     if (this.game.duelLoot) {
       this.game.duelLoot.takePotion(player, this.isBlue);
       this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);

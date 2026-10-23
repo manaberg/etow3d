@@ -79,15 +79,11 @@ export const DuelRules = {
     return this.lockFree.includes(spell) ? null : this.schoolOf(spell);
   },
 
-  // progressive duels (see duelLoot.js): frames until the first scroll and
-  // potion, frames between drops, how many may lie around at once, and what
-  // potions give
-  progressive: {
-    firstScroll: 180,
+  // duel trials (see duelLoot.js): frames until the first potion, frames
+  // between drops, how many may lie around at once, and what they give
+  loot: {
     firstPotion: 600,
-    scrollEvery: 420,
     potionEvery: 660,
-    maxScrolls: 3,
     maxPotions: 2,
     redHeal: 120,
     blueManergy: 60

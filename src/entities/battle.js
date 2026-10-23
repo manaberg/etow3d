@@ -1,33 +1,25 @@
 import * as THREE from 'three';
-import { Mage, SpellBook } from './mage.js';
-import { DuelWizard } from './duelWizard.js';
 import { Soldier } from './soldier.js';
-import { DuelSpells, MissileUpgrade, playerSpellId, startRank } from './duelLoot.js';
-import { MAX_MISSILE_TIER } from './spells.js';
-import { WizardLevels, RankRules, ROMAN } from './spellbar.js';
 import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 
-// Battle mode: a best-of-five match between two wizards, each leading an
-// army across open country. The player picks their army's race (orcs,
-// dwarves, humans or elves); the rival fields a different race every
-// battle. Every battle is 500 a side, and
-// the armies are split into regiments by unit type (infantry, slingers,
-// knights, shock troops, mystics) that the player commands one by one or
-// together: charge, march to a point and hold it, or follow the wizard.
-// Both wizards start with magic missile and one random spell; after every
-// battle the player picks one of three: a new spell, another magic missile
-// dart or a rank for a spell they have (spellbar.js), and the rival learns one.
-// A battle is lost when your wizard falls or your army is wiped out. Wizards
-// follow the duel rules (damage between them, school lockouts); orcs take
-// the dungeon damage, so a fireball wrecks a regiment.
+// Battle trials (levels.js Trials): the wizard and its reflection (mirror.js)
+// each lead an army across open country. The player picks their army's race
+// on the menu (orcs, dwarves, humans, elves or random); the reflection fields
+// a different race. Every battle is 500 a side, and the armies are split into
+// regiments by unit type (infantry, slingers, knights, shock troops, mystics)
+// that the player commands one by one or together: charge, march to a point
+// and hold it, or follow the wizard; deeper battles field more kinds of
+// regiment. The battle is won when the reflection falls or its army is
+// destroyed, and lost when the player's army is destroyed: the wizard falls
+// back down the stairs without the spoils (and the run ends if the wizard
+// falls). Wizards follow the duel rules (damage between them, school
+// lockouts); orcs take the dungeon damage, so a fireball wrecks a regiment.
 export const BattleRules = {
-  // orcs per side in each battle
-  armies: [500, 500, 500, 500, 500],
-  winsNeeded: 3,
-  draftChoices: 3,
+  // orcs per side
+  army: 500,
   // battle orcs are hardier than dungeon orcs, so wizards shape a battle
   // instead of deleting an army with magic missiles
   hpScale: 2,
@@ -36,7 +28,7 @@ export const BattleRules = {
   // regiments larger than this are split in two
   maxRegiment: 50,
   spacing: 44,
-  // share of each regiment type per battle
+  // share of each regiment type, one row per four floors of depth
   shares: [
     { infantry: 0.6, slingers: 0.4 },
     { infantry: 0.45, slingers: 0.3, knights: 0.25 },
@@ -44,6 +36,9 @@ export const BattleRules = {
     { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 },
     { infantry: 0.3, slingers: 0.2, knights: 0.15, shock: 0.2, mystics: 0.15 }
   ],
+  sharesAt(depth) {
+    return this.shares[Math.min(this.shares.length - 1, Math.floor((depth - 1) / 4))];
+  },
   // open battlefield in dungeon cells (2 tiles each) for an army of n a side:
   // wide for the battle lines, deep enough for three lines on either side
   field(n) {
@@ -83,29 +78,12 @@ function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export function spellLabel(entry, darts) {
-  if (entry === MissileUpgrade) {
-    return MissileUpgrade.name + ' :: ' + darts + ' DARTS';
-  }
-  const spell = SpellBook.find((s) => s.flag === entry.flag);
-  return spell ? spell.name : entry.id.toUpperCase();
-}
-
 export class Battle {
   constructor(game) {
     this.game = game;
-    this.round = 0;
-    this.score = { player: 0, enemy: 0 };
+    // the player's race, or a random one; the reflection's is any other
     const playerRace = Races[game.race] ? game.race : pick(Object.keys(Races));
-    this.races = { player: playerRace, enemy: null };
-    this.rollRivalRace();
-    this.playerSpells = new Set([pick(DuelSpells).id]);
-    this.rivalSpells = new Set([pick(DuelSpells).id]);
-    // spell ranks by duel spell id, and the player's bar between battles
-    this.ranks = { player: {}, enemy: {} };
-    this.playerBar = null;
-    // magic missile darts per cast; the draft can add more (MissileUpgrade)
-    this.missileTiers = { player: 1, enemy: 1 };
+    this.races = { player: playerRace, enemy: pick(Object.keys(Races).filter((r) => r !== playerRace)) };
     this.fighting = false;
     this.deploy = 0;
     this.fightFrames = 0;
@@ -125,59 +103,16 @@ export class Battle {
     this.attachMouse();
   }
 
-  // The rival's army for the next battle: any race but the player's, and not
-  // the one it just fielded.
-  rollRivalRace() {
-    const last = this.races.enemy;
-    const options = Object.keys(Races).filter((r) => r !== this.races.player && r !== last);
-    this.races.enemy = pick(options);
-  }
-
-  rankOf(side, entry) {
-    return this.ranks[side][entry.id] || startRank(entry);
-  }
-
-  // What a side could gain between battles: new spells, a dart, and ranks
-  // for the spells it has, as { kind, entry } ('learn', 'dart', 'rank').
-  draftPool(side) {
-    const known = side === 'player' ? this.playerSpells : this.rivalSpells;
-    const learn = DuelSpells.filter((e) => !known.has(e.id)).map((entry) => ({ kind: 'learn', entry }));
-    if (this.missileTiers[side] < MAX_MISSILE_TIER) {
-      learn.push({ kind: 'dart', entry: MissileUpgrade });
-    }
-    const rank = DuelSpells.filter((e) => known.has(e.id) && this.rankOf(side, e) < RankRules.max).map((entry) => ({ kind: 'rank', entry }));
-    return { learn, rank };
-  }
-
-  draftLabel(side, choice) {
-    if (choice.kind === 'dart') {
-      return spellLabel(MissileUpgrade, this.missileTiers[side] + 1);
-    }
-    const name = spellLabel(choice.entry);
-    return choice.kind === 'rank' ? name + ' :: RANK ' + ROMAN[this.rankOf(side, choice.entry) + 1] : name;
-  }
-
-  takeDraft(side, choice) {
-    if (choice.kind === 'dart') {
-      this.missileTiers[side]++;
-    } else if (choice.kind === 'rank') {
-      this.ranks[side][choice.entry.id] = this.rankOf(side, choice.entry) + 1;
-    } else {
-      (side === 'player' ? this.playerSpells : this.rivalSpells).add(choice.entry.id);
-    }
-  }
-
   get armySize() {
-    return BattleRules.armies[Math.min(this.round, BattleRules.armies.length - 1)];
+    return BattleRules.army;
   }
 
-  // ------------------------------------------------------------- rounds
-
-  startRound() {
+  // Lays out the field, the two armies and the two wizards: the player (with
+  // `carry`, everything brought down the stairs) and its reflection.
+  start(carry) {
     const game = this.game;
     const n = this.armySize;
     game.buildWorld(BattleRules.field(n));
-    game.gfx.setBattlefield(true);
     if (!game.army) {
       game.army = new ArmyRenderer(game.gfx);
     }
@@ -195,25 +130,7 @@ export class Battle {
     // the rival's along the top (dir is the way each army faces, in y)
     const wizardPlayer = this.deployArmy('player', n, top + height * 0.75, mid, -1);
     const wizardEnemy = this.deployArmy('enemy', n, top + height * 0.25, mid, 1);
-
-    const pl = game.spawn(Mage, wizardPlayer.x - 24, wizardPlayer.y - 24);
-    game.player = pl;
-    game.configureDuelPlayer(pl);
-    const known = DuelSpells.filter((entry) => this.playerSpells.has(entry.id));
-    const ranks = {};
-    for (const entry of known) {
-      ranks[playerSpellId(entry)] = this.rankOf('player', entry);
-    }
-    pl.resetSpells(known.map(playerSpellId), { slots: WizardLevels.battleSlots, ranks, bar: this.playerBar });
-    pl.missileTier = this.missileTiers.player;
-    const rival = game.spawn(DuelWizard, wizardEnemy.x - 24, wizardEnemy.y - 24, { difficulty: game.difficulty });
-    rival.known = new Set(this.rivalSpells);
-    rival.ranks = {};
-    for (const entry of DuelSpells.filter((e) => this.rivalSpells.has(e.id))) {
-      rival.ranks[entry.id] = this.rankOf('enemy', entry);
-    }
-    rival.missileTier = this.missileTiers.enemy;
-    game.rival = rival;
+    game.startTrialDuelists(wizardPlayer.x - 24, wizardPlayer.y - 24, wizardEnemy.x - 24, wizardEnemy.y - 24, carry);
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
     this.commander = true;
@@ -223,10 +140,6 @@ export class Battle {
     this.deploy = BattleRules.deployFrames;
     this.refreshLists();
     this.buildMarkers();
-    game.state = 'playing';
-    if (game.hud.minimap) {
-      game.hud.onBattleRound(this);
-    }
   }
 
   // Splits an army into regiments by type and lays them out in three lines
@@ -236,7 +149,7 @@ export class Battle {
   // behind it all.
   deployArmy(side, n, frontY, midX, dir) {
     const game = this.game;
-    const shares = BattleRules.shares[Math.min(this.round, BattleRules.shares.length - 1)];
+    const shares = BattleRules.sharesAt(game.depth);
     const sp = BattleRules.spacing;
     const kinds = Object.keys(shares);
     const counts = {};
@@ -371,14 +284,14 @@ export class Battle {
       const mine = this.armyCount('player');
       const theirs = this.armyCount('enemy');
       if (theirs === 0 && mine > 0) {
-        this.endRound('player', 'The rival’s army is destroyed.');
+        this.end('player', 'The reflection’s army is destroyed.');
       } else if (mine === 0 && theirs > 0) {
-        this.endRound('enemy', 'Your army is destroyed.');
+        this.end('enemy', 'Your army is destroyed.');
       } else if (mine === 0 && theirs === 0) {
         const rival = game.rival;
         const playerShare = game.player.hp / game.player.maxHp;
         const rivalShare = rival && !rival.killed ? rival.hp / rival.maxHp : 0;
-        this.endRound(playerShare >= rivalShare ? 'player' : 'enemy', 'Both armies are destroyed.');
+        this.end(playerShare >= rivalShare ? 'player' : 'enemy', 'Both armies are destroyed.');
       }
     }
   }
@@ -386,7 +299,7 @@ export class Battle {
   beginFight() {
     this.fighting = true;
     this.deploy = 0;
-    this.game.hud.toast('BATTLE ' + (this.round + 1) + ' :: YOUR ' + Races[this.races.player].name + ' AGAINST THE ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
+    this.game.hud.toast('YOUR ' + Races[this.races.player].name + ' AGAINST THE REFLECTION\'S ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
   }
 
   // Backquote selects all; the order keys apply to whatever is selected (in
@@ -572,7 +485,7 @@ export class Battle {
     if (foe) {
       const target = foe.regiment || foe;
       this.order(chosen, 'attack', target);
-      game.hud.toast(this.selectionName(chosen) + ' :: ATTACK ' + (foe.regiment ? foe.regiment.name : 'THE RIVAL WIZARD'), '#ff8a70');
+      game.hud.toast(this.selectionName(chosen) + ' :: ATTACK ' + (foe.regiment ? foe.regiment.name : 'THE REFLECTION'), '#ff8a70');
       return;
     }
     const g = game.gfx.pickGround(screen);
@@ -877,80 +790,21 @@ export class Battle {
 
   // ------------------------------------------------------------- endings
 
-  onWizardDown(side) {
-    if (side === 'player') {
-      this.endRound('enemy', 'Your wizard fell.');
-    } else {
-      this.endRound('player', 'The rival wizard fell.');
-    }
+  // The reflection fell (its army may fight on, but the battle is won).
+  onWizardDown() {
+    this.end('player', 'The reflection fell.');
   }
 
-  endRound(winner, why) {
+  end(winner, why) {
     if (this.over) {
       return;
     }
     this.over = true;
-    const game = this.game;
-    this.score[winner]++;
-    game.state = 'intermission';
-    const matchOver = this.score[winner] >= BattleRules.winsNeeded || this.round + 1 >= BattleRules.armies.length;
-    if (matchOver) {
-      const won = this.score.player > this.score.enemy;
-      game.state = 'over';
-      if (won) {
-        game.stats.wincount++;
-      }
-      game.hud.showEnd({
-        title: won ? 'BATTLE WON' : 'BATTLE LOST',
-        text: why + ' Final score ' + this.score.player + ' : ' + this.score.enemy + ' against the rival (' + game.difficulty.toUpperCase() + ').',
-        stats: game.stats,
-        duel: true,
-        win: won
-      });
-      return;
+    if (winner === 'player') {
+      this.game.winTrial(why);
+    } else {
+      this.game.loseTrial(why);
     }
-    // between battles: the player drafts one of three (one a rank when they
-    // have a spell to rank up, the rest new spells while any are left), the
-    // rival learns one
-    if (game.player) {
-      this.playerBar = game.player.bar.slice();
-    }
-    const pool = this.draftPool('player');
-    const choices = [];
-    const take = (list) => list.splice(Math.floor(Math.random() * list.length), 1)[0];
-    if (pool.rank.length) {
-      choices.push(take(pool.rank));
-    }
-    while (choices.length < BattleRules.draftChoices && (pool.learn.length || pool.rank.length)) {
-      choices.push(take(pool.learn.length ? pool.learn : pool.rank));
-    }
-    // the rank choice goes last
-    choices.sort((a, b) => (a.kind === 'rank') - (b.kind === 'rank'));
-    const rivalPool = this.draftPool('enemy');
-    const rivalPick = rivalPool.learn.length ? pick(rivalPool.learn) : (rivalPool.rank.length ? pick(rivalPool.rank) : null);
-    const rivalLearns = rivalPick ? this.draftLabel('enemy', rivalPick) : null;
-    this.rollRivalRace();
-    game.hud.showBattleDraft({
-      winner,
-      why,
-      score: this.score,
-      next: this.round + 2,
-      nextSize: BattleRules.armies[this.round + 1],
-      nextFoe: Races[this.races.enemy].name,
-      choices: choices.map((c, i) => ({ id: i, name: this.draftLabel('player', c) })),
-      rivalLearns,
-      onPick: (i) => {
-        if (i !== null && choices[i]) {
-          this.takeDraft('player', choices[i]);
-        }
-        if (rivalPick) {
-          this.takeDraft('enemy', rivalPick);
-        }
-        this.round++;
-        this.over = false;
-        this.startRound();
-      }
-    });
   }
 
   dispose() {

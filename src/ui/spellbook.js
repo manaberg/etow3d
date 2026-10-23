@@ -1,15 +1,13 @@
 import { SpellBook, SpellById } from '../entities/mage.js';
 import { BarSlots, WizardLevels, RankRules, ROMAN, rankOf } from '../entities/spellbar.js';
 import { DuelRules } from '../entities/duelRules.js';
-import { DuelSpells, playerSpellId } from '../entities/duelLoot.js';
 import { actionKeyLabel } from '../core/bindings.js';
 
 // The spellbook tab of the inventory screen: the bar's slots at the top, every
 // spell the wizard knows below, and the selected spell's details with the
 // buttons that put it on the bar. Clicking a spell and then a slot prepares
 // it there too. A spell brought onto the bar from the book starts on its
-// cooldown (Mage.prepare); moving spells along the bar is free, and so is
-// everything while a classic duel's loadout is being chosen.
+// cooldown (Mage.prepare); moving spells along the bar is free.
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -81,23 +79,8 @@ export class SpellbookPanel {
 
   render(node) {
     const player = this.player;
-    const game = this.game;
-    if (game.loadout) {
-      const box = el('div', 'sb-loadout', node);
-      el('div', 'sb-loadout-title', box, 'CHOOSE YOUR ' + player.slotLimit + ' SPELLS');
-      el('div', 'dim', box, 'Every spell is in your book. Put the ones you want on the bar; changes are free until the duel starts.');
-      const rival = game.rival;
-      if (rival && rival.known) {
-        const names = DuelSpells.filter((e) => rival.known.has(e.id)).map((e) => SpellById[playerSpellId(e)].name);
-        el('div', 'sb-rival', box, 'THE RIVAL BRINGS :: ' + names.join(', '));
-      }
-      const start = el('button', null, el('div', 'buttons inv-actions', box), 'Start the duel');
-      start.type = 'button';
-      start.onclick = () => game.toggleInventory(false);
-    }
-
     let heading = 'SPELL BAR  ' + player.bar.slice(0, player.slotLimit).filter(Boolean).length + ' / ' + player.slotLimit;
-    if (!game.duelMode && player.slotLimit < BarSlots.length) {
+    if (player.slotLimit < BarSlots.length) {
       heading += '  ::  NEXT SLOT AT LEVEL ' + BarSlots[player.slotLimit].level;
     }
     el('div', 'hud-heading', node, heading);
@@ -135,7 +118,7 @@ export class SpellbookPanel {
     if (!open) {
       tile.classList.add('locked');
       tile.disabled = true;
-      el('span', 'sb-slot-name', tile, this.game.duelMode ? 'CLOSED' : 'LEVEL ' + BarSlots[i].level);
+      el('span', 'sb-slot-name', tile, 'LEVEL ' + BarSlots[i].level);
       return;
     }
     if (!id) {
@@ -198,7 +181,7 @@ export class SpellbookPanel {
   }
 
   prepare(id, slot) {
-    this.player.prepare(id, slot, this.game.loadout);
+    this.player.prepare(id, slot);
   }
 
   clickSlot(i) {
@@ -280,7 +263,7 @@ export class SpellbookPanel {
         player.unprepare(at);
         this.refresh();
       };
-    } else if (!this.game.loadout) {
+    } else {
       el('div', 'dim sb-note', box, 'A spell brought onto the bar starts on its cooldown (at least ' + seconds(WizardLevels.prepareFrames).toLowerCase() + '). Moving spells along the bar is free.');
     }
   }

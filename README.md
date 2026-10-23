@@ -7,9 +7,10 @@ ImpactJS wizard-versus-orcs dungeon game, rebuilt with [Three.js](https://threej
 Pre Alpha 0.1.0
 
 The game plays like the original: the same ten-floor survival descent (now followed by ten
-more, down through the dragons' lairs), the same spells, orc classes, mini-bosses, warlord
-and duel AI, with the same numbers. It is now rendered
-as a lit 3D dungeon seen from an angled camera that follows the mage.
+more, down through the dragons' lairs, with duels and battles against your own reflection
+between the floors), the same spells, orc classes, mini-bosses, warlord and duel AI, with
+the same numbers. It is now rendered as a lit 3D dungeon seen from an angled camera that
+follows the mage.
 
 ## Running it
 
@@ -33,8 +34,8 @@ npm start          # http://localhost:8080 (PORT and SESSION_SECRET are read fro
 The game also runs from any static host (`dist/` after `npm run build`); runs are then just
 not saved.
 
-URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=duel&ai=normal|hard|insane`
-starts a duel, and `/` shows the main menu.
+URLs work like the 2D game: `/?mode=survival` starts the descent (add `&race=dwarf|human|elf|random`
+for your army in battles) and `/` shows the main menu.
 
 ## Controls
 
@@ -61,34 +62,59 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 
 ## The game
 
-Three modes; the main menu explains each in full under **How each mode works**.
+**The descent.** One run, twenty dungeon floors deep, from The Upper Halls to The Golden Hoard
+(`DungeonLevels` in `src/world/levels.js`). Every two or three floors the stairs lead not to the
+next floor but to a **trial** against your reflection: a duel, or a battle between two armies.
+Each run rolls its own order (`Trials.schedule`): the first trial follows floor 2 or 3, then
+one comes every two or three floors, six to nine in all, half duels and half battles, and a
+third of the duels are fought in the open arena. A trial keeps the depth of the floor above it.
+Your spells, bar, ranks, level, gear and stats go down with you through every floor and every
+trial.
 
-**Battle.** You and a rival wizard each lead an army (blue against red) across open
+**Trials.** Your reflection (`src/entities/mirror.js`) is a wizard of your level with your
+health, manergy, regeneration, speed, armour and magic missile darts, and as many spells as
+you have on your bar, but its own: drawn at random from the circles your depth has reached
+(table below), at the ranks of your spells. It wears the Red Order's crimson kit, so the two of
+you can be told apart, and thinks like a dark wizard that deep (normal, hard from depth 6).
+Trials follow the duel rules: duel damage between the wizards and the school lockouts (table
+below). Both wizards start whole, on the duel scale (your health times seven, `Trials.hpScale`,
+so a level 1 wizard has a duellist's 700), and the share you have left when the trial ends
+carries on down the stairs, plus the stairs' usual breather. Trials give no experience; win one
+and you take one of three spoils instead: a new spell, another magic missile dart or a rank for
+a spell you know (one is a rank whenever there is one to take). Fall and the run is over.
+
+**Duels.** Most are fought in a small dungeon of six themed rooms and corridors; you start in
+the two rooms farthest apart. Walls block sight and bolts, so you can hide, flank and ambush,
+and your reflection hunts you through the corridors when it loses you. A third are fought in
+the arena, one open hall with no pillars, the wizards starting face to face from opposite ends.
+Potions keep appearing around the map (`DuelLoot`), and whoever reaches one first drinks it.
+The reflection reads the bolts in flight, scores escape directions, shields or blinks out of
+hits it cannot dodge, picks tactics (kite, engage, punish, pressure, retreat, hunt), runs for
+potions when they are worth the trip and learns how far to lead its shots from how you dodge.
+
+**Battles.** You and your reflection each lead an army (blue against red) across open
 grassland ringed by cliffs. You pick your army's race on the menu (orcs, dwarves, humans,
-elves or random; `?race=dwarf` in the URL) and the rival fields a different race every
-battle. The races share the orcs' seven classes under their own names, models and missiles
-(`Races` in `src/world/levels.js`): dwarves are slow and take 30% more killing and shoot
-crossbows; humans are a little tougher, harder hitting and longer ranged than orcs; elves are
-quick and shoot a quarter further and straighter, but are frail. A match is best of five, and every battle is
-500 a side. Armies are split into regiments by type (infantry, slingers, knights, shock
-troops, mystics), each with a banner, deployed in lines with yours along the bottom of the
-screen facing up the field; you rearrange them before the battle (Space starts it early). Tab
-switches between spell mode (you play the wizard) and commander mode (the wizard stands, the
-camera roams, click or drag to select regiments, right-click to march them or to attack an
-enemy regiment); the J/K/L keys (charge, march and hold, follow) work in both. The orcs fight by class (brawlers close in, slingers and warlocks
-keep range, knights charge, shamans heal) and you turn the fight with spells: fireballs and
-blizzards into packed ranks, lightning chaining through them. The rival commands its own
-regiments (line charges, knights flank, mystics guard it). Orcs are drawn instanced
-(`src/render/armyRenderer.js`) and find foes and neighbours through a spatial grid, so 400 orcs
-cost about a millisecond a step. A battle is lost when your wizard falls or your army is destroyed. Both wizards start
-with a one-dart magic missile and one random spell and eight bar slots; after each battle you
-draft one of three: a new spell, another magic missile dart or a rank for a spell you have
-(one of the three is a rank whenever there is one to take), and the rival learns one. Your bar
-keeps its order from battle to battle. Duel rules apply between the wizards, including the
-school lockouts. Battle orcs have double the dungeon orcs' health (`BattleRules` in
-`src/entities/battle.js`).
+elves or random) and the reflection fields a different race. The races share the orcs' seven
+classes under their own names, models and missiles (`Races` in `src/world/levels.js`): dwarves
+are slow and take 30% more killing and shoot crossbows; humans are a little tougher, harder
+hitting and longer ranged than orcs; elves are quick and shoot a quarter further and
+straighter, but are frail. Every battle is 500 a side. Armies are split into regiments by type
+(infantry, slingers, knights, shock troops, mystics), each with a banner, deployed in lines
+with yours along the bottom of the screen facing up the field; the deeper the battle, the more
+kinds of regiment take the field (`BattleRules.shares`). You rearrange them before the battle
+(Space starts it early). Tab switches between spell mode (you play the wizard) and commander
+mode (the wizard stands, the camera roams, click or drag to select regiments, right-click to
+march them or to attack an enemy regiment); the J/K/L keys (charge, march and hold, follow)
+work in both. The orcs fight by class (brawlers close in, slingers and warlocks keep range,
+knights charge, shamans heal) and you turn the fight with spells: fireballs and blizzards into
+packed ranks, lightning chaining through them. The reflection commands its own regiments (line
+charges, knights flank, mystics guard it). Orcs are drawn instanced (`src/render/armyRenderer.js`)
+and find foes and neighbours through a spatial grid, so 400 orcs cost about a millisecond a
+step. The battle is won when the reflection falls or its army is destroyed; if your army is
+destroyed you escape down the stairs without the spoils. Battle orcs have double the dungeon
+orcs' health (`BattleRules` in `src/entities/battle.js`).
 
-**Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
+**Dungeon floors.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
 through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
 is a freshly generated dungeon of themed rooms (great hall, orc barracks, forbidden library,
 alchemy lab, crypt, throne room) joined by corridors. The stairs down wait in the throne room
@@ -96,7 +122,7 @@ and unseal once 40% of the floor's enemies are slain. Spells are learnt from scr
 spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
 maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
-to spiritual weapon in the table below). Duels and battles use them too.
+to spiritual weapon in the table below). Reflections use them too.
 
 **Spellbook and bar.** Every spell a wizard learns goes into its spellbook, but only the spells
 on its bar can be cast. Magic missile has its own key (LMB); the bar's ten slots sit on RMB, Q,
@@ -109,22 +135,21 @@ E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to
 - A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
-- **Levels** (survival). Every kill gives experience (the square root of the foe's health,
+- **Levels.** Every kill on a dungeon floor gives experience (the square root of the foe's health,
   three times that for a dark wizard), and each level adds 6 health and 4 manergy. The bar
   opens with three slots (RMB, Q, E); R opens at level 2, F at 4, then 1, 2, 3 and 4 at 6, 8,
   10 and 12, and C at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
-  spell waiting in the book. Duels and battles have no levels: progressive duels open six
-  slots, classic duels and battles eight.
-- **Circles** (survival). A scroll only teaches spells of the circles its floor has reached:
-  circle I from floor 1, II from floor 3, III from floor 6 and IV from floor 9 (table below).
+  spell waiting in the book. Trials give no experience.
+- **Circles.** A scroll (or a trial's spoils, or a reflection's spells) only comes from the
+  circles its floor has reached: circle I from floor 1, II from floor 3, III from floor 6 and
+  IV from floor 9 (table below).
 - **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
   on your bar. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot, blink,
   blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
   other spell's rank II adds 30% to its main number (damage, duration, reach or healing), or,
   for chain root, mirror image and telekinesis, cuts its cooldown by a quarter. Rank III cuts
-  every spell's cooldown by a quarter (`RankRules`). Duels are fought with the tier 2 spells,
-  so those start at rank II there.
+  every spell's cooldown by a quarter (`RankRules`).
 
 | Spell | Circle | Rank II |
 | --- | --- | --- |
@@ -157,10 +182,10 @@ E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
 little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
-game's single missile (51, plus gear); between wizards a dart deals 36. Survival scrolls are
-magic missile scrolls 15% of the time until the third dart; progressive duels and battles
-start both wizards at one dart (scrolls or the battle draft add more), classic duels give
-both all three, and the dungeon's dark wizards have two from depth 3 and three from depth 6.
+game's single missile (51, plus gear); between wizards a dart deals 36. Scrolls are
+magic missile scrolls 15% of the time until the third dart, and a trial's spoils may offer one;
+your reflection has as many darts as you, and the dungeon's dark wizards have two from depth 3
+and three from depth 6.
 
 Every spell belongs to a school of magic, shown beside it in the spell list:
 
@@ -174,6 +199,10 @@ Every spell belongs to a school of magic, shown beside it in the spell list:
 | Illusion | mirror image, invisibility | 3.3 s |
 | Necromancy | lifesteal, power word kill | 4 s |
 
+In a trial, instead of a global cooldown, a cast locks the rest of its school for the
+school's lockout (table above), so spells of different schools can be woven back to back;
+magic missile and lifesteal never lock (`DuelRules.schools`). Dungeon floors have no lockouts.
+
 **Gear.** Wizards wear a hat, a robe, a staff and two rings, each with properties (more
 health or manergy, faster regen, movement or cooldowns, armour, cheaper fireballs or
 lightning, stronger missiles, lifesteal, mending, longer shields), and what is worn shows
@@ -183,8 +212,7 @@ to wear or take off, or drop an item on the floor. You start in an apprentice's 
 2D game's rings and new gear drop from champions, and the orcs wear gear too (casters
 now and then a hat or robe, champions often a ring or a robe, the orc mage a rare hat,
 the cleric its mitre), which makes them tougher, faster or harder to hurt and drops when
-they fall. In duels and battles both wizards wear matching kits (the rival's in red) and
-keep the 2D duel's five rings as built-in bonuses. The catalogue is `Gear` in
+they fall. Your reflection wears the Red Order's crimson kit but has your stats. The catalogue is `Gear` in
 `src/entities/gear.js`; the pieces are modelled in `src/render/gearModels.js`.
 
 The orcs share the dungeon with warbands of humans (from the first floor), dwarves (from the
@@ -224,40 +252,19 @@ which turns it. On floor 20 the great golden wyrm (immune to fire and poison, re
 most else) breathes fire and weakening gas by turns, rains meteors, and at 75%, 50% and 25%
 health calls two of its chromatic brood and takes to the air. Slaying it wins the run.
 
-**Duel.** You against a rival wizard in a small dungeon of six themed rooms and corridors (no
-stairs); you start in the two rooms farthest apart. Walls block sight and bolts, so you can
-hide, flank and ambush, and the rival hunts you through the corridors when it loses you.
-The **arena** map (`?map=arena`, or the Rooms / Arena toggle on the menu) is the old
-straightforward duel instead: one open hall with no pillars, the wizards starting face to
-face from opposite ends.
-In **progressive** duels (the default) each wizard starts with a one-dart magic missile and
-one random spell; scrolls and potions keep appearing around the map, and whoever reaches a
-scroll first learns a spell they lack or adds a magic missile dart until their six bar slots
-are full, and after that raises a spell's rank (potions heal or restore manergy). The rival
-runs for loot when it is worth it and tells you what it learned. **Classic** duels
-(`?rules=classic`, or the toggle on the menu) put every spell in the book, the ten D&D spells
-included: the duel opens on the spellbook to choose the eight spells for your bar (free until
-you start; the last loadout is remembered), and shows the eight the rival brings (shield, blink
-and fireball, and five at random).
-Instead of a global cooldown, a cast locks the rest of its school for the school's lockout
-(table above), so spells of different schools can be woven back to back; magic missile and
-lifesteal never lock (`DuelRules.schools`). Survival has no lockouts. The rival wizard reads the
-bolts in flight, scores escape directions, shields or blinks out of hits it cannot dodge,
-picks tactics (kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its
-shots from how you dodge. Normal, hard and insane differ in reaction time, aim and tricks.
-
-When a survival run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
+When a run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
 game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 
 ## Code layout
 
 ```
 index.html, src/main.js     menu and start-up
-src/game.js                 game state, floors, spawning, aggro and navigation helpers
+src/game.js                 game state, the run's stages, spawning, aggro and navigation helpers
 src/core/                   constants, rebindable input bindings, time stop, entity base class
-src/world/                  dungeon generator, level plans, pathfinder, collision
+src/world/                  dungeon generator, level plans and trials, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
-                            and warlord, duel wizard, projectiles and zones, loot and stairs
+                            and warlord, duel wizard and reflection, battles, projectiles and
+                            zones, loot and stairs
 src/render/                 Three.js renderer, dungeon meshes, character and prop models,
                             textures and particle effects
 public/models/              character models (.glb) built in Blender

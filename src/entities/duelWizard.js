@@ -8,21 +8,16 @@ import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { rankCooldown } from './spellbar.js';
 
-export function resolveDifficulty() {
-  const source = (window.location.search || '') + (window.location.hash || '');
-  const match = /[?&#]ai=(normal|hard|insane)/i.exec(source);
-  return match ? match[1].toLowerCase() : 'hard';
-}
-
-// The rival wizard of duel mode. It reads every bolt in flight, scores
+// The rival wizard: the player's reflection in the trials (mirror.js) and
+// the dark wizard of the dungeon floors. It reads every bolt in flight, scores
 // sixteen escape directions a short horizon ahead, shields or blinks out of
 // hits it cannot dodge, and learns how far to lead its shots from where the
 // player actually went. Duels are fought in a small dungeon: it only sees and
 // shoots along clear lines of sight, follows the corridors (flow fields) to
-// hunt a player it cannot see, and in progressive duels runs for scrolls and
-// potions when they are worth the trip. On survival floors it is the dark
-// wizard: it waits in its lair like the orcs until it notices the player, its
-// hits are scaled down (hitScale) and it leaves an upgrade scroll when slain.
+// hunt a player it cannot see, and runs for potions when they are worth the
+// trip. On dungeon floors it waits in its lair like the orcs until it
+// notices the player, its hits are scaled down (hitScale) and it leaves an
+// upgrade scroll when slain.
 export class DuelWizard extends Enemy {
   defaults() {
     super.defaults();
@@ -73,11 +68,11 @@ export class DuelWizard extends Enemy {
     this.stunDuration = DuelRules.stunFrames;
     this.fearDuration = DuelRules.fearFrames;
     this.label = 'RIVAL WIZARD';
-    // spells it can cast; null knows them all (classic duels), progressive
-    // duels hand it a set (duelLoot.js)
+    // spells it can cast (null knows them all); the reflection and the dark
+    // wizards are handed a set
     this.known = null;
-    // magic missile darts per cast (spells.js MissileTiers): all three in
-    // classic duels; progressive duels, battles and dark wizards set it
+    // magic missile darts per cast (spells.js MissileTiers); the reflection
+    // and the dark wizards set it
     this.missileTier = 3;
     this.isWizard = true;
     // share of duel damage its spells deal to the player (survival floors)
@@ -319,6 +314,11 @@ export class DuelWizard extends Enemy {
   update(k) {
     const game = this.game;
     const player = game.player;
+    // a killing blow landed since its last step: no healing word out of it
+    if (this.hp <= 0) {
+      this.die();
+      return;
+    }
     // the brain runs on whole frames, so a time stop slows its thinking too
     this.acc += k;
     const deploying = game.battle && !game.battle.fighting;
@@ -601,30 +601,21 @@ export class DuelWizard extends Enemy {
     return false;
   }
 
-  // Progressive duels: is a scroll or potion worth running for right now?
+  // Duel trials: is a potion worth running for right now?
   chooseLoot(player) {
     this.lootGoal = null;
     this.lootValue = 0;
-    const loot = this.game.duelLoot;
-    if (!loot || this.tactic === 'punish') {
+    if (!this.game.duelLoot || this.tactic === 'punish') {
       return;
     }
     const me = this.center();
     const pc = this.center(player);
-    const spellsLeft = loot.options(this).length;
     let best = 0;
     for (const e of this.game.entities) {
-      if (!e.isLoot || e.killed) {
+      if (!e.isLoot || e.killed || e.isBlue === undefined) {
         continue;
       }
-      let value;
-      if (e.isBlue === undefined) {
-        value = spellsLeft > 0 ? 1 : 0.2;
-      } else if (e.isBlue) {
-        value = 1 - this.manergy / this.maxManergy;
-      } else {
-        value = Math.min(1, (this.maxHp - this.hp) / DuelRules.progressive.redHeal);
-      }
+      const value = e.isBlue ? 1 - this.manergy / this.maxManergy : Math.min(1, (this.maxHp - this.hp) / DuelRules.loot.redHeal);
       const c = e.center();
       const mine = Math.hypot(c.x - me.x, c.y - me.y);
       const theirs = Math.hypot(c.x - pc.x, c.y - pc.y);
