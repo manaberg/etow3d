@@ -1,5 +1,5 @@
 import { SpellById } from '../entities/mage.js';
-import { BarSlots, WizardLevels, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
+import { BarSlots, GLOBAL_COOLDOWN, WizardLevels, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
 import { Rarities } from '../entities/gear.js';
 import { InventoryScreen } from './inventory.js';
 import { DungeonLevels, Races } from '../world/levels.js';
@@ -387,11 +387,10 @@ export class Hud {
     const base = id === 'missile' ? missileTier(player).cd : player.cooldownOf(spell.cd * rankCooldown(player, id));
     const full = left > base ? Math.max(left, player.cdFull[id] || 0) : base;
     let frac = full > 0 ? 1 - left / full : 1;
-    // in duels a cast locks the rest of its school for a moment
-    const lock = player.lockLeft(id);
-    if (lock > left) {
-      left = lock;
-      frac = Math.min(frac, 1 - lock / DuelRules.schools[DuelRules.schoolOf(id)].lockout);
+    // every spell but magic missile waits out the global cooldown
+    if (id !== 'missile' && player.gcd > left) {
+      left = player.gcd;
+      frac = Math.min(frac, 1 - player.gcd / GLOBAL_COOLDOWN);
     }
     r.fill.style.width = (frac * 100) + '%';
     const affordable = player.manergy > spell.need && !(id === 'ironshot' && player.is2Charges <= 0 && left > 0);

@@ -49,17 +49,16 @@ export const DuelRules = {
     disintegrate: { damage: 170 },
     weapon: { damage: 22 }
   },
-  // Schools of magic. Casting a spell locks the rest of its school for the
-  // school's `lockout` frames (spells of other schools stay free), except
-  // the free spells: magic missile and the lifesteal channel.
+  // Schools of magic, shown beside each spell (casts are paced by the global
+  // cooldown, spellbar.js GLOBAL_COOLDOWN, not by school).
   schools: {
-    evocation: { name: 'EVOCATION', tag: 'EVO', color: '#ff8a40', lockout: 180 },
-    conjuration: { name: 'CONJURATION', tag: 'CON', color: '#e0c050', lockout: 150 },
-    abjuration: { name: 'ABJURATION', tag: 'ABJ', color: '#60b0ff', lockout: 240 },
-    transmutation: { name: 'TRANSMUTATION', tag: 'TRA', color: '#c0e070', lockout: 240 },
-    enchantment: { name: 'ENCHANTMENT', tag: 'ENC', color: '#ff80e0', lockout: 200 },
-    illusion: { name: 'ILLUSION', tag: 'ILL', color: '#b090ff', lockout: 200 },
-    necromancy: { name: 'NECROMANCY', tag: 'NEC', color: '#ff4060', lockout: 240 }
+    evocation: { name: 'EVOCATION', tag: 'EVO', color: '#ff8a40' },
+    conjuration: { name: 'CONJURATION', tag: 'CON', color: '#e0c050' },
+    abjuration: { name: 'ABJURATION', tag: 'ABJ', color: '#60b0ff' },
+    transmutation: { name: 'TRANSMUTATION', tag: 'TRA', color: '#c0e070' },
+    enchantment: { name: 'ENCHANTMENT', tag: 'ENC', color: '#ff80e0' },
+    illusion: { name: 'ILLUSION', tag: 'ILL', color: '#b090ff' },
+    necromancy: { name: 'NECROMANCY', tag: 'NEC', color: '#ff4060' }
   },
   // every spell's school, by the player's spell id and the rival's (root)
   spellSchools: {
@@ -72,15 +71,9 @@ export const DuelRules = {
     image: 'illusion', invis: 'illusion',
     ray: 'necromancy', pwkill: 'necromancy'
   },
-  lockFree: ['missile', 'ray'],
 
   schoolOf(spell) {
     return this.spellSchools[spell] || null;
-  },
-
-  // the school a cast locks, or null for the free spells
-  lockedSchool(spell) {
-    return this.lockFree.includes(spell) ? null : this.schoolOf(spell);
   },
 
   // progressive duels (see duelLoot.js): frames until the first scroll and
@@ -106,8 +99,8 @@ export const DuelRules = {
   // advanced: time stop and blink-in engages
   difficulties: {
     // the dark wizards of the upper floors: slow to react, loose aim
-    easy: { reaction: 26, castLock: 32, decisionInterval: 10, aimNoise: 0.25, learnRate: 0.04, decoyFoolChance: 0.9, pwkillRate: 0, advanced: false },
-    normal: { reaction: 16, castLock: 18, decisionInterval: 6, aimNoise: 0.12, learnRate: 0.08, decoyFoolChance: 0.8, pwkillRate: 0.01, advanced: false },
+    easy: { reaction: 26, castLock: 32, decisionInterval: 10, aimNoise: 0.25, learnRate: 0.04, decoyFoolChance: 0.9, pwkillRate: 0, missChance: 0.35, advanced: false },
+    normal: { reaction: 24, castLock: 28, decisionInterval: 9, aimNoise: 0.2, learnRate: 0.05, decoyFoolChance: 0.8, pwkillRate: 0.005, missChance: 0.2, advanced: false },
     hard: { reaction: 8, castLock: 7, decisionInterval: 3, aimNoise: 0.035, learnRate: 0.15, decoyFoolChance: 0.5, pwkillRate: 0.04, advanced: true },
     insane: { reaction: 3, castLock: 3, decisionInterval: 1, aimNoise: 0, learnRate: 0.22, decoyFoolChance: 0.25, pwkillRate: 1, advanced: true }
   },

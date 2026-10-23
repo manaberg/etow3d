@@ -92,6 +92,11 @@ export const RankRules = {
 
 export const ROMAN = ['', 'I', 'II', 'III'];
 
+// The global cooldown: every spell but magic missile holds back all the
+// others (magic missile aside) for this many frames, in every mode, for the
+// mage and the wizards alike; each spell's own cooldown runs as well.
+export const GLOBAL_COOLDOWN = 60;
+
 // The player's id for one of the rival's spells (it calls chain root 'root').
 export function bookId(id) {
   return id === 'root' ? 'stun' : id;

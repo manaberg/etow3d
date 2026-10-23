@@ -23,7 +23,7 @@ import { TEAM_COLORS } from '../render/models.js';
 // charge, march to a point and hold it, or follow the wizard. Both wizards
 // start with ten random spells on a ten-slot bar and every magic missile dart.
 // The battle is lost when your wizard falls or your army is wiped out.
-// Wizards follow the duel rules (damage between them, school lockouts);
+// Wizards follow the duel rules (damage between them, the global cooldown);
 // soldiers take the dungeon damage, so a fireball wrecks a regiment.
 export const BattleRules = {
   // soldiers a side in an army of average cost; ?army=N on the URL (or the

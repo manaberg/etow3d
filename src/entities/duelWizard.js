@@ -6,7 +6,7 @@ import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
-import { RankRules, bookId, rankCooldown, rankOf } from './spellbar.js';
+import { GLOBAL_COOLDOWN, RankRules, bookId, rankCooldown, rankOf } from './spellbar.js';
 
 export function resolveDifficulty() {
   const source = (window.location.search || '') + (window.location.hash || '');
@@ -106,7 +106,8 @@ export class DuelWizard extends Enemy {
     // short grace period at the start of the duel
     this.castLock = 45;
     // frames each school stays locked after a cast (DuelRules.schools)
-    this.schoolLock = {};
+    // frames of the global cooldown left (spellbar.js GLOBAL_COOLDOWN)
+    this.gcd = 0;
     this.tactic = 'kite';
     this.strafeSign = 1;
     this.strafeTimer = 0;
@@ -170,28 +171,18 @@ export class DuelWizard extends Enemy {
 
   ready(spell) {
     const book = this.spellBook[spell];
-    if (!this.knows(spell) || this.cdLeft[spell] > 0 || this.manergy <= book.need || this.lockLeft(spell) > 0) {
+    if (!this.knows(spell) || this.cdLeft[spell] > 0 || this.manergy <= book.need || (spell !== 'missile' && this.gcd > 0)) {
       return false;
     }
     return !(spell === 'ironshot' && this.ironCharges <= 0);
   }
 
-  lockLeft(spell) {
-    const school = DuelRules.lockedSchool(spell);
-    return school ? this.schoolLock[school] || 0 : 0;
-  }
-
-  lockSchool(spell) {
-    const school = DuelRules.lockedSchool(spell);
-    if (school) {
-      this.schoolLock[school] = DuelRules.schools[school].lockout;
-    }
-  }
-
   spend(spell, offensive) {
     this.cdLeft[spell] = spell === 'missile' ? missileTier(this).cd : this.spellBook[spell].cd * rankCooldown(this, spell);
     this.manergy -= this.spellBook[spell].cost;
-    this.lockSchool(spell);
+    if (spell !== 'missile') {
+      this.gcd = GLOBAL_COOLDOWN;
+    }
     this.castSpells.add(spell);
     if (offensive) {
       this.castLock = this.ai.castLock;
@@ -433,10 +424,8 @@ export class DuelWizard extends Enemy {
     if (this.castLock > 0) {
       this.castLock--;
     }
-    for (const school in this.schoolLock) {
-      if (this.schoolLock[school] > 0) {
-        this.schoolLock[school]--;
-      }
+    if (this.gcd > 0) {
+      this.gcd--;
     }
     if (this.rayFrames > 0) {
       this.rayFrames--;
@@ -526,6 +515,8 @@ export class DuelWizard extends Enemy {
       }
       if (e._seenFrame === undefined) {
         e._seenFrame = this.frame;
+        // the gentler brains never notice some of the player's bolts
+        e._unnoticed = Math.random() < (this.ai.missChance || 0);
         if (!e.duel) {
           // a fresh spell shows where the caster is standing
           this.lastPlayerCastFrame = this.frame;
@@ -535,7 +526,7 @@ export class DuelWizard extends Enemy {
           }
         }
       }
-      if (this.frame - e._seenFrame < this.ai.reaction) {
+      if (e._unnoticed || this.frame - e._seenFrame < this.ai.reaction) {
         continue;
       }
       if (this.frame - e._seenFrame === this.ai.reaction) {
@@ -1110,14 +1101,14 @@ export class DuelWizard extends Enemy {
         }
         this.ironCharges--;
         this.manergy -= this.spellBook.ironshot.cost;
-        this.lockSchool('ironshot');
+        this.gcd = GLOBAL_COOLDOWN;
         this.castLock = helpless ? 2 : this.ai.castLock;
         this.invisFrames = 0;
         return;
       }
     }
-    // scorching ray: three fanned rays cover a dodge either way
-    // (evocation shares one lockout, so mix it up with the fireball)
+    // scorching ray: three fanned rays cover a dodge either way (mix it up
+    // with the fireball)
     if (this.ready('scorch') && spare >= 25 && dist < 420 && (helpless || this.hitChance('scorch', dist) > 0.35) &&
       this.clearOfShield(player, 'scorch', dist) && (!this.ready('fireball') || Math.random() < 0.5)) {
       ArcanaCast.scorch(this, this.aimAngle('scorch', t, true));
@@ -1218,9 +1209,13 @@ export class DuelWizard extends Enemy {
       return;
     }
     // lifesteal ray when overflowing with manergy and nothing else to do
-    if (real && dist < 380 && this.knows('ray') && !player.shielded && this.hp < this.maxHp && (this.manergy > 92 || this.rayFrames > 0) && this.manergy > 10) {
+    // (starting it waits for and starts the global cooldown; keeping it going
+    // does not)
+    if (real && dist < 380 && this.knows('ray') && !player.shielded && this.hp < this.maxHp && (this.manergy > 92 || this.rayFrames > 0) && this.manergy > 10 &&
+      (this.rayFrames > 0 || this.gcd <= 0)) {
       if (this.rayFrames <= 0) {
         this.rayFrames = 6;
+        this.gcd = GLOBAL_COOLDOWN;
       }
       this.fireBolt('ray', this.aimAngle('ray', t, false));
       this.manergy -= this.spellBook.ray.cost;

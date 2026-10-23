@@ -8,7 +8,7 @@ import { DungeonLevels } from '../world/levels.js';
 import { castArcana, arcanaZoneDamage } from './arcana.js';
 import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
 import { dressRig } from '../render/gearModels.js';
-import { BarSlots, WizardLevels, RankRules, placementOrder, rankOf, rankPower, rankCooldown } from './spellbar.js';
+import { BarSlots, GLOBAL_COOLDOWN, WizardLevels, RankRules, placementOrder, rankOf, rankPower, rankCooldown } from './spellbar.js';
 
 // The spell book. `cd` is the cooldown in frames, `need` the manergy that
 // must be exceeded and `cost` what a cast spends; `flag` is the spellbook
@@ -102,7 +102,10 @@ export class Mage extends Entity {
       this.cd[spell.id] = 0;
     }
     // duels: frames each school stays locked after a cast (DuelRules.schools)
-    this.schoolLock = {};
+    // frames of the global cooldown left (spellbar.js GLOBAL_COOLDOWN), and
+    // whether the lifesteal ray is being held (it pays the cooldown once)
+    this.gcd = 0;
+    this.rayOn = false;
     // the 2D game started a few spells on cooldown
     this.is2Charges = 1;
     // magic missile darts per cast, 1 to 3: each magic missile scroll adds one
@@ -225,29 +228,16 @@ export class Mage extends Entity {
     return this.invisFrames > 0;
   }
 
-  // Lets the duel loadout start every spell on cooldown like the 2D game.
+  // Off its own cooldown and, magic missile aside, the global one.
   ready(id) {
-    return this.cd[id] <= 0 && this.lockLeft(id) <= 0;
-  }
-
-  // Frames the duel's school lockout still holds back this spell.
-  lockLeft(id) {
-    const school = this.game.duelMode ? DuelRules.lockedSchool(id) : null;
-    return school ? this.schoolLock[school] || 0 : 0;
+    return this.cd[id] <= 0 && (id === 'missile' || this.gcd <= 0);
   }
 
   spend(id, extraCost) {
     const spell = SpellById[id];
     this.cd[id] = this.cooldownOf(spell.cd * rankCooldown(this, id));
     this.manergy -= (spell.cost + (extraCost || 0)) * (1 - this.bonus('costCut'));
-    this.lockSchool(id);
-  }
-
-  lockSchool(id) {
-    const school = this.game.duelMode ? DuelRules.lockedSchool(id) : null;
-    if (school) {
-      this.schoolLock[school] = DuelRules.schools[school].lockout;
-    }
+    this.gcd = GLOBAL_COOLDOWN;
   }
 
   canCast(id) {
@@ -586,9 +576,7 @@ export class Mage extends Entity {
     if (this.cd.ironshot <= 0 && this.is2Charges <= 0) {
       this.is2Charges = this.hasIs2 ? 2 : 1;
     }
-    for (const school in this.schoolLock) {
-      this.schoolLock[school] = Math.max(0, this.schoolLock[school] - k);
-    }
+    this.gcd = Math.max(0, this.gcd - k);
     this.chillFrames = Math.max(0, this.chillFrames - k);
     // gear that steadies the mage wears roots, fear and polymorph off faster
     const steady = 1 / (1 - this.bonus('steadfast'));
@@ -651,11 +639,11 @@ export class Mage extends Entity {
       this.spend('fireball', extra);
       this.rig.swing();
     }
-    if (this.wants('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.cd.ironshot <= 0 && this.lockLeft('ironshot') <= 0 && this.manergy > 40) {
+    if (this.wants('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.ready('ironshot') && this.manergy > 40) {
       fire('ironshot', aim);
       stats.iscount++;
       this.manergy -= 40;
-      this.lockSchool('ironshot');
+      this.gcd = GLOBAL_COOLDOWN;
       if (this.is2Charges === 1) {
         this.cd.ironshot = this.cooldownOf(SpellById.ironshot.cd * rankCooldown(this, 'ironshot'));
       }
@@ -663,10 +651,18 @@ export class Mage extends Entity {
       game.gfx.addShake(0.25);
       this.rig.swing();
     }
-    if (this.wants('ray', true) && this.hasRay && this.cd.ray <= 0 && this.manergy > 10) {
+    // the lifesteal ray is held: starting it waits for and starts the global
+    // cooldown, keeping it going does not
+    if (this.wants('ray', true) && this.hasRay && this.cd.ray <= 0 && this.manergy > 10 && (this.rayOn || this.gcd <= 0)) {
+      if (!this.rayOn) {
+        this.gcd = GLOBAL_COOLDOWN;
+      }
+      this.rayOn = true;
       fire('ray', aim + (Math.random() - 0.5) * 0.05);
       stats.lscount++;
       this.manergy -= 10;
+    } else {
+      this.rayOn = false;
     }
     if (this.wants('lightning') && this.canCast('lightning')) {
       const target = game.nearestHostile(this, 300);

@@ -135,7 +135,7 @@ slingers and warlocks keep range, knights charge, shamans heal) and you turn the
 spells: fireballs and blizzards into packed ranks, lightning chaining through them (to the
 nearest 24 in a battle). The rival commands its own regiments (line charges, knights flank,
 mystics guard it). Both wizards start with ten random spells on a ten-slot bar and a
-three-dart magic missile, and duel rules apply between them, including the school lockouts.
+three-dart magic missile, and duel rules apply between them.
 The battle is lost when your wizard falls or your army, dragons included, is destroyed.
 Battle soldiers have double the dungeon orcs' health.
 
@@ -257,17 +257,22 @@ magic missile scrolls 15% of the time until the third dart; progressive duels st
 wizards at one dart (scrolls add more), classic duels and battles give
 both all three, and the dungeon's dark wizards have two from depth 3 and three from depth 6.
 
+**Global cooldown.** Every spell but magic missile holds back all the others (magic missile
+aside) for one second, in every mode and for every wizard, on top of its own cooldown; the bar
+shows the wait on each slot (`GLOBAL_COOLDOWN` in `src/entities/spellbar.js`). Lifesteal pays
+it once when the ray starts, not while it is held.
+
 Every spell belongs to a school of magic, shown beside it in the spell list:
 
-| School | Spells | Lockout |
-| --- | --- | --- |
-| Evocation | magic missile, fireball, chain lightning, scorching ray, cone of cold, thunderwave, meteor swarm | 3 s |
-| Conjuration | iron shot, blink, blizzard, cloudkill, spiritual weapon | 2.5 s |
-| Abjuration | shield, spirit guardians, healing word | 4 s |
-| Transmutation | haste, time stop, polymorph, disintegrate, telekinesis | 4 s |
-| Enchantment | chain root, fear | 3.3 s |
-| Illusion | mirror image, invisibility | 3.3 s |
-| Necromancy | lifesteal, power word kill | 4 s |
+| School | Spells |
+| --- | --- |
+| Evocation | magic missile, fireball, chain lightning, scorching ray, cone of cold, thunderwave, meteor swarm |
+| Conjuration | iron shot, blink, blizzard, cloudkill, spiritual weapon |
+| Abjuration | shield, spirit guardians, healing word |
+| Transmutation | haste, time stop, polymorph, disintegrate, telekinesis |
+| Enchantment | chain root, fear |
+| Illusion | mirror image, invisibility |
+| Necromancy | lifesteal, power word kill |
 
 **Gear.** Wizards wear a hat, a robe, a staff and two rings, and what is worn shows on the
 model. Loot is rolled as in Diablo (`src/entities/gear.js`):
@@ -363,12 +368,13 @@ inventory and spellbook keys stay put). **Save as my loadout** keeps the bar and
 the next classic duels; **Default loadout** brings back the built-in one: fireball on Q, iron
 shot on E, chain root on F, blink on R, disintegrate on G, shield on 4, chain lightning on 1
 and time stop on 2.
-Instead of a global cooldown, a cast locks the rest of its school for the school's lockout
-(table above), so spells of different schools can be woven back to back; magic missile and
-lifesteal never lock (`DuelRules.schools`). Survival has no lockouts. The rival wizard reads the
-bolts in flight, scores escape directions, shields or blinks out of hits it cannot dodge,
-picks tactics (kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its
-shots from how you dodge. Normal, hard and insane differ in reaction time, aim and tricks.
+Casts are paced by the one-second global cooldown. The rival wizard reads the bolts in
+flight, scores escape directions, shields or blinks out of hits it cannot dodge, picks tactics
+(kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its shots from how
+you dodge. Normal, hard and insane differ in reaction time, aim and tricks (`difficulties` in
+`src/entities/duelRules.js`): a normal rival reacts after 0.4 s, casts at most every half
+second, aims loosely, learns slowly and never notices one bolt in five at all (the easy brain
+of the upper floors' dark wizards misses one in three); hard and insane notice every one.
 
 When a survival run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
 game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
