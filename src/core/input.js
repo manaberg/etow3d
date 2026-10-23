@@ -1,15 +1,11 @@
 import { actionFor } from './bindings.js';
 
-// px the mouse may wander between press and release for it to be a click
-const CLICK_SLOP = 6;
-
 // Keyboard and mouse input, mapped to actions through the rebindable bindings
 // (bindings.js). `pressed` is edge-triggered per simulation step: presses
 // queue up until a step consumes them, so nothing is lost when a render frame
-// runs no step. While 'camera_drag' is held, mouse movement turns the camera
-// (takeLook). A left button press that is let go without dragging also
-// reads as 'click' whatever it is bound to (survival loot is picked up by
-// clicking its name), so looking around never picks anything up.
+// runs no step. The left button also reads as 'click' whatever it is bound
+// to (survival loot is picked up by clicking its name). While 'camera_drag'
+// is held, mouse movement turns the camera (takeLook).
 export class Input {
   constructor(element) {
     this.element = element;
@@ -21,8 +17,6 @@ export class Input {
     this.ground = { x: 0, y: 0 };
     this.wheel = 0;
     this.look = { x: 0, y: 0 };
-    // how far the mouse moved since the left button went down, or null
-    this.leftTravel = null;
     this.listeners = [];
 
     this.on(window, 'keydown', (e) => {
@@ -46,7 +40,8 @@ export class Input {
     this.on(window, 'blur', () => this.held.clear());
     this.on(element, 'mousedown', (e) => {
       if (e.button === 0) {
-        this.leftTravel = 0;
+        this.queued.add('click');
+        this.held.add('click');
       }
       const action = actionFor('Mouse' + e.button);
       if (action) {
@@ -57,10 +52,7 @@ export class Input {
     });
     this.on(window, 'mouseup', (e) => {
       if (e.button === 0) {
-        if (this.leftTravel !== null && this.leftTravel < CLICK_SLOP) {
-          this.queued.add('click');
-        }
-        this.leftTravel = null;
+        this.held.delete('click');
       }
       const action = actionFor('Mouse' + e.button);
       if (action) {
@@ -75,9 +67,6 @@ export class Input {
     });
     // a drag may cross the HUD or leave the window: follow it on the window
     this.on(window, 'mousemove', (e) => {
-      if (this.leftTravel !== null) {
-        this.leftTravel += Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0);
-      }
       if (this.held.has('camera_drag')) {
         this.look.x += e.movementX || 0;
         this.look.y += e.movementY || 0;

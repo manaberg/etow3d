@@ -7,7 +7,7 @@
 // rules; the player's side lives in mage.js, the rival's in duelWizard.js.
 
 // The bar's slots, nearest to WASD first. `action` is the binding
-// (core/bindings.js: MMB, Q, E, R, F, 1, 2, 3, 4, C by default) and `level`
+// (core/bindings.js: RMB, Q, E, R, F, 1, 2, 3, 4, C by default) and `level`
 // the survival level that opens it.
 export const BarSlots = [
   { action: 'slot1', level: 1 },
@@ -22,7 +22,7 @@ export const BarSlots = [
   { action: 'slot10', level: 15 }
 ];
 
-// Where a newly learned spell goes, by slot index: blink to the middle mouse
+// Where a newly learned spell goes, by slot index: blink to the right mouse
 // button, spells cast often (a cooldown of `quickCooldown` frames or less)
 // to the keys around WASD, the rest to the number row. The first free open
 // slot in the order wins.

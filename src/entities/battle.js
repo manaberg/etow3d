@@ -574,8 +574,8 @@ export class Battle {
     game.hud.toast(on ? 'COMMANDER MODE :: CLICK TO SELECT, RIGHT CLICK TO ORDER' : 'SPELL MODE', on ? '#ffd060' : '#c090ff');
   }
 
-  // WASD / arrows pan the commander's camera the way it looks (as it looked
-  // when the pan began); faster when zoomed out.
+  // WASD / arrows pan the commander's camera the way it looks; faster when
+  // zoomed out.
   panCamera(input) {
     const speed = this.game.gfx.zoom * 0.55;
     let mx = 0;
@@ -584,7 +584,7 @@ export class Battle {
     if (input.state('down')) { my += speed; }
     if (input.state('left')) { mx -= speed; }
     if (input.state('right')) { mx += speed; }
-    const pan = this.game.gfx.alignToView(mx, my, this.game.gfx.heading);
+    const pan = this.game.gfx.alignToView(mx, my);
     this.cam.x += pan.x;
     this.cam.y += pan.y;
     const b = this.bounds;

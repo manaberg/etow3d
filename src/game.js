@@ -29,7 +29,6 @@ import { Hud } from './ui/hud.js';
 // turn key is held
 const CAMERA_DRAG = 0.006;
 const CAMERA_TURN = 2.4;
-const MOVES = ['up', 'down', 'left', 'right'];
 const CLASSIC_LOADOUT = ['blink', 'fireball', 'lightning', 'shield', 'ironshot', 'haste', 'image', 'timestop'];
 const RIVAL_CORE = ['shield', 'blink', 'fireball'];
 const LOADOUT_KEY = 'etow3d.loadout';
@@ -1224,26 +1223,16 @@ export class Game {
   }
 
   // The camera turns while its drag button is held and the mouse moves, or
-  // while a turn key is held; it stays where it was left. Dragging only
-  // looks: the mage keeps walking the way it set off until the move keys
-  // are let go. The turn keys steer it as well.
+  // while a turn key is held; it stays where it was left.
   turnCamera(dt) {
     const input = this.input;
-    const gfx = this.gfx;
     const look = input.takeLook();
-    // commander mode: a left-button drag selects regiments instead
-    if (!(this.battle && this.battle.drag)) {
-      gfx.rotate(-look.x * CAMERA_DRAG, look.y * CAMERA_DRAG * 0.7);
-    }
-    let turn = 0;
-    if (input.held.has('camera_left')) { turn += CAMERA_TURN * dt; }
-    if (input.held.has('camera_right')) { turn -= CAMERA_TURN * dt; }
-    gfx.rotate(turn, 0, true);
+    let yaw = -look.x * CAMERA_DRAG;
+    if (input.held.has('camera_left')) { yaw += CAMERA_TURN * dt; }
+    if (input.held.has('camera_right')) { yaw -= CAMERA_TURN * dt; }
+    this.gfx.rotate(yaw, look.y * CAMERA_DRAG * 0.7);
     if (input.consume('camera_reset')) {
-      gfx.resetView();
-    }
-    if (!MOVES.some((a) => input.held.has(a))) {
-      gfx.heading = gfx.yaw;
+      this.gfx.resetView();
     }
   }
 
