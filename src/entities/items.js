@@ -88,6 +88,9 @@ export class Item extends Entity {
 // (tier 1) scroll ranks up a spell on the reader's bar, so it goes to a spell
 // in use. What a scroll gives is decided when it is read.
 const MISSILE_SCROLL_CHANCE = 0.15;
+// while the floor's circles hold spells the reader does not know, a scroll
+// teaches one of those this often (and may still draw one by chance after)
+const NEW_SPELL_CHANCE = 2 / 3;
 
 function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
@@ -101,6 +104,8 @@ export class Scroll extends Item {
   defaults() {
     super.defaults();
     this.tier = 0;
+    // a scroll of one spell (a slain dark wizard's), or null
+    this.spell = null;
     this.isLoot = true;
   }
 
@@ -113,6 +118,9 @@ export class Scroll extends Item {
   // there is nothing left to learn from the circles open so far.
   choose(player) {
     const rankable = (id) => rankOf(player, id) < RankRules.max;
+    if (this.spell && (!player.knowsSpell(this.spell) || rankable(this.spell))) {
+      return this.spell;
+    }
     if (this.tier) {
       const onBar = player.bar.filter((id, i) => id && i < player.slotLimit && rankable(id));
       if (rankable('missile')) {
@@ -124,7 +132,15 @@ export class Scroll extends Item {
     }
     const pool = scrollPool(this.game.depth);
     const useful = (id) => id === 'missile' ? rankable(id) : (!player.knowsSpell(id) || rankable(id));
-    const id = rankable('missile') && Math.random() < MISSILE_SCROLL_CHANCE ? 'missile' : pick(pool);
+    const fresh = pool.filter((s) => !player.knowsSpell(s));
+    let id;
+    if (rankable('missile') && Math.random() < MISSILE_SCROLL_CHANCE) {
+      id = 'missile';
+    } else if (fresh.length && Math.random() < NEW_SPELL_CHANCE) {
+      id = pick(fresh);
+    } else {
+      id = pick(pool);
+    }
     if (useful(id)) {
       return id;
     }
@@ -133,10 +149,16 @@ export class Scroll extends Item {
   }
 
   label() {
+    if (this.spell) {
+      return 'SCROLL OF ' + SpellById[this.spell].name;
+    }
     return this.tier ? 'GOLD SCROLL' : 'SCROLL';
   }
 
   labelColor() {
+    if (this.spell) {
+      return '#d0a0ff';
+    }
     return this.tier ? '#ffd040' : '#f3e6c4';
   }
 

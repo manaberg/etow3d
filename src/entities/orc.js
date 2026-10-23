@@ -60,8 +60,9 @@ export class Orc extends Enemy {
     this.desiredVel = Math.min(this.desiredVel, this.maxSpeed);
     this.hp = this.maxHp = Math.round(hp);
     this.meleeDmg = Math.round(this.meleeDmg * damage);
-    // orcs only name their dangerous classes; the other races name every soldier
-    const name = this.race === 'orc' ? (spec.label || '') : race.names[this.orcClass];
+    // every soldier goes by its class; orcs say they are orcs, as their
+    // clerics and mages do
+    const name = (this.race === 'orc' ? 'ORC ' : '') + race.names[this.orcClass];
     this.label = ((this.isChampion ? 'CHAMPION ' : '') + name).trim();
     this.rig = buildOrc(raceLook(this.race, this.orcClass), { champion: this.isChampion });
     this.view = this.rig.root;

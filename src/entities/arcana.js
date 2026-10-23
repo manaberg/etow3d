@@ -173,7 +173,7 @@ export const ArcanaCast = {
     }
     const tc = target.center();
     if (target.canPolymorph || target.isWizard) {
-      target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph'));
+      target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph') * (caster.controlScale || 1));
       fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
     } else {
       if (caster === game.player) {

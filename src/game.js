@@ -7,7 +7,7 @@ import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
 import { Mage, DuelInnate, SpellBook } from './entities/mage.js';
-import { BarSlots, WizardLevels, RankRules } from './entities/spellbar.js';
+import { BarSlots, WizardLevels, RankRules, CircleFloors, bookId } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
@@ -477,7 +477,8 @@ export class Game {
     this.levelEnemyTotal = total;
   }
 
-  // The floor's dark wizard, in a lair room, with a fresh random spellbook.
+  // The floor's dark wizard, in a lair room, with a fresh random spellbook
+  // from the circles the floor has reached.
   spawnFloorWizard(lairs) {
     const rules = DungeonLevels.wizard;
     const roomIndex = this.pickLairRoom(lairs, 'library');
@@ -488,10 +489,16 @@ export class Game {
       hp,
       maxHp: hp,
       hitScale: rules.hitScale,
+      controlScale: rules.controlScale,
+      desiredVel: rules.speed,
       homeRoom: roomIndex,
       label: 'DARK WIZARD'
     });
-    const pool = Object.keys(wizard.spellBook).filter((s) => s !== 'missile');
+    const open = (s) => {
+      const spell = SpellBook.find((b) => b.id === bookId(s));
+      return spell && CircleFloors[spell.circle] <= this.depth;
+    };
+    const pool = Object.keys(wizard.spellBook).filter((s) => s !== 'missile' && open(s));
     wizard.known = new Set();
     wizard.ranks = {};
     for (let n = Math.min(pool.length, rules.spells(this.depth)); n > 0; n--) {
@@ -552,8 +559,9 @@ export class Game {
     return this.spawn(Potion, from.pos.x + from.size.x / 2 - 24, from.pos.y + from.size.y / 2 - 24, settings);
   }
 
-  dropScroll(from, tier, offset = 0) {
-    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset, { tier });
+  // `spell`: a scroll of that one spell (a slain dark wizard's)
+  dropScroll(from, tier, offset = 0, spell = null) {
+    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset, { tier, spell });
   }
 
   dropRing(from) {

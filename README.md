@@ -209,6 +209,9 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   slots, classic duels eight and battles all ten.
 - **Circles** (survival). A scroll only teaches spells of the circles its floor has reached:
   circle I from floor 1, II from floor 3, III from floor 6 and IV from floor 9 (table below).
+  While those circles hold spells you do not know, two scrolls in three teach one of them
+  (the rest may still), so ranks come once the new spells run out. A slain dark wizard's
+  scroll is the exception: it teaches one of its own spells, whatever its circle.
 - **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
   on your bar. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot, blink,
   blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
@@ -289,9 +292,13 @@ few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 
 number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
 
 Every floor also hides a dark wizard with the duel rival's brain. It waits in its lair until it
-notices you, knows magic missile plus one random spell per floor below the first (no more than
-a player that deep has slots on the bar), at rank II from depth 8 and III from depth 15, fights
-as a hard rival from depth 6, and leaves a gold scroll when slain.
+notices you and knows magic missile plus random spells from the circles its floor has reached,
+as your scrolls do: one every second floor to depth 5 (two there), then one more each floor (no
+more than a player that deep has slots on the bar), at rank II from depth 8 and III from depth
+15. It fights with an easy brain (slow to react, loose aim) to depth 5 and a normal one below,
+moves at your pace, and its root, fear and polymorph hold you half as long as in a duel. When
+slain it leaves a gold scroll and a scroll of one of its own spells (one it cast, and one you
+do not know if it can), so beating it is the way to deeper magic early.
 
 Below him the climb steepens (foes' health grows with the square of the depth past 10, to
 5.4x on floor 20; damage to 2.6x; more foes, champions and mini-bosses) and dragons lair in

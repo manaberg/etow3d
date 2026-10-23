@@ -6,7 +6,7 @@ import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
-import { rankCooldown } from './spellbar.js';
+import { RankRules, bookId, rankCooldown, rankOf } from './spellbar.js';
 
 export function resolveDifficulty() {
   const source = (window.location.search || '') + (window.location.hash || '');
@@ -22,7 +22,9 @@ export function resolveDifficulty() {
 // hunt a player it cannot see, and in progressive duels runs for scrolls and
 // potions when they are worth the trip. On survival floors it is the dark
 // wizard: it waits in its lair like the orcs until it notices the player, its
-// hits are scaled down (hitScale) and it leaves an upgrade scroll when slain.
+// hits are scaled down (hitScale), its root, fear and polymorph shortened
+// (controlScale), and when slain it leaves an upgrade scroll and a scroll of
+// one of its own spells.
 export class DuelWizard extends Enemy {
   defaults() {
     super.defaults();
@@ -80,8 +82,10 @@ export class DuelWizard extends Enemy {
     // classic duels; progressive duels, battles and dark wizards set it
     this.missileTier = 3;
     this.isWizard = true;
-    // share of duel damage its spells deal to the player (survival floors)
+    // share of duel damage its spells deal to the player, and of a duel's
+    // root, fear and polymorph time (survival floors)
     this.hitScale = 1;
+    this.controlScale = 1;
     // spell ranks (spellbar.js); its tier 2 spells count as rank II
     this.ranks = {};
   }
@@ -93,6 +97,8 @@ export class DuelWizard extends Enemy {
       this.cdLeft[spell] = 0;
     }
     this.ironCharges = 2;
+    // the spells it has cast, for the one it teaches when slain
+    this.castSpells = new Set();
     this.frame = 0;
     this.acc = 0;
     // short grace period at the start of the duel
@@ -184,11 +190,32 @@ export class DuelWizard extends Enemy {
     this.cdLeft[spell] = spell === 'missile' ? missileTier(this).cd : this.spellBook[spell].cd * rankCooldown(this, spell);
     this.manergy -= this.spellBook[spell].cost;
     this.lockSchool(spell);
+    this.castSpells.add(spell);
     if (offensive) {
       this.castLock = this.ai.castLock;
       // attacking breaks invisibility
       this.invisFrames = 0;
     }
+  }
+
+  // Survival: the spell (the player's id) its scroll teaches when slain, one
+  // it cast if it can, one the player does not know yet if any, else one
+  // the player can still rank up; or null.
+  spellToTeach(player) {
+    if (!player || !this.known) {
+      return null;
+    }
+    const cast = [...this.known].filter((id) => this.castSpells.has(id));
+    for (const ids of [cast, [...this.known]]) {
+      const book = ids.map(bookId);
+      const fresh = book.filter((id) => !player.knowsSpell(id));
+      const rankable = book.filter((id) => rankOf(player, id) < RankRules.max);
+      const pool = fresh.length ? fresh : rankable;
+      if (pool.length) {
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
+    }
+    return null;
   }
 
   arenaBounds() {
@@ -397,6 +424,10 @@ export class DuelWizard extends Enemy {
     if (!game.duelMode) {
       game.stats.bosscount++;
       game.dropScroll(this, 1);
+      const taught = this.spellToTeach(game.player);
+      if (taught) {
+        game.dropScroll(this, 1, 48, taught);
+      }
       game.onEnemySlain(this);
       return;
     }
@@ -1117,6 +1148,7 @@ export class DuelWizard extends Enemy {
       (dist < 190 || this.cdLeft.root < 40 || this.cdLeft.fireball === 0)) {
       player.isFeared = true;
       player.fearFrames = 0;
+      player.fearDuration = DuelRules.fearFrames * this.controlScale;
       this.spend('fear', true);
       game.fx.ring(me.x, me.y, { color: 0xc040ff, radius: 430, life: 0.6 });
       return;

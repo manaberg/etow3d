@@ -101,6 +101,8 @@ export const DuelRules = {
   // pwkillRate: per-frame chance to use power word kill once it is ready
   // advanced: time stop and blink-in engages
   difficulties: {
+    // the dark wizards of the upper floors: slow to react, loose aim
+    easy: { reaction: 26, castLock: 32, decisionInterval: 10, aimNoise: 0.25, learnRate: 0.04, decoyFoolChance: 0.9, pwkillRate: 0, advanced: false },
     normal: { reaction: 16, castLock: 18, decisionInterval: 6, aimNoise: 0.12, learnRate: 0.08, decoyFoolChance: 0.8, pwkillRate: 0.01, advanced: false },
     hard: { reaction: 8, castLock: 7, decisionInterval: 3, aimNoise: 0.035, learnRate: 0.15, decoyFoolChance: 0.5, pwkillRate: 0.04, advanced: true },
     insane: { reaction: 3, castLock: 3, decisionInterval: 1, aimNoise: 0, learnRate: 0.22, decoyFoolChance: 0.25, pwkillRate: 1, advanced: true }
@@ -110,7 +112,8 @@ export const DuelRules = {
   // survival floors, where the player has far fewer hit points.
   applyHit(target, kind, attacker, scale = 1) {
     if (kind === 'root' || kind === 'rootchain') {
-      target.stun(this.stunFrames);
+      // dark wizards root the survival mage for less (controlScale)
+      target.stun(this.stunFrames * ((attacker && attacker.controlScale) || 1));
       return;
     }
     // rank II of lifesteal and scorching ray (spellbar.js) hits harder

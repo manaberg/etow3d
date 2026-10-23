@@ -46,17 +46,23 @@ export const DungeonLevels = {
   ],
 
   // The dark wizard waiting on every floor: the duel rival's brain, knowing
-  // magic missile plus `spells(depth)` others drawn at random each floor (no
+  // magic missile plus `spells(depth)` others drawn at random each floor
+  // from the circles the floor has reached, as the mage's scrolls are (no
   // more than a player that deep has slots on the bar), at `rank(depth)`.
   // Its spells hit the player at `hitScale` of their duel damage, since the
-  // survival mage has far fewer hit points than a duelist.
+  // survival mage has far fewer hit points than a duelist, and its root,
+  // fear and polymorph hold the mage for `controlScale` of a duel's time.
+  // It moves at the mage's own pace (`speed`, mage.js) rather than faster.
   wizard: {
     hitScale: 0.15,
+    controlScale: 0.5,
+    speed: 115,
     hp(depth) {
       return 280 + depth * 40;
     },
+    // one spell every second floor to depth 5, then one more each floor
     spells(depth) {
-      return Math.min(depth - 1, WizardLevels.slotsAt(WizardLevels.levelAt(depth)));
+      return Math.min(depth <= 5 ? Math.floor(depth / 2) : depth - 3, WizardLevels.slotsAt(WizardLevels.levelAt(depth)));
     },
     rank(depth) {
       return depth >= 15 ? 3 : (depth >= 8 ? 2 : 1);
@@ -66,7 +72,7 @@ export const DungeonLevels = {
       return depth >= 6 ? 3 : (depth >= 3 ? 2 : 1);
     },
     difficulty(depth) {
-      return depth >= 6 ? 'hard' : 'normal';
+      return depth <= 5 ? 'easy' : 'normal';
     }
   },
 
@@ -112,15 +118,16 @@ export const DungeonLevels = {
   }
 };
 
-// Orc classes. `look` picks the 3D model variant, `label` is shown above them.
+// Orc classes. `look` picks the 3D model variant; the name shown above each
+// comes from its race (Races names).
 export const OrcClasses = {
   grunt: { look: 'grunt', hp: 100 },
   slinger: { look: 'slinger', hp: 90, sight: 540 },
   knight: { look: 'knight', hp: 125 },
   shaman: { look: 'shaman', hp: 125 },
-  berserker: { look: 'berserker', hp: 140, label: 'BERSERKER' },
-  brute: { look: 'brute', hp: 380, label: 'BRUTE' },
-  warlock: { look: 'warlock', hp: 150, sight: 560, label: 'WARLOCK' }
+  berserker: { look: 'berserker', hp: 140 },
+  brute: { look: 'brute', hp: 380 },
+  warlock: { look: 'warlock', hp: 150, sight: 560 }
 };
 
 // Races. Every race fields the same seven classes as the orcs (the keys of

@@ -92,6 +92,11 @@ export const RankRules = {
 
 export const ROMAN = ['', 'I', 'II', 'III'];
 
+// The player's id for one of the rival's spells (it calls chain root 'root').
+export function bookId(id) {
+  return id === 'root' ? 'stun' : id;
+}
+
 export function rankOf(caster, id) {
   if (id === 'missile') {
     return (caster && caster.missileTier) || 1;
