@@ -9,7 +9,8 @@ Pre Alpha 0.1.0
 The game plays like the original: the same ten-floor survival descent (now followed by ten
 more, down through the dragons' lairs), the same spells, orc classes, mini-bosses, warlord
 and duel AI, with the same numbers. It is now rendered
-as a lit 3D dungeon seen from an angled camera that follows the mage.
+as a lit 3D dungeon seen from an angled camera that follows the mage and can be turned
+all the way around it, so you can look ahead whichever way you go.
 
 ## Running it
 
@@ -71,13 +72,16 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 
 | Key | Action |
 | --- | --- |
-| `W` `A` `S` `D` | move |
+| `W` `A` `S` `D` | move, relative to the camera (`W` walks the way the camera looks) |
 | Mouse | aim |
+| `MMB` (hold and drag) | turn the camera around the mage (left / right) and tilt it (up / down); it stays where you leave it |
+| `Z` / `X` | turn the camera left / right |
+| `V` | swing the camera back to the starting view, looking north |
 | `LMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
 | `RMB` `Q` `E` `R` `F` `1` `2` `3` `4` `C` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
 | `B` | spellbook: choose which spells sit on the bar (the game waits while it is open) |
 | `Tab` | battle: switch between spell mode and commander mode |
-| Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans |
+| Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans (the way the camera looks) |
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |

@@ -42,10 +42,13 @@ const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
 // Walls between the camera and the player dissolve so the mage is never
 // lost behind them (screen-door fade, keeps the bottom edge for orientation).
+// The camera turns, so the fade is measured along the way it looks:
+// uCutDir points from the player towards the camera.
 function addCutaway(material, cutaway) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uCutCenter = cutaway.center;
     shader.uniforms.uCutStrength = cutaway.strength;
+    shader.uniforms.uCutDir = cutaway.dir;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCutWorld;')
       .replace('#include <begin_vertex>', [
@@ -57,10 +60,11 @@ function addCutaway(material, cutaway) {
         'vCutWorld = (modelMatrix * cutPos).xyz;'
       ].join('\n'));
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uCutCenter;\nuniform float uCutStrength;\nvarying vec3 vCutWorld;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uCutCenter;\nuniform float uCutStrength;\nuniform vec2 uCutDir;\nvarying vec3 vCutWorld;')
       .replace('#include <clipping_planes_fragment>', [
         '#include <clipping_planes_fragment>',
-        'vec2 cutD = vCutWorld.xz - uCutCenter.xz;',
+        'vec2 cutRel = vCutWorld.xz - uCutCenter.xz;',
+        'vec2 cutD = vec2(cutRel.x * uCutDir.y - cutRel.y * uCutDir.x, dot(cutRel, uCutDir));',
         'if (uCutStrength > 0.5 && cutD.y > 0.6 && vCutWorld.y > 0.3) {',
         '  float cutR = length(vec2(cutD.x, (cutD.y - 0.6) * 0.55));',
         '  float cutFade = 1.0 - smoothstep(3.2, 5.6, cutR);',

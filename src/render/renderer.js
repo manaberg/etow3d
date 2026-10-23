@@ -6,6 +6,11 @@ import { Fx } from './fx.js';
 import { Ambience } from './ambience.js';
 
 const ROOM_LIGHTS = 6;
+
+// An angle brought into -PI..PI.
+function wrapAngle(a) {
+  return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
+}
 const FX_LIGHTS = 4;
 
 // Owns the Three.js scene: camera rig, lights, the floor's meshes and the
@@ -30,7 +35,14 @@ export class Gfx {
     this.zoomTarget = 26;
     this.zoomMin = 15;
     this.zoomMax = 40;
+    // the camera orbits the focus: `yaw` turns it around (0 looks north, the
+    // old fixed view), `elevation` tilts it between a low look ahead and
+    // almost straight down. It stays where it is put; nothing turns it back.
+    this.yaw = 0;
+    this.yawHome = null;
     this.elevation = THREE.MathUtils.degToRad(52);
+    this.elevationMin = THREE.MathUtils.degToRad(30);
+    this.elevationMax = THREE.MathUtils.degToRad(80);
     this.focus = new THREE.Vector3();
     this.shake = 0;
 
@@ -63,7 +75,8 @@ export class Gfx {
     this.levelGroup = null;
     this.level = null;
     this.torches = [];
-    this.cutaway = { center: { value: new THREE.Vector3() }, strength: { value: 1 } };
+    // dir: from the focus towards the camera, on the ground
+    this.cutaway = { center: { value: new THREE.Vector3() }, strength: { value: 1 }, dir: { value: new THREE.Vector2(0, 1) } };
     this.fx = new Fx(this.scene);
     // a floor's look sets the strength and reach of its lights, the staff's
     // light, and the air (ambience.js)
@@ -181,6 +194,30 @@ export class Gfx {
     this.zoomTarget = clamp(this.zoomTarget + steps * step, this.zoomMin, this.zoomMax);
   }
 
+  // Turns the camera by `yaw` radians (positive turns the view left) and
+  // tilts it by `pitch` (positive looks further down).
+  rotate(yaw, pitch = 0) {
+    if (yaw) {
+      this.yawHome = null;
+      this.yaw = wrapAngle(this.yaw + yaw);
+    }
+    this.elevation = clamp(this.elevation + pitch, this.elevationMin, this.elevationMax);
+  }
+
+  // Swings the camera back to the old view, looking north.
+  resetView() {
+    this.yawHome = 0;
+    this.elevation = THREE.MathUtils.degToRad(52);
+  }
+
+  // A direction given on screen (x right, y down: the move keys) as a
+  // direction on the ground in sim pixels, for the way the camera faces.
+  alignToView(x, y) {
+    const sin = Math.sin(this.yaw);
+    const cos = Math.cos(this.yaw);
+    return { x: x * cos + y * sin, y: y * cos - x * sin };
+  }
+
   addShake(amount) {
     this.shake = Math.min(1.2, this.shake + amount);
   }
@@ -224,20 +261,31 @@ export class Gfx {
     if (Math.abs(fx - this.focus.x) > 12 || Math.abs(fz - this.focus.z) > 12) {
       this.focus.set(fx, 0, fz);
     }
+    if (this.yawHome !== null) {
+      const left = wrapAngle(this.yawHome - this.yaw);
+      this.yaw = wrapAngle(this.yaw + left * Math.min(1, dt * 8));
+      if (Math.abs(left) < 0.002) {
+        this.yaw = this.yawHome;
+        this.yawHome = null;
+      }
+    }
+    const back = this.cutaway.dir.value.set(Math.sin(this.yaw), Math.cos(this.yaw));
+    const reach = this.zoom * Math.cos(this.elevation);
     const shakeX = (Math.random() - 0.5) * this.shake;
     const shakeZ = (Math.random() - 0.5) * this.shake;
     this.shake = Math.max(0, this.shake - dt * 2.5);
     this.camera.position.set(
-      this.focus.x + shakeX,
+      this.focus.x + back.x * reach + shakeX,
       this.zoom * Math.sin(this.elevation),
-      this.focus.z + this.zoom * Math.cos(this.elevation) + shakeZ
+      this.focus.z + back.y * reach + shakeZ
     );
     this.camera.lookAt(this.focus.x + shakeX, 0.8, this.focus.z + shakeZ);
     this.cutaway.center.value.set(fx, 0, fz);
     this.cutaway.strength.value = playerHidden ? 0 : 1;
 
-    // high enough to clear a pointed hat; brighter to light the floor as before
-    this.playerLight.position.set(fx, 4.4, fz + 0.4);
+    // high enough to clear a pointed hat, a little towards the camera;
+    // brighter to light the floor as before
+    this.playerLight.position.set(fx + back.x * 0.4, 4.4, fz + back.y * 0.4);
     this.playerLight.intensity = (56 + Math.sin(time * 7) * 3.3 + Math.sin(time * 13.3) * 2.5) * this.playerPower;
 
     if (this.level && this.level.update) {

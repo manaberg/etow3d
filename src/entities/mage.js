@@ -484,7 +484,11 @@ export class Mage extends Entity {
       if (input.state('left')) { mx -= 1; }
       if (input.state('right')) { mx += 1; }
       if (mx || my) {
+        // the keys move the way the camera looks
         this.walkTo = null;
+        const dir = game.gfx.alignToView(mx, my);
+        mx = dir.x;
+        my = dir.y;
       } else if (this.walkTo) {
         const t = this.walkTo.center();
         const c = this.center();

@@ -129,5 +129,14 @@ export class Minimap {
     const pc = player.center();
     ctx.fillStyle = '#fff';
     ctx.fillRect(Math.floor(pc.x * scale) - 2, Math.floor(pc.y * scale) - 2, 4, 4);
+    // a tick the way the camera looks
+    const ahead = game.gfx.alignToView(0, -1);
+    const reach = this.large ? 14 : 8;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pc.x * scale, pc.y * scale);
+    ctx.lineTo(pc.x * scale + ahead.x * reach, pc.y * scale + ahead.y * reach);
+    ctx.stroke();
   }
 }

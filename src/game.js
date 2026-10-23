@@ -25,6 +25,10 @@ import { Hud } from './ui/hud.js';
 // Classic duels: the player's eight spells before they choose (spell ids,
 // placed in order), the spells the rival always takes, and where the
 // player's last loadout is kept.
+// camera: radians turned per pixel the mouse is dragged, and per second a
+// turn key is held
+const CAMERA_DRAG = 0.006;
+const CAMERA_TURN = 2.4;
 const CLASSIC_LOADOUT = ['blink', 'fireball', 'lightning', 'shield', 'ironshot', 'haste', 'image', 'timestop'];
 const RIVAL_CORE = ['shield', 'blink', 'fireball'];
 const LOADOUT_KEY = 'etow3d.loadout';
@@ -1191,6 +1195,7 @@ export class Game {
       this.hud.toggleMap();
     }
     this.gfx.zoomBy(this.input.takeWheel());
+    this.turnCamera(dt);
     if (this.input.mouse.inside || this.input.mouse.x || this.input.mouse.y) {
       const g = this.gfx.pickGround(this.input.mouse);
       if (g) {
@@ -1215,6 +1220,20 @@ export class Game {
     }
     this.elapsed += dt;
     this.render(dt);
+  }
+
+  // The camera turns while its drag button is held and the mouse moves, or
+  // while a turn key is held; it stays where it was left.
+  turnCamera(dt) {
+    const input = this.input;
+    const look = input.takeLook();
+    let yaw = -look.x * CAMERA_DRAG;
+    if (input.held.has('camera_left')) { yaw += CAMERA_TURN * dt; }
+    if (input.held.has('camera_right')) { yaw -= CAMERA_TURN * dt; }
+    this.gfx.rotate(yaw, look.y * CAMERA_DRAG * 0.7);
+    if (input.consume('camera_reset')) {
+      this.gfx.resetView();
+    }
   }
 
   render(dt) {

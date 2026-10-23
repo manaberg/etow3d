@@ -568,18 +568,25 @@ export class Battle {
     this.drag = null;
     if (on) {
       const c = game.player.center();
-      this.cam = { x: c.x, y: c.y - 200 };
+      const ahead = game.gfx.alignToView(0, -200);
+      this.cam = { x: c.x + ahead.x, y: c.y + ahead.y };
     }
     game.hud.toast(on ? 'COMMANDER MODE :: CLICK TO SELECT, RIGHT CLICK TO ORDER' : 'SPELL MODE', on ? '#ffd060' : '#c090ff');
   }
 
-  // WASD / arrows pan the commander's camera; faster when zoomed out.
+  // WASD / arrows pan the commander's camera the way it looks; faster when
+  // zoomed out.
   panCamera(input) {
     const speed = this.game.gfx.zoom * 0.55;
-    if (input.state('up')) { this.cam.y -= speed; }
-    if (input.state('down')) { this.cam.y += speed; }
-    if (input.state('left')) { this.cam.x -= speed; }
-    if (input.state('right')) { this.cam.x += speed; }
+    let mx = 0;
+    let my = 0;
+    if (input.state('up')) { my -= speed; }
+    if (input.state('down')) { my += speed; }
+    if (input.state('left')) { mx -= speed; }
+    if (input.state('right')) { mx += speed; }
+    const pan = this.game.gfx.alignToView(mx, my);
+    this.cam.x += pan.x;
+    this.cam.y += pan.y;
     const b = this.bounds;
     this.cam.x = Math.max(b.left, Math.min(b.right, this.cam.x));
     this.cam.y = Math.max(b.top, Math.min(b.bottom + 400, this.cam.y));

@@ -4,7 +4,8 @@ import { actionFor } from './bindings.js';
 // (bindings.js). `pressed` is edge-triggered per simulation step: presses
 // queue up until a step consumes them, so nothing is lost when a render frame
 // runs no step. The left button also reads as 'click' whatever it is bound
-// to (survival loot is picked up by clicking its name).
+// to (survival loot is picked up by clicking its name). While 'camera_drag'
+// is held, mouse movement turns the camera (takeLook).
 export class Input {
   constructor(element) {
     this.element = element;
@@ -15,6 +16,7 @@ export class Input {
     this.mouse = { x: 0, y: 0, inside: false };
     this.ground = { x: 0, y: 0 };
     this.wheel = 0;
+    this.look = { x: 0, y: 0 };
     this.listeners = [];
 
     this.on(window, 'keydown', (e) => {
@@ -63,6 +65,13 @@ export class Input {
       this.mouse.y = e.clientY - rect.top;
       this.mouse.inside = true;
     });
+    // a drag may cross the HUD or leave the window: follow it on the window
+    this.on(window, 'mousemove', (e) => {
+      if (this.held.has('camera_drag')) {
+        this.look.x += e.movementX || 0;
+        this.look.y += e.movementY || 0;
+      }
+    });
     this.on(element, 'mouseleave', () => {
       this.mouse.inside = false;
     });
@@ -105,6 +114,14 @@ export class Input {
     const w = this.wheel;
     this.wheel = 0;
     return w;
+  }
+
+  // Mouse movement (CSS px) while the camera was dragged, since the last call.
+  takeLook() {
+    const look = { x: this.look.x, y: this.look.y };
+    this.look.x = 0;
+    this.look.y = 0;
+    return look;
   }
 
   dispose() {

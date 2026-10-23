@@ -2,7 +2,8 @@
 // browser's localStorage. A binding is a KeyboardEvent.code ('KeyQ', 'Digit1',
 // 'Space') or a mouse button ('Mouse0' left, 'Mouse1' middle, 'Mouse2' right),
 // so any action can sit on any key or button. Escape always pauses and the
-// arrow keys always move; neither can be rebound.
+// arrow keys always move; neither can be rebound. Movement is relative to the
+// camera, which turns (held middle button and drag, or the turn keys).
 
 // Every action in the order the controls screen lists them. Movement keeps
 // the 2D game's keys; spells sit on the bar's slots instead of a key each.
@@ -11,6 +12,10 @@ export const Actions = [
   { id: 'left', label: 'Move left', group: 'Movement', key: 'KeyA' },
   { id: 'down', label: 'Move down', group: 'Movement', key: 'KeyS' },
   { id: 'right', label: 'Move right', group: 'Movement', key: 'KeyD' },
+  { id: 'camera_drag', label: 'Turn camera (hold and move the mouse)', group: 'Camera', key: 'Mouse1' },
+  { id: 'camera_left', label: 'Turn camera left', group: 'Camera', key: 'KeyZ' },
+  { id: 'camera_right', label: 'Turn camera right', group: 'Camera', key: 'KeyX' },
+  { id: 'camera_reset', label: 'Camera back to north', group: 'Camera', key: 'KeyV' },
   { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse0' },
   // the spell bar (entities/spellbar.js BarSlots): whatever spell is prepared
   // in each slot, nearest to WASD first
@@ -63,14 +68,23 @@ function defaults() {
   return out;
 }
 
-// Saved bindings over the defaults; storage may be missing or blocked.
+// Saved bindings over the defaults; storage may be missing or blocked. An
+// action added since the bindings were saved is left unbound if its default
+// key was since given to something else.
 function load() {
   const out = defaults();
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    const taken = new Set();
     for (const id in saved) {
       if (id in out && typeof saved[id] === 'string' && !RESERVED.includes(saved[id])) {
         out[id] = saved[id];
+        taken.add(saved[id]);
+      }
+    }
+    for (const id in out) {
+      if (!(id in saved) && taken.has(out[id])) {
+        out[id] = '';
       }
     }
   } catch {
@@ -90,7 +104,9 @@ function save() {
 function index() {
   const map = { ...FIXED };
   for (const id in bindings) {
-    map[bindings[id]] = id;
+    if (bindings[id]) {
+      map[bindings[id]] = id;
+    }
   }
   return map;
 }
