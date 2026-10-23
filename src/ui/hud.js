@@ -66,7 +66,6 @@ export class Hud {
     root.innerHTML = '';
     root.classList.add('hud');
     const game = this.game;
-    root.classList.toggle('battle', !!game.battleMode);
 
     this.labels = el('canvas', 'hud-labels', root);
     // a spell being spoken (power word kill): its name and how far along
@@ -86,8 +85,8 @@ export class Hud {
     const bars = el('div', 'hud-bars', left);
     this.hpBar = this.makeBar(bars, 'HP', 'hp');
     this.myBar = this.makeBar(bars, 'MY', 'my');
-    // survival levels (spellbar.js WizardLevels)
-    this.xpBar = game.duelMode ? null : this.makeBar(bars, 'LV', 'xp');
+    // wizard levels (spellbar.js WizardLevels)
+    this.xpBar = this.makeBar(bars, 'LV', 'xp');
 
     el('div', 'hud-heading', left, 'HOTKEY / SPELL / COOLDOWN');
     const list = el('div', 'hud-spells', left);
@@ -109,37 +108,31 @@ export class Hud {
     this.gearList = el('div', 'hud-gear', left);
     this.gearShown = null;
 
+    // the panels of every kind of stage; applyMode shows the current one's
     const right = el('div', 'hud-right', root);
     this.rightPanel = right;
-    if (game.duelMode) {
-      const rival = el('div', 'hud-rival', right);
-      this.rivalName = el('div', 'rival-name', rival);
-      this.rivalHp = this.makeBar(rival, '', 'rival-hp');
-      this.rivalMy = this.makeBar(rival, '', 'rival-my');
-      this.rivalInfo = el('div', 'rival-info', rival);
-    }
-    if (game.battleMode) {
-      const box = el('div', 'hud-battle', right);
-      this.battleScore = el('div', 'battle-score', box);
-      this.battleArmies = el('div', 'map-line', box);
-      this.battleDragons = el('div', 'map-line', box);
-      this.battleMode = el('div', 'map-line battle-mode', box);
-      this.battleKeys = el('div', 'map-line dim', box);
-      this.dragBox = el('div', 'drag-box', root);
-      // the player's regiments as clickable cards along the bottom
-      this.regimentBar = el('div', 'hud-regiments', root);
-      this.regimentCards = [];
-    }
-    // duels are fought in a small dungeon too, so both modes get the map
+    this.rivalBox = el('div', 'hud-rival', right);
+    this.rivalName = el('div', 'rival-name', this.rivalBox);
+    this.rivalHp = this.makeBar(this.rivalBox, '', 'rival-hp');
+    this.rivalMy = this.makeBar(this.rivalBox, '', 'rival-my');
+    this.rivalInfo = el('div', 'rival-info', this.rivalBox);
+    this.battleBox = el('div', 'hud-battle', right);
+    this.battleScore = el('div', 'battle-score', this.battleBox);
+    this.battleArmies = el('div', 'map-line', this.battleBox);
+    this.battleDragons = el('div', 'map-line', this.battleBox);
+    this.battleMode = el('div', 'map-line battle-mode', this.battleBox);
+    this.battleKeys = el('div', 'map-line dim', this.battleBox);
+    this.dragBox = el('div', 'drag-box', root);
+    // the player's regiments as clickable cards along the bottom
+    this.regimentBar = el('div', 'hud-regiments', root);
+    this.regimentCards = [];
+    // duels are fought in a small dungeon too, so every stage gets the map
     const mapBox = el('div', 'hud-map', right);
     this.mapCanvas = el('canvas', 'minimap', mapBox);
     this.minimap = new Minimap(this.mapCanvas, game);
-    this.minimap.render();
     this.roomLabel = el('div', 'map-line', mapBox);
-    if (!game.duelMode) {
-      this.slainLabel = el('div', 'map-line', mapBox);
-      this.goalLabel = el('div', 'map-line goal', mapBox);
-    }
+    this.slainLabel = el('div', 'map-line', mapBox);
+    this.goalLabel = el('div', 'map-line goal', mapBox);
     el('div', 'map-line dim', mapBox, actionKeyLabel('map') + ' :: LARGER MAP');
 
     this.banner = el('div', 'hud-banner', root);
@@ -165,6 +158,27 @@ export class Hud {
 
     this.pauseButton = el('button', 'hud-pause', root, 'Pause the game');
     this.pauseButton.onclick = () => game.setPaused(!game.paused);
+    this.applyMode();
+  }
+
+  // A new stage: the panels for a dungeon floor, a duel or a battle, and a
+  // fresh map.
+  applyMode() {
+    const game = this.game;
+    const floor = !game.duelMode;
+    this.root.classList.toggle('battle', !!game.battleMode);
+    this.rivalBox.style.display = game.duelMode ? '' : 'none';
+    this.battleBox.style.display = game.battleMode ? '' : 'none';
+    this.regimentBar.style.display = game.battleMode ? '' : 'none';
+    this.dragBox.style.display = 'none';
+    this.slainLabel.style.display = floor ? '' : 'none';
+    this.goalLabel.style.display = floor ? '' : 'none';
+    if (game.battle) {
+      this.buildRegimentCards(game.battle);
+    }
+    this.minimap.render();
+    this.endScreen.classList.add('hidden');
+    this.pauseButton.classList.remove('hidden');
   }
 
   makeBar(parent, label, kind) {
@@ -179,8 +193,9 @@ export class Hud {
   }
 
   onFloorChanged() {
+    // the first stage starts before the HUD is built
     if (this.minimap) {
-      this.minimap.render();
+      this.applyMode();
     }
   }
 
@@ -238,7 +253,7 @@ export class Hud {
     this.pauseHint.textContent = 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
   }
 
-  showEnd({ title, text, stats, saved, time, win, duel }) {
+  showEnd({ title, text, stats, saved, time, win }) {
     const screen = this.endScreen;
     screen.innerHTML = '';
     screen.classList.remove('hidden');
@@ -263,11 +278,9 @@ export class Hud {
       el('span', 'stat-label', grid, label);
       el('span', 'stat-value', grid, String(value));
     }
-    if (!duel) {
-      el('p', 'dim', card, saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).');
-    }
+    el('p', 'dim', card, saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).');
     const buttons = el('div', 'buttons', card);
-    const again = el('button', null, buttons, this.game.battleMode ? 'Battle again' : (duel ? 'Duel again' : 'Play again'));
+    const again = el('button', null, buttons, 'Descend again');
     again.onclick = () => this.game.onExit && this.game.onExit('restart');
     const menu = el('button', 'secondary', buttons, 'Main menu');
     menu.onclick = () => this.game.onExit && this.game.onExit('menu');
@@ -284,8 +297,8 @@ export class Hud {
       this.fpsFrames = 0;
       this.fpsTime = 0;
     }
-    const modeLabel = game.battleMode ? 'MODE: BATTLE' : (game.duelMode ? 'MODE: DUEL' : 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count);
-    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + modeLabel + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
+    const where = 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count + (game.trial ? ' :: ' + game.stageName() : '');
+    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + where + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
     if (!player) {
       return;
     }
@@ -302,14 +315,12 @@ export class Hud {
       this.castFill.style.width = Math.min(100, (1 - ch.left / ch.total) * 100) + '%';
     }
 
-    if (this.xpBar) {
-      const table = WizardLevels.xp;
-      const top = player.level >= WizardLevels.max;
-      const span = top ? 1 : table[player.level + 1] - table[player.level];
-      const into = top ? 1 : player.xp - table[player.level];
-      this.xpBar.fill.style.width = Math.max(0, Math.min(1, into / span)) * 100 + '%';
-      setText(this.xpBar.text, 'LEVEL ' + player.level + (top ? ' :: MAX' : ' :: ' + Math.floor(into) + ' / ' + span + ' XP'));
-    }
+    const table = WizardLevels.xp;
+    const top = player.level >= WizardLevels.max;
+    const span = top ? 1 : table[player.level + 1] - table[player.level];
+    const into = top ? 1 : player.xp - table[player.level];
+    this.xpBar.fill.style.width = Math.max(0, Math.min(1, into / span)) * 100 + '%';
+    setText(this.xpBar.text, 'LEVEL ' + player.level + (top ? ' :: MAX' : ' :: ' + Math.floor(into) + ' / ' + span + ' XP'));
 
     const keysChanged = this.keysVersion !== bindingsVersion();
     this.keysVersion = bindingsVersion();
@@ -336,9 +347,8 @@ export class Hud {
   }
 
   // One row of the spell list: magic missile, a slot's spell, an empty slot,
-  // or (survival) the next slot still to open.
+  // or the next slot still to open.
   updateSpellRow(r, player, keysChanged) {
-    const game = this.game;
     let state;
     let id = null;
     if (r.index < 0) {
@@ -347,7 +357,7 @@ export class Hud {
     } else if (r.index < player.slotLimit) {
       id = player.bar[r.index];
       state = id ? 'spell' : 'empty';
-    } else if (r.index === player.slotLimit && !game.duelMode && player.level < WizardLevels.max) {
+    } else if (r.index === player.slotLimit && player.level < WizardLevels.max) {
       state = 'locked';
     } else {
       state = 'hidden';
@@ -408,18 +418,19 @@ export class Hud {
     if (!rival) {
       return;
     }
-    setText(this.rivalName, 'RIVAL WIZARD ( ' + rival.difficulty.toUpperCase() + ' )');
+    setText(this.rivalName, 'YOUR REFLECTION :: LEVEL ' + rival.level + ' ( ' + rival.difficulty.toUpperCase() + ' )');
     this.rivalHp.fill.style.width = Math.max(0, rival.hp / rival.maxHp * 100) + '%';
     setText(this.rivalHp.text, Math.max(0, Math.round(rival.hp)) + '');
     this.rivalMy.fill.style.width = Math.max(0, rival.manergy / rival.maxManergy * 100) + '%';
     setText(this.rivalMy.text, Math.round(rival.manergy) + '');
-    const spells = (rival.known ? ' :: SPELLS ' + (rival.known.size + 1) : '') + ' :: MISSILE x' + rival.missileTier;
+    // its bar's spells, as the banner counts them; magic missile apart
+    const spells = (rival.known ? ' :: SPELLS ' + rival.known.size : '') + ' :: MISSILE x' + rival.missileTier;
     setText(this.rivalInfo, 'TACTIC :: ' + rival.tactic.toUpperCase() + spells);
   }
 
   updateBattle() {
     const battle = this.game.battle;
-    setText(this.battleScore, 'YOUR ' + Races[battle.races.player].name + ' VS THE RIVAL\'S ' + Races[battle.races.enemy].name);
+    setText(this.battleScore, 'YOUR ' + Races[battle.races.player].name + ' VS ITS ' + Races[battle.races.enemy].name);
     const dragons = { player: battle.dragonCount('player'), enemy: battle.dragonCount('enemy') };
     setText(this.battleArmies, 'ARMIES :: ' + (battle.armyCount('player') - dragons.player) + ' VS ' + (battle.armyCount('enemy') - dragons.enemy));
     setText(this.battleDragons, 'DRAGONS :: ' + dragons.player + ' VS ' + dragons.enemy);
@@ -465,15 +476,28 @@ export class Hud {
     });
   }
 
-  // The battle was deployed: fresh map, banner while the armies form up.
-  onBattleStart(battle) {
-    if (!this.minimap) {
-      return;
+  // A trial is over: what happened and, if it was won, the spoils to choose
+  // from (mirror.js). `onPick` gets the chosen spoil's id, or null.
+  showTrialEnd({ won, title, text, choices, onPick }) {
+    const screen = this.endScreen;
+    screen.innerHTML = '';
+    screen.classList.remove('hidden');
+    this.pauseButton.classList.add('hidden');
+    const card = el('div', 'card end' + (won ? ' win' : ''), screen);
+    el('h2', null, card, title);
+    el('p', null, card, text);
+    if (choices.length) {
+      el('p', null, card, 'Take your reflection\'s spoils: a spell, a dart or a rank.');
+      const buttons = el('div', 'buttons draft', card);
+      for (const c of choices) {
+        const b = el('button', null, buttons, c.name);
+        b.onclick = () => onPick(c.id);
+      }
+    } else {
+      const buttons = el('div', 'buttons', card);
+      const b = el('button', null, buttons, 'Descend');
+      b.onclick = () => onPick(null);
     }
-    this.minimap.render();
-    this.endScreen.classList.add('hidden');
-    this.pauseButton.classList.remove('hidden');
-    this.buildRegimentCards(battle);
   }
 
   updateMap() {
@@ -485,7 +509,7 @@ export class Hud {
     }
     let room = game.currentRoomIndex >= 0 ? game.world.rooms[game.currentRoomIndex].label : 'CORRIDOR';
     if (game.battleMode) {
-      room = 'THE BATTLEFIELD';
+      room = game.stageName();
     }
     setText(this.roomLabel, room);
     if (game.duelMode) {
@@ -523,26 +547,34 @@ export class Hud {
         const dragons = battle.dragonCount(side);
         return (battle.armyCount(side) - dragons).toLocaleString('en') + ' ' + Races[battle.races[side]].name + ' AND ' + dragons + (dragons === 1 ? ' DRAGON' : ' DRAGONS');
       };
-      setText(this.bannerTitle, 'THE BATTLE :: ' + count('player') + ' VS ' + count('enemy'));
+      setText(this.bannerTitle, game.stageName() + ' :: ' + count('player') + ' VS ' + count('enemy'));
       setText(this.bannerText, 'DEPLOY YOUR REGIMENTS :: ' + actionKeyLabel('descend') + ' TO ATTACK NOW :: ' + Math.ceil(battle.deploy / 60));
       this.banner.style.opacity = '1';
       return;
     }
-    if (game.duelMode || game.bannerFrames <= 0) {
+    // a battle's own banner is the one above, while the armies deploy
+    if (battle || game.bannerFrames <= 0 || game.state !== 'playing') {
       this.banner.style.opacity = '0';
       return;
     }
+    setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + game.stageName());
     const plan = DungeonLevels.getPlan(game.depth);
-    setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + plan.name);
-    // every floor names the room where its stairs wait (world/looks.js)
-    const stairsRoom = game.world.look.rooms.throne || 'THRONE ROOM';
-    let text = 'FIND THE STAIRS IN THE ' + stairsRoom;
-    if (plan.boss === 'warlord') {
-      text = 'THE WARLORD AWAITS IN THE ' + stairsRoom;
-    } else if (plan.boss === 'wyrm') {
-      text = 'THE GREAT GOLDEN WYRM SLEEPS ON ITS HOARD';
-    } else if (plan.dragons) {
-      text = 'DRAGONS LAIR ON THIS FLOOR :: FIND THE STAIRS IN THE ' + stairsRoom;
+    let text;
+    if (game.trial) {
+      const rival = game.rival;
+      const spells = rival && rival.known ? rival.known.size : 0;
+      text = 'YOUR REFLECTION :: LEVEL ' + (rival ? rival.level : '') + ' :: ' + spells + (spells === 1 ? ' SPELL' : ' SPELLS') + ' OF ITS OWN :: SLAY IT TO GO ON';
+    } else {
+      // every floor names the room where its stairs wait (world/looks.js)
+      const stairsRoom = game.world.look.rooms.throne || 'THRONE ROOM';
+      text = 'FIND THE STAIRS IN THE ' + stairsRoom;
+      if (plan.boss === 'warlord') {
+        text = 'THE WARLORD AWAITS IN THE ' + stairsRoom;
+      } else if (plan.boss === 'wyrm') {
+        text = 'THE GREAT GOLDEN WYRM SLEEPS ON ITS HOARD';
+      } else if (plan.dragons) {
+        text = 'DRAGONS LAIR ON THIS FLOOR :: FIND THE STAIRS IN THE ' + stairsRoom;
+      }
     }
     setText(this.bannerText, text);
     this.banner.style.opacity = String(Math.min(1, game.bannerFrames / 60));

@@ -2,13 +2,13 @@
 //
 // Every spell a wizard learns goes into its spellbook; only the spells it has
 // prepared on the bar can be cast. Magic missile has a key of its own and is
-// never on the bar. Survival opens the bar's slots with the wizard's level,
-// duels and battles open a fixed number. This module holds the numbers and
-// rules; the player's side lives in mage.js, the rival's in duelWizard.js.
+// never on the bar. The bar's slots open with the wizard's level. This module
+// holds the numbers and rules; the player's side lives in mage.js, the
+// rival's in duelWizard.js.
 
 // The bar's slots, nearest to WASD first. `action` is the binding
 // (core/bindings.js: Q, E, F, R, 2, 4, 1, 3, C, 5 by default) and `level`
-// the survival level that opens it.
+// the wizard level that opens it.
 export const BarSlots = [
   { action: 'slot1', level: 1 },
   { action: 'slot2', level: 1 },
@@ -35,7 +35,7 @@ export function placementOrder(id, cooldown) {
   return cooldown <= WizardLevels.quickCooldown ? PLACEMENT.quick : PLACEMENT.slow;
 }
 
-// Survival levels. Every kill gives experience (`xpFor`), and each level
+// Wizard levels. Every kill gives experience (`xpFor`), and each level
 // adds a little health and manergy and may open a slot (BarSlots). The
 // totals are tuned so that slaying about 60% of every floor reaches level
 // 10 on the warlord's floor and 15 on the last one.
@@ -45,10 +45,6 @@ export const WizardLevels = {
   xp: [0, 0, 150, 380, 720, 1200, 1800, 2600, 3500, 4500, 5800, 7800, 11000, 15000, 20500, 27000],
   hp: 6,
   manergy: 4,
-  // slots open outside survival: progressive duels, classic duels, battles
-  duelSlots: 6,
-  classicSlots: 8,
-  battleSlots: 10,
   quickCooldown: 400,
   // a spell put on the bar from the spellbook waits its own cooldown, and at
   // least this many frames, before it can be cast
@@ -70,8 +66,9 @@ export const WizardLevels = {
   }
 };
 
-// Spell circles: a survival scroll only teaches spells of the circles its
-// floor has reached, so the deep magic turns up deep. Circle by floor.
+// Spell circles: a scroll (or a trial's spoils) only teaches spells of the
+// circles its floor has reached, so the deep magic turns up deep. Circle by
+// floor.
 export const CircleFloors = { 1: 1, 2: 3, 3: 6, 4: 9 };
 
 // Spell ranks I to III. A scroll for a spell its reader already knows ranks

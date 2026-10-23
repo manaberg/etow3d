@@ -76,15 +76,11 @@ export const DuelRules = {
     return this.spellSchools[spell] || null;
   },
 
-  // progressive duels (see duelLoot.js): frames until the first scroll and
-  // potion, frames between drops, how many may lie around at once, and what
-  // potions give
-  progressive: {
-    firstScroll: 180,
+  // duel trials (see duelLoot.js): frames until the first potion, frames
+  // between drops, how many may lie around at once, and what they give
+  loot: {
     firstPotion: 600,
-    scrollEvery: 420,
     potionEvery: 660,
-    maxScrolls: 3,
     maxPotions: 2,
     redHeal: 120,
     blueManergy: 60
@@ -106,7 +102,7 @@ export const DuelRules = {
   },
 
   // Apply one spell hit to either duelist. `scale` shrinks the damage for
-  // survival floors, where the player has far fewer hit points.
+  // dungeon floors, where the player has far fewer hit points.
   applyHit(target, kind, attacker, scale = 1) {
     if (kind === 'root' || kind === 'rootchain') {
       // dark wizards root the survival mage for less (controlScale)

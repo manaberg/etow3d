@@ -1,17 +1,13 @@
 import { SpellBook, SpellById } from '../entities/mage.js';
 import { BarSlots, WizardLevels, RankRules, ROMAN, rankOf } from '../entities/spellbar.js';
 import { DuelRules } from '../entities/duelRules.js';
-import { DuelSpells, playerSpellId } from '../entities/duelLoot.js';
-import { actionKeyLabel, bindSlotKey, keyLabel, slotKeyBlocker } from '../core/bindings.js';
+import { actionKeyLabel } from '../core/bindings.js';
 
 // The spellbook tab of the inventory screen: the bar's slots at the top, every
 // spell the wizard knows below, and the selected spell's details with the
 // buttons that put it on the bar. Clicking a spell and then a slot prepares
 // it there too. A spell brought onto the bar from the book starts on its
-// cooldown (Mage.prepare); moving spells along the bar is free, and so is
-// everything while a classic duel's loadout is being chosen. There each slot
-// also takes a key of its own (the duel keys), and the bar and its keys can
-// be saved as the player's loadout for the next classic duels.
+// cooldown (Mage.prepare); moving spells along the bar is free.
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -64,10 +60,6 @@ export class SpellbookPanel {
     this.game = game;
     // { id } for a spell, or { slot } for an empty slot
     this.selected = null;
-    // the bar slot whose duel key is being chosen, and what came of the last
-    this.capturing = -1;
-    this.keyMessage = '';
-    this.onCapture = null;
   }
 
   get player() {
@@ -76,8 +68,6 @@ export class SpellbookPanel {
 
   reset() {
     this.selected = null;
-    this.stopCapture();
-    this.keyMessage = '';
   }
 
   // Spells the player knows: in the book's order, by circle.
@@ -89,44 +79,13 @@ export class SpellbookPanel {
 
   render(node) {
     const player = this.player;
-    const game = this.game;
-    if (game.loadout) {
-      const box = el('div', 'sb-loadout', node);
-      el('div', 'sb-loadout-title', box, 'CHOOSE YOUR ' + player.slotLimit + ' SPELLS');
-      el('div', 'dim', box, 'Every spell is in your book. Put the ones you want on the bar; changes are free until the duel starts.');
-      const rival = game.rival;
-      if (rival && rival.known) {
-        const names = DuelSpells.filter((e) => rival.known.has(e.id)).map((e) => SpellById[playerSpellId(e)].name);
-        el('div', 'sb-rival', box, 'THE RIVAL BRINGS :: ' + names.join(', '));
-      }
-      const buttons = el('div', 'buttons inv-actions', box);
-      const button = (text, fn, cls) => {
-        const b = el('button', cls || null, buttons, text);
-        b.type = 'button';
-        b.onclick = fn;
-      };
-      button('Start the duel', () => game.toggleInventory(false));
-      button('Save as my loadout', () => {
-        this.keyMessage = game.saveLoadout(player) ? 'SAVED :: YOUR NEXT CLASSIC DUELS START WITH THIS BAR AND THESE KEYS' : 'COULD NOT SAVE IN THIS BROWSER';
-        this.screen.render();
-      }, 'secondary');
-      button('Default loadout', () => {
-        game.applyLoadout(player, game.defaultLoadout());
-        this.keyMessage = 'DEFAULT LOADOUT :: SAVE IT TO KEEP IT';
-        this.screen.render();
-      }, 'secondary');
-    }
-
     let heading = 'SPELL BAR  ' + player.bar.slice(0, player.slotLimit).filter(Boolean).length + ' / ' + player.slotLimit;
-    if (!game.duelMode && player.slotLimit < BarSlots.length) {
+    if (player.slotLimit < BarSlots.length) {
       heading += '  ::  NEXT SLOT AT LEVEL ' + BarSlots[player.slotLimit].level;
     }
     el('div', 'hud-heading', node, heading);
     const bar = el('div', 'sb-bar', node);
     BarSlots.forEach((slot, i) => this.slotTile(bar, i));
-    if (game.loadout) {
-      this.renderDuelKeys(node);
-    }
 
     const known = this.known();
     el('div', 'hud-heading', node, 'SPELLBOOK  ' + known.length + ' / ' + (SpellBook.length - 1) + '  ::  MAGIC MISSILE x' + player.missileTier + ' ON ' + actionKeyLabel('missile'));
@@ -144,88 +103,6 @@ export class SpellbookPanel {
       'CLICK A SPELL, THEN A SLOT :: DOUBLE CLICK TO PREPARE OR PUT BACK :: ' + actionKeyLabel('spellbook') + ' / ESC TO CLOSE');
   }
 
-  // Classic duels: a key for each slot of the bar, chosen by clicking the
-  // slot's button and pressing a key or mouse button (Escape cancels).
-  renderDuelKeys(node) {
-    const player = this.player;
-    el('div', 'hud-heading', node, 'DUEL KEYS  ::  CLICK A SLOT, THEN PRESS ITS KEY');
-    const grid = el('div', 'sb-keys', node);
-    for (let i = 0; i < player.slotLimit; i++) {
-      const b = el('button', 'secondary sb-keybind' + (this.capturing === i ? ' capturing' : ''), grid);
-      b.type = 'button';
-      el('span', 'sb-key', b, this.capturing === i ? '...' : actionKeyLabel(BarSlots[i].action));
-      el('span', 'sb-keybind-name', b, player.bar[i] ? SpellById[player.bar[i]].name : 'EMPTY');
-      b.onclick = (e) => {
-        e.stopPropagation();
-        this.startCapture(i);
-      };
-    }
-    if (this.keyMessage) {
-      el('div', 'sb-key-status', node, this.keyMessage);
-    }
-  }
-
-  startCapture(i) {
-    this.stopCapture();
-    this.capturing = i;
-    this.keyMessage = 'PRESS A KEY FOR SLOT ' + (i + 1) + ' :: ESC CANCELS';
-    const assign = (code) => {
-      const action = BarSlots[i].action;
-      const blocker = slotKeyBlocker(code);
-      this.stopCapture();
-      if (blocker) {
-        this.keyMessage = keyLabel(code) + (blocker === 'fixed' ? ' CANNOT BE CHANGED' : ' STAYS ON ' + blocker.toUpperCase());
-      } else {
-        bindSlotKey(action, code);
-        this.keyMessage = 'SLOT ' + (i + 1) + ' :: ' + keyLabel(code);
-      }
-      this.screen.render();
-    };
-    // capture phase on the window, so the game never sees the press
-    const onKey = (e) => {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (e.type !== 'keydown' || e.repeat) {
-        return;
-      }
-      if (e.code === 'Escape') {
-        this.stopCapture();
-        this.keyMessage = '';
-        this.screen.render();
-        return;
-      }
-      assign(e.code);
-    };
-    const onMouse = (e) => {
-      // a left click elsewhere cancels; other buttons can be slot keys
-      if (e.button === 0) {
-        this.stopCapture();
-        this.keyMessage = '';
-        this.screen.render();
-        return;
-      }
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      assign('Mouse' + e.button);
-    };
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('keyup', onKey, true);
-    window.addEventListener('mousedown', onMouse, true);
-    this.onCapture = () => {
-      window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('keyup', onKey, true);
-      window.removeEventListener('mousedown', onMouse, true);
-    };
-    this.screen.render();
-  }
-
-  stopCapture() {
-    if (this.onCapture) {
-      this.onCapture();
-      this.onCapture = null;
-    }
-    this.capturing = -1;
-  }
 
   isSelected(ref) {
     const s = this.selected;
@@ -242,7 +119,7 @@ export class SpellbookPanel {
     if (!open) {
       tile.classList.add('locked');
       tile.disabled = true;
-      el('span', 'sb-slot-name', tile, this.game.duelMode ? 'CLOSED' : 'LEVEL ' + BarSlots[i].level);
+      el('span', 'sb-slot-name', tile, 'LEVEL ' + BarSlots[i].level);
       return;
     }
     if (!id) {
@@ -305,7 +182,7 @@ export class SpellbookPanel {
   }
 
   prepare(id, slot) {
-    this.player.prepare(id, slot, this.game.loadout);
+    this.player.prepare(id, slot);
   }
 
   clickSlot(i) {
@@ -387,7 +264,7 @@ export class SpellbookPanel {
         player.unprepare(at);
         this.refresh();
       };
-    } else if (!this.game.loadout) {
+    } else {
       el('div', 'dim sb-note', box, 'A spell brought onto the bar starts on its cooldown (at least ' + seconds(WizardLevels.prepareFrames).toLowerCase() + '). Moving spells along the bar is free.');
     }
   }

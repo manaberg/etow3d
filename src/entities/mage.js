@@ -52,11 +52,6 @@ for (const spell of SpellBook) {
   SpellById[spell.id] = spell;
 }
 
-// The duel loadout's built-in bonuses: the 2D game gave duellists all five
-// rings (gear.js ClassicRings), which here are properties of the wizard
-// rather than items, so both duellists keep them whatever they wear.
-export const DuelInnate = { speed: 0.2, regen: 0.25, fireballCost: -10, lightningCost: -10, missileDamage: 25 };
-
 // share of its speed a chilled or polymorphed wizard keeps
 const CHILL_SLOW = 0.4;
 const SHEEP_SLOW = 0.7;
@@ -101,7 +96,6 @@ export class Mage extends Entity {
     for (const spell of SpellBook) {
       this.cd[spell.id] = 0;
     }
-    // duels: frames each school stays locked after a cast (DuelRules.schools)
     // frames of the global cooldown left (spellbar.js GLOBAL_COOLDOWN), and
     // whether the lifesteal ray is being held (it pays the cooldown once)
     this.gcd = 0;
@@ -330,9 +324,8 @@ export class Mage extends Entity {
   // Puts a spell on the bar at `slot`; the one there goes back to the book,
   // or, when the spell came from another slot, the two swap. A spell brought
   // in from the book starts on its cooldown (WizardLevels.prepareFrames at
-  // least) so swapping mid-fight is never free; `free` skips that (a duel's
-  // loadout before the fight).
-  prepare(id, slot, free) {
+  // least) so swapping mid-fight is never free.
+  prepare(id, slot) {
     if (slot < 0 || slot >= this.slotLimit || !this.knowsSpell(id)) {
       return;
     }
@@ -345,11 +338,9 @@ export class Mage extends Entity {
       this.bar[from] = null;
     }
     this.bar[slot] = id;
-    if (!free) {
-      const spell = SpellById[id];
-      this.cd[id] = Math.max(this.cd[id] || 0, this.cooldownOf(spell.cd * rankCooldown(this, id)), WizardLevels.prepareFrames);
-      this.cdFull[id] = this.cd[id];
-    }
+    const spell = SpellById[id];
+    this.cd[id] = Math.max(this.cd[id] || 0, this.cooldownOf(spell.cd * rankCooldown(this, id)), WizardLevels.prepareFrames);
+    this.cdFull[id] = this.cd[id];
   }
 
   swapSlots(a, b) {
@@ -383,40 +374,8 @@ export class Mage extends Entity {
     return opened;
   }
 
-  // Starts the spellbook over knowing `ids` (duels and battles), at `ranks`,
-  // with `bar` (spell ids by slot) kept where it still fits and the other
-  // spells placed in order.
-  resetSpells(ids, { slots, ranks = {}, bar = null } = {}) {
-    for (const spell of SpellBook) {
-      if (spell.flag) {
-        this[spell.flag] = false;
-      }
-    }
-    this.bar = BarSlots.map(() => null);
-    this.slotLimit = slots;
-    this.learnOrder = [];
-    this.ranks = {};
-    for (const id of ids) {
-      const spell = SpellById[id];
-      this[spell.flag] = true;
-      this.ranks[id] = ranks[id] || 1;
-      this.learnOrder.push(id);
-    }
-    if (bar) {
-      bar.forEach((id, i) => {
-        if (id && i < slots && ids.includes(id)) {
-          this.bar[i] = id;
-        }
-      });
-    }
-    for (const id of ids) {
-      this.autoPrepare(id);
-    }
-    this.syncTierFlags();
-  }
-
-  // Survival experience: each level adds a little health and manergy and may
-  // open a slot on the bar (spellbar.js WizardLevels).
+  // Experience (none in the trials): each level adds a little health and
+  // manergy and may open a slot on the bar (spellbar.js WizardLevels).
   gainXp(amount) {
     if (this.game.duelMode || this.dead || amount <= 0) {
       return;
@@ -808,7 +767,7 @@ export class Mage extends Entity {
     }
     const c = this.center();
     if (p.duel) {
-      // on survival floors every duel bolt comes from (or off) a dark wizard
+      // on dungeon floors every duel bolt comes from (or off) a dark wizard
       const game = this.game;
       const caster = game.duelRival() || (p.timeOwner && p.timeOwner.isDuelWizard ? p.timeOwner : null);
       DuelRules.applyHit(this, p.kind, caster, game.duelMode ? 1 : DungeonLevels.wizard.hitScale);

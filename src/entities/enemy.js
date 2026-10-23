@@ -232,7 +232,7 @@ export class Enemy extends Entity {
 
   // Survival: every hit on a monster is the mage's doing (its spells, its
   // allies, its reflected bolts), so the mage's gear strengthens it by
-  // element (gear.js elementBonus). Duels and battles have no such gear.
+  // element (gear.js elementBonus). The trials leave it out.
   gearBoost(element) {
     const game = this.game;
     if (game.duelMode || !game.player || !element) {

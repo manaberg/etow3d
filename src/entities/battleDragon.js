@@ -35,7 +35,7 @@ export class BattleDragon extends Dragon {
     this.hp = this.maxHp = this.maxHp * BattleRules.dragonHpScale;
     this.miniBoss = true;
     this.isBoss = false;
-    this.label = (this.side === 'player' ? 'YOUR ' : 'RIVAL ') + this.spec.label + ' ' + this.hue.name + ' DRAGON';
+    this.label = (this.side === 'player' ? 'YOUR ' : 'ITS ') + this.spec.label + ' ' + this.hue.name + ' DRAGON';
     this.roarCd = 120 + Math.random() * 240;
     // a ring in its side's colour on the ground under it
     const ring = new THREE.Mesh(

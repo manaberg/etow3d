@@ -88,9 +88,6 @@ export class InventoryScreen {
   show(open, tab = 'gear') {
     const opening = open && this.node.classList.contains('hidden');
     this.node.classList.toggle('hidden', !open);
-    if (!open) {
-      this.spellbook.stopCapture();
-    }
     if (open) {
       if (opening || tab !== this.tab) {
         this.selected = null;
@@ -155,7 +152,7 @@ export class InventoryScreen {
       b.setAttribute('aria-pressed', String(this.tab === tab));
       b.onclick = () => this.show(true, tab);
     }
-    const close = el('button', 'secondary inv-close', head, this.game.loadout ? 'Start' : 'Close');
+    const close = el('button', 'secondary inv-close', head, 'Close');
     close.type = 'button';
     close.title = 'Close (' + actionKeyLabel(this.tab === 'spells' ? 'spellbook' : 'inventory') + ' or Esc)';
     close.onclick = () => this.game.toggleInventory(false);

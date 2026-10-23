@@ -1,39 +1,33 @@
 import * as THREE from 'three';
-import { Mage } from './mage.js';
-import { DuelWizard } from './duelWizard.js';
 import { Soldier } from './soldier.js';
 import { BattleDragon } from './battleDragon.js';
 import { DragonAges, ChromaticColors } from './dragon.js';
-import { DuelSpells, playerSpellId, startRank } from './duelLoot.js';
 import { MirrorImage } from './spells.js';
-import { WizardLevels } from './spellbar.js';
 import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
 import { BoltRenderer } from '../render/boltRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 
-// Battle mode: one great battle between two wizards, each leading a vast army
-// across open country. Both armies are drawn at random, race and all, but
-// from the same budget of points (`classCost` and `raceCost` below), so a
-// horde of cheap grunts meets a smaller host of brutes and knights, and both
-// sides field the same number of dragons of the same ages. The armies are
+// Battle trials (levels.js Trials): one great battle between the wizard and
+// its reflection (mirror.js), each leading a vast army across open country.
+// Both armies are drawn at random, race and all, but from the same budget of
+// points (`classCost` and `raceCost` below), so a horde of cheap grunts meets
+// a smaller host of brutes and knights, and both sides field the same number
+// of dragons of the same ages. The armies are
 // split into regiments by unit type (infantry, slingers, knights, shock
 // troops, mystics, dragons) that the player commands one by one or together:
-// charge, march to a point and hold it, or follow the wizard. Both wizards
-// start with ten random spells on a ten-slot bar and every magic missile dart.
-// The battle is lost when your wizard falls or your army is wiped out.
-// Wizards follow the duel rules (damage between them, the global cooldown);
-// soldiers take the dungeon damage, so a fireball wrecks a regiment.
+// charge, march to a point and hold it, or follow the wizard. The battle is
+// won when the reflection falls or its army is wiped out; when the player's
+// army is wiped out the wizard goes on down the stairs without the spoils,
+// and when the wizard falls the run is over. Wizards follow the duel rules
+// (damage between them, the global cooldown); soldiers take the dungeon
+// damage, so a fireball wrecks a regiment.
 export const BattleRules = {
   // soldiers a side in an army of average cost; ?army=N on the URL (or the
   // menu) sets another size, within `armyRange`
   army: 5000,
   armyRange: [200, 12000],
-  // both wizards start with this many random spells, all on the bar, and
-  // with every magic missile dart
-  spells: 10,
-  missileTier: 3,
   // battle soldiers are hardier than dungeon orcs, so wizards shape a battle
   // instead of deleting an army with magic missiles; dragons likewise
   hpScale: 2,
@@ -149,11 +143,6 @@ export class Battle {
     // both armies are random: any two different races
     const races = shuffle(Object.keys(Races));
     this.races = { player: races[0], enemy: races[1] };
-    // ten spells each, drawn apart
-    this.spells = {
-      player: shuffle(DuelSpells.slice()).slice(0, BattleRules.spells),
-      enemy: shuffle(DuelSpells.slice()).slice(0, BattleRules.spells)
-    };
     this.fighting = false;
     this.deploy = 0;
     this.fightFrames = 0;
@@ -290,7 +279,9 @@ export class Battle {
     return { side, regiments, width: widest, depth: back + 160, wizardBack: back + 60 };
   }
 
-  start() {
+  // Lays out the field, the two armies and the two wizards: the player (with
+  // `carry`, everything brought down the stairs) and its reflection.
+  start(carry) {
     const game = this.game;
     const races = this.races;
     // both armies are bought with the points of an average army of this size
@@ -307,7 +298,6 @@ export class Battle {
       enemy: this.planArmy('enemy', this.rollArmy(races.enemy, this.budget), dragons)
     };
     game.buildWorld(BattleRules.field(Math.max(plans.player.width, plans.enemy.width), Math.max(plans.player.depth, plans.enemy.depth)));
-    game.gfx.setBattlefield(true);
     if (!game.army) {
       game.army = new ArmyRenderer(game.gfx);
     }
@@ -335,24 +325,7 @@ export class Battle {
     const wizardPlayer = this.deployArmy(plans.player, mid.y + half, mid.x, -1);
     const wizardEnemy = this.deployArmy(plans.enemy, mid.y - half, mid.x, 1);
 
-    const pl = game.spawn(Mage, wizardPlayer.x - 24, wizardPlayer.y - 24);
-    game.player = pl;
-    game.configureDuelPlayer(pl);
-    const known = this.spells.player;
-    const ranks = {};
-    for (const entry of known) {
-      ranks[playerSpellId(entry)] = startRank(entry);
-    }
-    pl.resetSpells(known.map(playerSpellId), { slots: WizardLevels.battleSlots, ranks });
-    pl.missileTier = BattleRules.missileTier;
-    const rival = game.spawn(DuelWizard, wizardEnemy.x - 24, wizardEnemy.y - 24, { difficulty: game.difficulty });
-    rival.known = new Set(this.spells.enemy.map((e) => e.id));
-    rival.ranks = {};
-    for (const entry of this.spells.enemy) {
-      rival.ranks[entry.id] = startRank(entry);
-    }
-    rival.missileTier = BattleRules.missileTier;
-    game.rival = rival;
+    game.startTrialDuelists(wizardPlayer.x - 24, wizardPlayer.y - 24, wizardEnemy.x - 24, wizardEnemy.y - 24, carry);
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
     this.commander = true;
@@ -362,10 +335,6 @@ export class Battle {
     this.deploy = BattleRules.deployFrames;
     this.refreshLists();
     this.buildMarkers();
-    game.state = 'playing';
-    if (game.hud.minimap) {
-      game.hud.onBattleStart(this);
-    }
   }
 
   // Puts a planned army on the field with its front at frontY, facing `dir`
@@ -489,7 +458,7 @@ export class Battle {
       const mine = this.armyCount('player');
       const theirs = this.armyCount('enemy');
       if (theirs === 0 && mine > 0) {
-        this.end('player', 'The rival’s army is destroyed.');
+        this.end('player', 'The reflection’s army is destroyed.');
       } else if (mine === 0 && theirs > 0) {
         this.end('enemy', 'Your army is destroyed.');
       } else if (mine === 0 && theirs === 0) {
@@ -504,7 +473,7 @@ export class Battle {
   beginFight() {
     this.fighting = true;
     this.deploy = 0;
-    this.game.hud.toast('YOUR ' + Races[this.races.player].name + ' AGAINST THE RIVAL’S ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
+    this.game.hud.toast('YOUR ' + Races[this.races.player].name + ' AGAINST THE REFLECTION’S ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
   }
 
   // Backquote selects all; the order keys apply to whatever is selected (in
@@ -688,7 +657,7 @@ export class Battle {
   }
 
   // Right click: on an enemy, the selection attacks its regiment (or the
-  // rival wizard); on open ground, it marches there and holds.
+  // reflection); on open ground, it marches there and holds.
   rightClick(screen) {
     const game = this.game;
     const chosen = this.regiments.player.filter((r) => r.alive > 0 && this.selected.has(r.id));
@@ -699,7 +668,7 @@ export class Battle {
     if (foe) {
       const target = foe.regiment || foe;
       this.order(chosen, 'attack', target);
-      game.hud.toast(this.selectionName(chosen) + ' :: ATTACK ' + (foe.regiment ? foe.regiment.name : 'THE RIVAL WIZARD'), '#ff8a70');
+      game.hud.toast(this.selectionName(chosen) + ' :: ATTACK ' + (foe.regiment ? foe.regiment.name : 'THE REFLECTION'), '#ff8a70');
       return;
     }
     const g = game.gfx.pickGround(screen);
@@ -1173,12 +1142,9 @@ export class Battle {
 
   // ------------------------------------------------------------- endings
 
-  onWizardDown(side) {
-    if (side === 'player') {
-      this.end('enemy', 'Your wizard fell.');
-    } else {
-      this.end('player', 'The rival wizard fell.');
-    }
+  // The reflection fell (its army may fight on, but the battle is won).
+  onWizardDown() {
+    this.end('player', 'The reflection fell.');
   }
 
   end(winner, why) {
@@ -1186,21 +1152,11 @@ export class Battle {
       return;
     }
     this.over = true;
-    const game = this.game;
-    const won = winner === 'player';
-    game.state = 'over';
-    if (won) {
-      game.stats.wincount++;
+    if (winner === 'player') {
+      this.game.winTrial(why);
+    } else {
+      this.game.loseTrial(why);
     }
-    const left = this.armyCount('player') + ' of your ' + Races[this.races.player].name.toLowerCase() + ' and ' +
-      this.armyCount('enemy') + ' of the rival’s ' + Races[this.races.enemy].name.toLowerCase() + ' still stand.';
-    game.hud.showEnd({
-      title: won ? 'BATTLE WON' : 'BATTLE LOST',
-      text: why + ' ' + left + ' (' + game.difficulty.toUpperCase() + ')',
-      stats: game.stats,
-      duel: true,
-      win: won
-    });
   }
 
   dispose() {
