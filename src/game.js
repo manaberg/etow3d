@@ -1227,10 +1227,12 @@ export class Game {
   turnCamera(dt) {
     const input = this.input;
     const look = input.takeLook();
-    let yaw = -look.x * CAMERA_DRAG;
+    // commander mode: a left-button drag selects regiments instead
+    let yaw = this.battle && this.battle.drag ? 0 : -look.x * CAMERA_DRAG;
+    const pitch = this.battle && this.battle.drag ? 0 : look.y * CAMERA_DRAG * 0.7;
     if (input.held.has('camera_left')) { yaw += CAMERA_TURN * dt; }
     if (input.held.has('camera_right')) { yaw -= CAMERA_TURN * dt; }
-    this.gfx.rotate(yaw, look.y * CAMERA_DRAG * 0.7);
+    this.gfx.rotate(yaw, pitch);
     if (input.consume('camera_reset')) {
       this.gfx.resetView();
     }

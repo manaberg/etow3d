@@ -3,7 +3,7 @@
 // 'Space') or a mouse button ('Mouse0' left, 'Mouse1' middle, 'Mouse2' right),
 // so any action can sit on any key or button. Escape always pauses and the
 // arrow keys always move; neither can be rebound. Movement is relative to the
-// camera, which turns (held middle button and drag, or the turn keys).
+// camera, which turns (hold the left button and drag, or the turn keys).
 
 // Every action in the order the controls screen lists them. Movement keeps
 // the 2D game's keys; spells sit on the bar's slots instead of a key each.
@@ -12,23 +12,23 @@ export const Actions = [
   { id: 'left', label: 'Move left', group: 'Movement', key: 'KeyA' },
   { id: 'down', label: 'Move down', group: 'Movement', key: 'KeyS' },
   { id: 'right', label: 'Move right', group: 'Movement', key: 'KeyD' },
-  { id: 'camera_drag', label: 'Turn camera (hold and move the mouse)', group: 'Camera', key: 'Mouse1' },
+  { id: 'camera_drag', label: 'Turn camera (hold and move the mouse)', group: 'Camera', key: 'Mouse0' },
   { id: 'camera_left', label: 'Turn camera left', group: 'Camera', key: 'KeyZ' },
   { id: 'camera_right', label: 'Turn camera right', group: 'Camera', key: 'KeyX' },
   { id: 'camera_reset', label: 'Camera back to north', group: 'Camera', key: 'KeyV' },
-  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse0' },
+  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse2' },
   // the spell bar (entities/spellbar.js BarSlots): whatever spell is prepared
   // in each slot, nearest to WASD first
-  { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'Mouse2' },
-  { id: 'slot2', label: 'Spell slot 2', group: 'Spells', key: 'KeyQ' },
-  { id: 'slot3', label: 'Spell slot 3', group: 'Spells', key: 'KeyE' },
+  { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'KeyQ' },
+  { id: 'slot2', label: 'Spell slot 2', group: 'Spells', key: 'KeyE' },
+  { id: 'slot3', label: 'Spell slot 3', group: 'Spells', key: 'KeyF' },
   { id: 'slot4', label: 'Spell slot 4', group: 'Spells', key: 'KeyR' },
-  { id: 'slot5', label: 'Spell slot 5', group: 'Spells', key: 'KeyF' },
-  { id: 'slot6', label: 'Spell slot 6', group: 'Spells', key: 'Digit1' },
-  { id: 'slot7', label: 'Spell slot 7', group: 'Spells', key: 'Digit2' },
+  { id: 'slot5', label: 'Spell slot 5', group: 'Spells', key: 'Digit2' },
+  { id: 'slot6', label: 'Spell slot 6', group: 'Spells', key: 'Digit4' },
+  { id: 'slot7', label: 'Spell slot 7', group: 'Spells', key: 'Digit1' },
   { id: 'slot8', label: 'Spell slot 8', group: 'Spells', key: 'Digit3' },
-  { id: 'slot9', label: 'Spell slot 9', group: 'Spells', key: 'Digit4' },
-  { id: 'slot10', label: 'Spell slot 10', group: 'Spells', key: 'KeyC' },
+  { id: 'slot9', label: 'Spell slot 9', group: 'Spells', key: 'KeyC' },
+  { id: 'slot10', label: 'Spell slot 10', group: 'Spells', key: 'Digit5' },
   { id: 'mode_toggle', label: 'Spell mode / commander mode', group: 'Battle', key: 'Tab' },
   { id: 'regiment_all', label: 'Select all regiments', group: 'Battle', key: 'Backquote' },
   { id: 'order_charge', label: 'Selected: charge', group: 'Battle', key: 'KeyJ' },
@@ -52,8 +52,12 @@ const FIXED = {
 export const RESERVED = ['Escape'];
 
 // v2: spells moved from a key each to the bar's slots, so older saved
-// bindings are left behind once
-const STORAGE_KEY = 'etow3d.bindings.v2';
+// bindings are left behind once. v4: the left button turns the camera, the
+// missile moved to the right button and the bar to Q E F R 2 4 1 3 C 5; v2
+// bindings carry over without those (v3 was a layout that was soon undone).
+const STORAGE_KEY = 'etow3d.bindings.v4';
+const OLD_KEY = 'etow3d.bindings.v2';
+const MOVED = ['camera_drag', 'missile', 'slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9', 'slot10'];
 
 let bindings = load();
 let byCode = index();
@@ -74,7 +78,13 @@ function defaults() {
 function load() {
   const out = defaults();
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!saved) {
+      saved = JSON.parse(localStorage.getItem(OLD_KEY) || '{}');
+      for (const id of MOVED) {
+        delete saved[id];
+      }
+    }
     const taken = new Set();
     for (const id in saved) {
       if (id in out && typeof saved[id] === 'string' && !RESERVED.includes(saved[id])) {

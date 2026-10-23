@@ -74,18 +74,18 @@ two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys 
 | --- | --- |
 | `W` `A` `S` `D` | move, relative to the camera (`W` walks the way the camera looks) |
 | Mouse | aim |
-| `MMB` (hold and drag) | turn the camera around the mage (left / right) and tilt it (up / down); it stays where you leave it |
+| `LMB` (hold and drag) | turn the camera around the mage (left / right) and tilt it (up / down); it stays where you leave it |
 | `Z` / `X` | turn the camera left / right |
 | `V` | swing the camera back to the starting view, looking north |
-| `LMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
-| `RMB` `Q` `E` `R` `F` `1` `2` `3` `4` `C` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
+| `RMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
+| `Q` `E` `F` `R` `2` `4` `1` `3` `C` `5` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
 | `B` | spellbook: choose which spells sit on the bar (the game waits while it is open) |
 | `Tab` | battle: switch between spell mode and commander mode |
 | Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans (the way the camera looks) |
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
-| Hover / `LMB` on loot | survival: hovering an item shows its name; click the name to walk over and pick it up (in duels and battles loot is picked up by walking over it) |
+| Hover / `LMB` on loot | survival: hovering an item shows its name; click the name (without dragging) to walk over and pick it up (in duels and battles loot is picked up by walking over it) |
 | Mouse wheel | zoom |
 | `M` | larger map |
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
@@ -189,20 +189,20 @@ Corridors cross them on bridges, and the generator bridges any pocket that would
 cut off, so every floor can be walked from end to end.
 
 **Spellbook and bar.** Every spell a wizard learns goes into its spellbook, but only the spells
-on its bar can be cast. Magic missile has its own key (LMB); the bar's ten slots sit on RMB, Q,
-E, R, F, 1, 2, 3, 4 and C, nearest to WASD first, and `B` opens the spellbook to arrange them
+on its bar can be cast. Magic missile has its own key (RMB); the bar's ten slots sit on Q, E,
+F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange them
 (`src/entities/spellbar.js`, `src/ui/spellbook.js`).
 
-- A new spell goes into the first free slot that suits it: blink to RMB, spells with a cooldown
-  of 6.7 s or less to Q, E, R and F, slower ones to the number row. With the bar full it waits
+- A new spell goes into the first free slot that suits it: blink to Q, spells with a cooldown
+  of 6.7 s or less to E, F, R and 2, slower ones to the rest. With the bar full it waits
   in the book.
 - A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
 - **Levels** (survival). Every kill gives experience (the square root of the foe's health,
   three times that for a dark wizard), and each level adds 6 health and 4 manergy. The bar
-  opens with three slots (RMB, Q, E); R opens at level 2, F at 4, then 1, 2, 3 and 4 at 6, 8,
-  10 and 12, and C at 15, the last level. Slaying about 60% of every floor reaches level 10 on
+  opens with three slots (Q, E, F); R opens at level 2, 2 at 4, then 4, 1, 3 and C at 6, 8,
+  10 and 12, and 5 at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
   spell waiting in the book. Duels and battles have no levels: progressive duels open six
   slots, classic duels eight and battles all ten.
