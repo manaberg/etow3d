@@ -1,4 +1,5 @@
 import { Actions, RESERVED, bind, bindingOf, keyLabel, resetBindings, onBindingsChange } from '../core/bindings.js';
+import { Settings, setting, setSetting, resetSettings } from '../core/settings.js';
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -14,9 +15,9 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-// The controls screen: every action with its key; click one, then press a key
-// or mouse button to rebind it (Escape cancels). Opened from the main menu and
-// the pause screen. While it is open it takes every key press, so nothing
+// The controls screen: the camera's turn speeds as sliders, then every action
+// with its key; click one, then press a key or mouse button to rebind it
+// (Escape cancels). Opened from the main menu and the pause screen. While it is open it takes every key press, so nothing
 // reaches the game.
 export function openControls({ onClose } = {}) {
   const screen = el('div', 'screen controls-screen', document.body);
@@ -25,6 +26,29 @@ export function openControls({ onClose } = {}) {
   el('p', 'dim', card, 'Click an action, then press a key or mouse button. Escape cancels; Escape and the arrow keys are fixed.');
   const status = el('div', 'controls-status', card, '');
   const list = el('div', 'controls-list', card);
+
+  el('div', 'controls-group', list, 'CAMERA SPEED');
+  const sliders = [];
+  for (const s of Settings) {
+    const row = el('label', 'controls-row', list);
+    el('span', 'controls-label', row, s.label);
+    const input = el('input', 'controls-slider', row);
+    input.type = 'range';
+    input.min = s.min;
+    input.max = s.max;
+    input.step = s.step;
+    const shown = el('span', 'controls-value', row, '');
+    const show = () => {
+      input.value = setting(s.id);
+      shown.textContent = Math.round(setting(s.id) * 100) + '%';
+    };
+    input.oninput = () => {
+      setSetting(s.id, Number(input.value));
+      show();
+    };
+    show();
+    sliders.push(show);
+  }
 
   const rows = [];
   let group = null;
@@ -50,6 +74,10 @@ export function openControls({ onClose } = {}) {
   reset.onclick = () => {
     stopCapture();
     resetBindings();
+    resetSettings();
+    for (const show of sliders) {
+      show();
+    }
     status.textContent = 'Defaults restored.';
   };
   const done = el('button', null, buttons, 'Done');

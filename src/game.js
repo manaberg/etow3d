@@ -18,6 +18,7 @@ import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.j
 import { Kits, outfit, rollGear } from './entities/gear.js';
 import { DuelLoot, DuelSpells, startRank } from './entities/duelLoot.js';
 import { actionKeyLabel } from './core/bindings.js';
+import { setting } from './core/settings.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
@@ -26,9 +27,9 @@ import { Hud } from './ui/hud.js';
 // placed in order), the spells the rival always takes, and where the
 // player's last loadout is kept.
 // camera: radians turned per pixel the mouse is dragged, and per second a
-// turn key is held
-const CAMERA_DRAG = 0.006;
-const CAMERA_TURN = 2.4;
+// turn key is held, at 100% (the controls screen scales both)
+const CAMERA_DRAG = 0.003;
+const CAMERA_TURN = 1.4;
 const CLASSIC_LOADOUT = ['blink', 'fireball', 'lightning', 'shield', 'ironshot', 'haste', 'image', 'timestop'];
 const RIVAL_CORE = ['shield', 'blink', 'fireball'];
 const LOADOUT_KEY = 'etow3d.loadout';
@@ -1227,11 +1228,13 @@ export class Game {
   turnCamera(dt) {
     const input = this.input;
     const look = input.takeLook();
+    const drag = CAMERA_DRAG * setting('cameraDrag');
+    const turn = CAMERA_TURN * setting('cameraTurn');
     // commander mode: a left-button drag selects regiments instead
-    let yaw = this.battle && this.battle.drag ? 0 : -look.x * CAMERA_DRAG;
-    const pitch = this.battle && this.battle.drag ? 0 : look.y * CAMERA_DRAG * 0.7;
-    if (input.held.has('camera_left')) { yaw += CAMERA_TURN * dt; }
-    if (input.held.has('camera_right')) { yaw -= CAMERA_TURN * dt; }
+    let yaw = this.battle && this.battle.drag ? 0 : -look.x * drag;
+    const pitch = this.battle && this.battle.drag ? 0 : look.y * drag * 0.7;
+    if (input.held.has('camera_left')) { yaw += turn * dt; }
+    if (input.held.has('camera_right')) { yaw -= turn * dt; }
     this.gfx.rotate(yaw, pitch);
     if (input.consume('camera_reset')) {
       this.gfx.resetView();

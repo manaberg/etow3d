@@ -68,7 +68,8 @@ which that account may not do, hence the script.
 
 These are the default keys. Every action can be moved to another key or mouse button from
 **Controls** on the main menu or the pause screen (binding a key that is taken swaps the
-two). Bindings are saved in the browser. `Esc` always pauses and the arrow keys always move.
+two), where two sliders also set how fast the camera turns: by mouse drag and by the turn
+keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` always pauses and the arrow keys always move.
 
 | Key | Action |
 | --- | --- |
