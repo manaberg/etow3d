@@ -3,7 +3,7 @@
 // 'Space') or a mouse button ('Mouse0' left, 'Mouse1' middle, 'Mouse2' right),
 // so any action can sit on any key or button. Escape always pauses and the
 // arrow keys always move; neither can be rebound. Movement is relative to the
-// camera, which turns (held middle button and drag, or the turn keys).
+// camera, which turns (hold the left button and drag, or the turn keys).
 
 // Every action in the order the controls screen lists them. Movement keeps
 // the 2D game's keys; spells sit on the bar's slots instead of a key each.
@@ -12,14 +12,14 @@ export const Actions = [
   { id: 'left', label: 'Move left', group: 'Movement', key: 'KeyA' },
   { id: 'down', label: 'Move down', group: 'Movement', key: 'KeyS' },
   { id: 'right', label: 'Move right', group: 'Movement', key: 'KeyD' },
-  { id: 'camera_drag', label: 'Turn camera (hold and move the mouse)', group: 'Camera', key: 'Mouse1' },
+  { id: 'camera_drag', label: 'Look around (hold and move the mouse)', group: 'Camera', key: 'Mouse0' },
   { id: 'camera_left', label: 'Turn camera left', group: 'Camera', key: 'KeyZ' },
   { id: 'camera_right', label: 'Turn camera right', group: 'Camera', key: 'KeyX' },
   { id: 'camera_reset', label: 'Camera back to north', group: 'Camera', key: 'KeyV' },
-  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse0' },
+  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse2' },
   // the spell bar (entities/spellbar.js BarSlots): whatever spell is prepared
   // in each slot, nearest to WASD first
-  { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'Mouse2' },
+  { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'Mouse1' },
   { id: 'slot2', label: 'Spell slot 2', group: 'Spells', key: 'KeyQ' },
   { id: 'slot3', label: 'Spell slot 3', group: 'Spells', key: 'KeyE' },
   { id: 'slot4', label: 'Spell slot 4', group: 'Spells', key: 'KeyR' },
@@ -52,8 +52,12 @@ const FIXED = {
 export const RESERVED = ['Escape'];
 
 // v2: spells moved from a key each to the bar's slots, so older saved
-// bindings are left behind once
-const STORAGE_KEY = 'etow3d.bindings.v2';
+// bindings are left behind once. v3: the left button looks around, the
+// missile moved to the right and slot 1 to the middle; v2 bindings carry
+// over without those three.
+const STORAGE_KEY = 'etow3d.bindings.v3';
+const OLD_KEY = 'etow3d.bindings.v2';
+const MOVED = ['camera_drag', 'missile', 'slot1'];
 
 let bindings = load();
 let byCode = index();
@@ -74,7 +78,13 @@ function defaults() {
 function load() {
   const out = defaults();
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!saved) {
+      saved = JSON.parse(localStorage.getItem(OLD_KEY) || '{}');
+      for (const id of MOVED) {
+        delete saved[id];
+      }
+    }
     const taken = new Set();
     for (const id in saved) {
       if (id in out && typeof saved[id] === 'string' && !RESERVED.includes(saved[id])) {

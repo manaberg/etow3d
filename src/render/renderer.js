@@ -38,7 +38,11 @@ export class Gfx {
     // the camera orbits the focus: `yaw` turns it around (0 looks north, the
     // old fixed view), `elevation` tilts it between a low look ahead and
     // almost straight down. It stays where it is put; nothing turns it back.
+    // `heading` is the yaw the move keys walk by: it follows the camera, but
+    // holds while the mage keeps moving, so the camera can look elsewhere
+    // (behind, say) without changing the way it walks.
     this.yaw = 0;
+    this.heading = 0;
     this.yawHome = null;
     this.elevation = THREE.MathUtils.degToRad(52);
     this.elevationMin = THREE.MathUtils.degToRad(30);
@@ -195,11 +199,15 @@ export class Gfx {
   }
 
   // Turns the camera by `yaw` radians (positive turns the view left) and
-  // tilts it by `pitch` (positive looks further down).
-  rotate(yaw, pitch = 0) {
+  // tilts it by `pitch` (positive looks further down); `steer` turns the
+  // way the mage walks with it.
+  rotate(yaw, pitch = 0, steer = false) {
     if (yaw) {
       this.yawHome = null;
       this.yaw = wrapAngle(this.yaw + yaw);
+      if (steer) {
+        this.heading = wrapAngle(this.heading + yaw);
+      }
     }
     this.elevation = clamp(this.elevation + pitch, this.elevationMin, this.elevationMax);
   }
@@ -211,10 +219,11 @@ export class Gfx {
   }
 
   // A direction given on screen (x right, y down: the move keys) as a
-  // direction on the ground in sim pixels, for the way the camera faces.
-  alignToView(x, y) {
-    const sin = Math.sin(this.yaw);
-    const cos = Math.cos(this.yaw);
+  // direction on the ground in sim pixels, for the way the camera faces (or
+  // another yaw, such as `heading`).
+  alignToView(x, y, yaw = this.yaw) {
+    const sin = Math.sin(yaw);
+    const cos = Math.cos(yaw);
     return { x: x * cos + y * sin, y: y * cos - x * sin };
   }
 

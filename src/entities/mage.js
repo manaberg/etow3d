@@ -92,7 +92,6 @@ export class Mage extends Entity {
     this.walkTo = null;
     this.walkBest = Infinity;
     this.walkStall = 0;
-    this.clickTaken = false;
     // cooldown frames left per spell (0 = ready), and the length of a wait
     // longer than the spell's own cooldown (one just put on the bar)
     this.cdFull = {};
@@ -484,9 +483,9 @@ export class Mage extends Entity {
       if (input.state('left')) { mx -= 1; }
       if (input.state('right')) { mx += 1; }
       if (mx || my) {
-        // the keys move the way the camera looks
+        // the keys move the way the camera looked when the mage set off
         this.walkTo = null;
-        const dir = game.gfx.alignToView(mx, my);
+        const dir = game.gfx.alignToView(mx, my, game.gfx.heading);
         mx = dir.x;
         my = dir.y;
       } else if (this.walkTo) {
@@ -535,12 +534,9 @@ export class Mage extends Entity {
   }
 
   // Survival: a left click on a hovered item's name sends the wizard to it
-  // (WASD takes over again), and that click casts no magic missile.
+  // (WASD takes over again).
   updateLootClick() {
     const input = this.game.input;
-    if (this.clickTaken && !input.state('click')) {
-      this.clickTaken = false;
-    }
     if (!input.pressed('click')) {
       return;
     }
@@ -549,7 +545,6 @@ export class Mage extends Entity {
       this.walkTo = item;
       this.walkBest = Infinity;
       this.walkStall = 0;
-      this.clickTaken = true;
     }
   }
 
@@ -628,7 +623,7 @@ export class Mage extends Entity {
     const aim = this.aim;
     const fire = (kind, angle, x = c.x, y = c.y) => game.spawn(Projectile, x, y, { kind, angle, team: 'player', timeOwner: this });
 
-    if (input.state('missile') && !this.clickTaken && this.ready('missile')) {
+    if (input.state('missile') && this.ready('missile')) {
       // the darts home in on the foe under (or near) the cursor, else on the spot
       const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
       castMissiles(game, this, 'player', aim, target);
