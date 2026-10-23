@@ -28,8 +28,9 @@ export class Clericorc extends Enemy {
     this.rig = buildOrc('cleric');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
-    // the mitre it wears is yours once it falls
-    outfit(this, ['mitre']);
+    // the mitre it wears (a piece of the High Priest's set) is yours once
+    // it falls
+    outfit(this, ['priest_mitre']);
   }
 
   update(k) {

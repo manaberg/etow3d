@@ -540,10 +540,12 @@ export class Game {
     if (Math.random() < scrollChance) {
       this.dropScroll(orc, Math.random() < plan.tier2 ? 1 : 0, 24);
     }
-    // now and then a piece of gear (whatever it wore drops as well, orc.js)
-    const gearChance = orc.isChampion ? 0.15 : 0.01 + this.depth * 0.003;
+    // now and then a piece of gear (whatever it wore drops as well, orc.js);
+    // the mage's magic find makes gear a little more common and finer
+    const magicFind = this.player ? this.player.bonus('magicFind') : 0;
+    const gearChance = (orc.isChampion ? 0.15 : 0.01 + this.depth * 0.003) * (1 + magicFind / 2);
     if (Math.random() < gearChance) {
-      this.dropGear(orc, rollGear(this.depth, { minRarity: orc.isChampion ? 'magic' : undefined }));
+      this.dropGear(orc, rollGear(this.depth, { minRarity: orc.isChampion ? 'magic' : undefined, magicFind }));
     }
   }
 
@@ -672,16 +674,19 @@ export class Game {
     return best;
   }
 
-  // Survival: the item whose name shows, the one under the cursor or the one
-  // whose name tag (drawn by the HUD last frame) the cursor is on.
+  // Survival: the item whose name tag (drawn by the HUD last frame) the
+  // cursor is on, else the one under the cursor.
   pointedItem() {
     if (this.duelMode || !this.player || this.player.dead || this.state !== 'playing') {
       return null;
     }
-    const tag = this.hud.itemTag;
     const m = this.input.mouse;
-    if (tag && !tag.item.killed && m.inside && m.x >= tag.x0 && m.x <= tag.x1 && m.y >= tag.y0 && m.y <= tag.y1) {
-      return tag.item;
+    if (m.inside) {
+      for (const tag of this.hud.itemTags) {
+        if (!tag.item.killed && m.x >= tag.x0 && m.x <= tag.x1 && m.y >= tag.y0 && m.y <= tag.y1) {
+          return tag.item;
+        }
+      }
     }
     return this.hoveredItem();
   }
@@ -1104,9 +1109,14 @@ export class Game {
   // ------------------------------------------------------------ experience
 
   // A foe fell: survival experience for the player (spellbar.js WizardLevels).
+  // Survival: experience for the kill, and whatever the mage's gear gives
+  // back for one.
   onEnemySlain(enemy) {
-    if (!this.duelMode && this.player && !this.player.dead) {
-      this.player.gainXp(WizardLevels.xpFor(enemy));
+    const player = this.player;
+    if (!this.duelMode && player && !player.dead) {
+      player.gainXp(WizardLevels.xpFor(enemy) * (1 + player.bonus('xpGain')));
+      player.hp = Math.min(player.maxHp, player.hp + player.bonus('killHeal'));
+      player.manergy = Math.min(player.maxManergy, player.manergy + player.bonus('killManergy'));
     }
   }
 
@@ -1202,6 +1212,10 @@ export class Game {
     }
     if (this.input.consume('map')) {
       this.hud.toggleMap();
+    }
+    if (this.input.consume('loot_names')) {
+      this.hud.lootNames = !this.hud.lootNames;
+      this.hud.toast(this.hud.lootNames ? 'ITEM NAMES SHOWN' : 'ITEM NAMES ONLY UNDER THE CURSOR', '#f3e6c4');
     }
     this.gfx.zoomBy(this.input.takeWheel());
     this.turnCamera(dt);

@@ -9,12 +9,14 @@ import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
 // start of a floor (`persistent`) waits until it is picked up. In duels and
-// battles loot is picked up by walking over it; on survival floors hovering it
-// shows its name, and clicking the name sends the wizard to pick it up
-// (game.pointedItem, Mage.walkTo).
+// battles loot is picked up by walking over it. On survival floors scrolls
+// and potions (`autoPickup`) are too, but gear only when it is clicked: its
+// name shows on the floor (ui/hud.js drawLootLabels), and clicking the name
+// sends the wizard to pick it up (game.pointedItem, Mage.walkTo).
 export class Item extends Entity {
   defaults() {
     this.persistent = false;
+    this.autoPickup = false;
     this.life = 35 * 60;
     this.bob = Math.random() * 10;
     this.settled = false;
@@ -33,10 +35,10 @@ export class Item extends Entity {
     }
     const game = this.game;
     const player = game.player;
-    if (!game.duelMode) {
+    if (!game.duelMode && !this.autoPickup) {
       return;
     }
-    if (player && !player.dead && this.touches(player)) {
+    if (player && !player.dead && this.touches(player) && (game.duelMode || this.wanted(player))) {
       this.pickUp(player);
     } else if (game.duelLoot && this.isLoot && game.rival && !game.rival.killed && this.touches(game.rival)) {
       this.pickUp(game.rival);
@@ -44,6 +46,11 @@ export class Item extends Entity {
   }
 
   pickUp() {}
+
+  // Survival: whether walking over it picks it up (clicking it always does).
+  wanted() {
+    return true;
+  }
 
   // Loot thrown off a body at the edge of water, lava or a chasm (or into a
   // wall) moves to the nearest floor it can be picked up from.
@@ -107,6 +114,7 @@ export class Scroll extends Item {
     // a scroll of one spell (a slain dark wizard's), or null
     this.spell = null;
     this.isLoot = true;
+    this.autoPickup = true;
   }
 
   init() {
@@ -197,6 +205,12 @@ export class Potion extends Item {
     this.isSpecial = false;
     this.knightPot = false;
     this.isLoot = true;
+    this.autoPickup = true;
+  }
+
+  // a health potion stays on the floor while the mage is unhurt
+  wanted(player) {
+    return this.isBlue || player.hp < player.maxHp;
   }
 
   init() {
@@ -227,15 +241,19 @@ export class Potion extends Item {
       return;
     }
     const stats = this.game.stats;
+    // gear makes potions stronger
+    const power = 1 + (player.bonus ? player.bonus('potionPower') : 0);
     if (this.isBlue) {
-      player.maxManergy += 25;
-      player.manergy += 75;
+      const more = Math.round(25 * power);
+      player.maxManergy += more;
+      player.manergy += Math.round(75 * power);
       stats.bluepotcount++;
-      this.game.hud.toast('MANERGY POTION :: +25 MAX MANERGY', '#6aa8ff');
+      this.game.hud.toast('MANERGY POTION :: +' + more + ' MAX MANERGY', '#6aa8ff');
     } else {
-      player.hp += 35;
+      const heal = Math.round(35 * power);
+      player.hp += heal;
       stats.redpotcount++;
-      this.game.hud.toast('HEALTH POTION :: +35 HP', '#ff6a70');
+      this.game.hud.toast('HEALTH POTION :: +' + heal + ' HP', '#ff6a70');
     }
     this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);
     this.kill();

@@ -4,7 +4,7 @@ import { Projectile } from './spells.js';
 import { Arcana } from './arcana.js';
 import { buildSheep } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
-import { applyGearPools, gearStat, statOf } from './gear.js';
+import { applyGearPools, elementBonus, gearStat, statOf } from './gear.js';
 import { rankPower } from './spellbar.js';
 
 // Damage reflected enemy bolts deal when a shield sends them back.
@@ -212,11 +212,11 @@ export class Enemy extends Entity {
 
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
-      this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k, 'cold');
+      this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k * this.gearBoost('cold'), 'cold');
     } else if (zone.kind === 'guardians') {
-      this.hp -= this.resisted(Arcana.guardians.dps / 60 * k * rankPower(zone.timeOwner, 'guardians'), 'radiant');
+      this.hp -= this.resisted(Arcana.guardians.dps / 60 * k * rankPower(zone.timeOwner, 'guardians') * this.gearBoost('radiant'), 'radiant');
     } else if (zone.kind === 'cloud' && zone.timeOwner) {
-      this.hp -= this.resisted(Arcana.cloud.dps / 60 * k * rankPower(zone.timeOwner, 'cloud'), 'poison');
+      this.hp -= this.resisted(Arcana.cloud.dps / 60 * k * rankPower(zone.timeOwner, 'cloud') * this.gearBoost('poison'), 'poison');
     } else if (zone.kind === 'cloud') {
       // battles: a green dragon's poison
       this.hp -= this.resisted(1.2 * k, 'poison');
@@ -230,6 +230,17 @@ export class Enemy extends Entity {
     }
   }
 
+  // Survival: every hit on a monster is the mage's doing (its spells, its
+  // allies, its reflected bolts), so the mage's gear strengthens it by
+  // element (gear.js elementBonus). Duels and battles have no such gear.
+  gearBoost(element) {
+    const game = this.game;
+    if (game.duelMode || !game.player || !element) {
+      return 1;
+    }
+    return 1 + elementBonus(game.player, element);
+  }
+
   // Damage after this monster's resistance to the element.
   resisted(dmg, element) {
     const mult = this.resist && element ? this.resist[element] : undefined;
@@ -241,8 +252,9 @@ export class Enemy extends Entity {
   }
 
   hurt(dmg, element) {
-    // gear armour first, then the element's resistance
-    dmg *= 1 - gearStat(this, 'armor');
+    // the mage's gear for the element, gear armour, then the element's
+    // resistance
+    dmg *= this.gearBoost(element) * (1 - gearStat(this, 'armor'));
     const taken = this.resisted(dmg, element);
     this.hp -= taken;
     if (taken < dmg * 0.75 || taken > dmg * 1.25) {

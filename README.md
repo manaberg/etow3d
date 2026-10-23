@@ -86,7 +86,8 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
-| Hover / `LMB` on loot | survival: hovering an item shows its name; click the name (without dragging) to walk over and pick it up (in duels and battles loot is picked up by walking over it) |
+| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion only while you are hurt); gear only by clicking. In duels and battles all loot is picked up by walking over it |
+| `G` | survival: show item names on the floor, or only the one under the cursor |
 | Mouse wheel | zoom |
 | `M` | larger map |
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
@@ -268,16 +269,36 @@ Every spell belongs to a school of magic, shown beside it in the spell list:
 | Illusion | mirror image, invisibility | 3.3 s |
 | Necromancy | lifesteal, power word kill | 4 s |
 
-**Gear.** Wizards wear a hat, a robe, a staff and two rings, each with properties (more
-health or manergy, faster regen, movement or cooldowns, armour, cheaper fireballs or
-lightning, stronger missiles, lifesteal, mending, longer shields), and what is worn shows
-on the model. `I` opens the inventory: the five worn slots, a bag of twenty, the wizard's
-resulting stats, and the selected item compared with what it would replace; double-click
-to wear or take off, or drop an item on the floor. You start in an apprentice's kit; the
-2D game's rings and new gear drop from champions, and the orcs wear gear too (casters
-now and then a hat or robe, champions often a ring or a robe, the orc mage a rare hat,
-the cleric its mitre), which makes them tougher, faster or harder to hurt and drops when
-they fall. In duels and battles both wizards wear matching kits (the rival's in red) and
+**Gear.** Wizards wear a hat, a robe, a staff and two rings, and what is worn shows on the
+model. Loot is rolled as in Diablo (`src/entities/gear.js`):
+
+- **Bases.** Five kinds of hat (pointed hats, wide brims, cowls, mitres, circlets), four of
+  robe, five of staff and rings, each in three grades found from floors 1, 6 and 12
+  (POINTED HAT, CONJURER'S HAT, ARCHON'S HAT), with a property of its own that grows with
+  the grade.
+- **Rarity.** Common gear (white) is the base alone. Magic gear (blue) adds a prefix and/or a
+  suffix, named after them: BLAZING CONJURER'S HAT OF THE FOX. Rare gear (yellow) has three
+  to five affixes under a random name such as GLOOM VISAGE. Each affix comes in grades that
+  deeper floors unlock (OF THE JACKAL, FOX, WOLF, TIGER, MAMMOTH for health), and the first
+  one tints the item (rare gear glows in it). Rings are always magic or better.
+- **Properties.** Health, manergy and their regeneration, movement, armour, cooldowns,
+  cheaper spells, spell damage and damage by element (fire, cold, lightning, poison,
+  necrotic, radiant, force, iron), missile damage, cheaper fireballs and lightning,
+  lifesteal, mending, longer shields, health or manergy per kill, more experience, stronger
+  potions, better items found, and shorter roots, fear and polymorph.
+- **Sets** (green): seven, from the Wanderer's Garb (from floor 1) to the Archmage's Regalia
+  (floor 10), each two to four named pieces whose bonuses grow with every different piece
+  worn. The inventory lists a set's pieces and bonuses, the earned ones lit.
+- **Uniques** (orange): twenty-one named items with fixed properties and a story, some with a
+  price (JESTER'S FOLLY: more experience and better finds for less health).
+
+Deeper floors favour the rarer kinds. `I` opens the inventory: the five worn slots, a bag of
+twenty, the wizard's resulting stats, and the selected item (its base, properties and set)
+compared with what it would replace; double-click to wear or take off, or drop an item on
+the floor. You start in an apprentice's kit; the 2D game's rings and new gear drop from
+champions, and the orcs wear gear too (casters now and then a hat or robe, champions often
+a ring or a robe, the orc mage a rare hat, the cleric the High Priest's Mitre), which makes
+them tougher, faster or harder to hurt and drops when they fall. In duels and battles both wizards wear matching kits (the rival's in red) and
 keep the 2D duel's five rings as built-in bonuses. The catalogue is `Gear` in
 `src/entities/gear.js`; the pieces are modelled in `src/render/gearModels.js`.
 

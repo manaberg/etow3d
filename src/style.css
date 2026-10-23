@@ -1160,6 +1160,20 @@ button.rule.active {
   font-style: italic;
 }
 
+.inv-set-name {
+  margin-top: 10px;
+}
+
+.inv-set-piece,
+.inv-set-bonus {
+  color: var(--dim);
+}
+
+.inv-set-piece.on,
+.inv-set-bonus.on {
+  color: #4ee060;
+}
+
 .inv-actions {
   justify-content: flex-start;
   margin-top: 10px;

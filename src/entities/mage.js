@@ -237,7 +237,7 @@ export class Mage extends Entity {
   spend(id, extraCost) {
     const spell = SpellById[id];
     this.cd[id] = this.cooldownOf(spell.cd * rankCooldown(this, id));
-    this.manergy -= spell.cost + (extraCost || 0);
+    this.manergy -= (spell.cost + (extraCost || 0)) * (1 - this.bonus('costCut'));
     this.lockSchool(id);
   }
 
@@ -586,8 +586,10 @@ export class Mage extends Entity {
       this.schoolLock[school] = Math.max(0, this.schoolLock[school] - k);
     }
     this.chillFrames = Math.max(0, this.chillFrames - k);
+    // gear that steadies the mage wears roots, fear and polymorph off faster
+    const steady = 1 / (1 - this.bonus('steadfast'));
     if (this.sheepFrames > 0) {
-      this.sheepFrames = Math.max(0, this.sheepFrames - k);
+      this.sheepFrames = Math.max(0, this.sheepFrames - k * steady);
       if (this.sheepFrames === 0) {
         const c = this.center();
         this.game.fx.burst(c.x, c.y, 1.2, { color: [0xff80e0, 0xffffff], count: 30, speed: 5, life: 0.5, size: 0.9 });
@@ -598,14 +600,14 @@ export class Mage extends Entity {
     this.invisFrames = Math.max(0, this.invisFrames - k);
     this.timestopFrames = Math.max(0, this.timestopFrames - k);
     if (this.isStunned) {
-      this.stunFrames += k;
+      this.stunFrames += k * steady;
       if (this.stunFrames >= this.stunDuration) {
         this.isStunned = false;
         this.stunFrames = 0;
       }
     }
     if (this.isFeared) {
-      this.fearFrames += k;
+      this.fearFrames += k * steady;
       if (this.fearFrames >= this.fearDuration) {
         this.isFeared = false;
         this.fearFrames = 0;

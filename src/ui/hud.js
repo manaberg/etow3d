@@ -13,6 +13,9 @@ import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
 import { DuelRules } from '../entities/duelRules.js';
 import { missileTier } from '../entities/spells.js';
 
+// height of an item's name tag on the floor (CSS px)
+const LOOT_TAG_H = 17;
+
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
   if (className) {
@@ -66,6 +69,9 @@ export class Hud {
     root.classList.toggle('battle', !!game.battleMode);
 
     this.labels = el('canvas', 'hud-labels', root);
+    // item names on the floor (drawLootLabels), toggled by a key
+    this.lootNames = true;
+    this.itemTags = [];
     this.vignette = el('div', 'hud-vignette', root);
     this.tint = el('div', 'hud-tint', root);
 
@@ -572,7 +578,7 @@ export class Hud {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    this.itemTag = null;
+    this.itemTags = [];
     const player = game.player;
     if (!player) {
       return;
@@ -628,31 +634,68 @@ export class Hud {
       ctx.fillStyle = e.isChampion ? '#ffd060' : (big ? '#ff9ad0' : '#f0e0d0');
       ctx.fillText(text, p.x, p.y - 5);
     }
-    this.drawItemTag(ctx);
+    this.drawLootLabels(ctx, w, h);
   }
 
-  // Survival: the name of the hovered item on a dark tag above it. Clicking
-  // the tag picks the item up, so its box is kept for game.pointedItem.
-  drawItemTag(ctx) {
-    const item = this.game.pointedItem();
-    if (!item) {
+  // Survival: item names on the floor, the way Diablo shows them. Every item
+  // on screen gets a dark tag in its rarity's colour (or only the one under
+  // the cursor, with the names toggled off); tags that would overlap stack
+  // upwards, nearest the bottom of the screen first, so each one can be
+  // read and clicked. The hovered tag lights up, and clicking it sends the
+  // wizard to pick the item up (game.pointedItem keeps the boxes).
+  drawLootLabels(ctx, w, h) {
+    const game = this.game;
+    const player = game.player;
+    if (game.duelMode || !player || game.state !== 'playing') {
       return;
     }
-    const c = item.center();
-    const p = this.game.gfx.project(c.x, c.y, 1.6);
-    if (!p) {
-      return;
+    const under = game.hoveredItem();
+    const pc = player.center();
+    const tags = [];
+    for (const e of game.entities) {
+      if (e.killed || typeof e.labelColor !== 'function' || !e.view || !e.view.visible) {
+        continue;
+      }
+      if (!this.lootNames && e !== under) {
+        continue;
+      }
+      const c = e.center();
+      if (Math.abs(c.x - pc.x) > 1400 || Math.abs(c.y - pc.y) > 1400) {
+        continue;
+      }
+      const p = game.gfx.project(c.x, c.y, 1.4);
+      if (!p || p.x < -80 || p.y < -20 || p.x > w + 80 || p.y > h + 40) {
+        continue;
+      }
+      const text = e.label();
+      const tw = ctx.measureText(text).width + 12;
+      tags.push({ item: e, text, x0: p.x - tw / 2, x1: p.x + tw / 2, y0: p.y - LOOT_TAG_H, y1: p.y });
     }
-    const text = item.label();
-    const tw = ctx.measureText(text).width;
-    const tag = { item, x0: p.x - tw / 2 - 6, y0: p.y - 18, x1: p.x + tw / 2 + 6, y1: p.y };
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.fillRect(tag.x0, tag.y0, tag.x1 - tag.x0, tag.y1 - tag.y0);
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-    ctx.strokeRect(tag.x0 + 0.5, tag.y0 + 0.5, tag.x1 - tag.x0 - 1, tag.y1 - tag.y0 - 1);
-    ctx.fillStyle = item.labelColor();
-    ctx.fillText(text, p.x, p.y - 5);
-    this.itemTag = tag;
+    tags.sort((a, b) => b.y1 - a.y1);
+    const placed = [];
+    for (const t of tags) {
+      for (let guard = 0; guard < 60; guard++) {
+        const hit = placed.find((o) => t.x0 < o.x1 + 2 && t.x1 > o.x0 - 2 && t.y0 < o.y1 + 1 && t.y1 > o.y0 - 1);
+        if (!hit) {
+          break;
+        }
+        t.y1 = hit.y0 - 1;
+        t.y0 = t.y1 - LOOT_TAG_H;
+      }
+      placed.push(t);
+    }
+    const m = game.input.mouse;
+    const pointed = m.inside ? placed.find((t) => m.x >= t.x0 && m.x <= t.x1 && m.y >= t.y0 && m.y <= t.y1) : null;
+    for (const t of placed) {
+      const lit = t === pointed || (!pointed && t.item === under);
+      ctx.fillStyle = lit ? 'rgba(46,52,92,0.92)' : 'rgba(0,0,0,0.72)';
+      ctx.fillRect(t.x0, t.y0, t.x1 - t.x0, t.y1 - t.y0);
+      ctx.strokeStyle = lit ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.14)';
+      ctx.strokeRect(t.x0 + 0.5, t.y0 + 0.5, t.x1 - t.x0 - 1, t.y1 - t.y0 - 1);
+      ctx.fillStyle = t.item.labelColor();
+      ctx.fillText(t.text, (t.x0 + t.x1) / 2, t.y1 - 5);
+    }
+    this.itemTags = placed;
   }
 
   dispose() {

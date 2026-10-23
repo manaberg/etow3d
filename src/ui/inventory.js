@@ -1,4 +1,4 @@
-import { Slots, Rarities, Stats, formatStat, slotFits } from '../entities/gear.js';
+import { Slots, Rarities, Stats, Sets, Gear, formatStat, slotFits, setPiecesWorn } from '../entities/gear.js';
 import { actionKeyLabel } from '../core/bindings.js';
 import { SpellbookPanel } from './spellbook.js';
 
@@ -272,12 +272,17 @@ export class InventoryScreen {
     const title = el('div', 'inv-name', box, type.name);
     title.style.color = rarity.color;
     const kind = Slots.find((s) => s.kind === type.slot);
-    el('div', 'dim', box, rarity.label + ' ' + (type.slot === 'ring' ? 'RING' : kind.label) + (slot ? ' :: WORN' : ''));
+    // rolled gear names its base under its own name
+    const base = type.baseName && type.baseName !== type.name ? ' :: ' + type.baseName : '';
+    el('div', 'dim', box, rarity.label + ' ' + (type.slot === 'ring' ? 'RING' : kind.label) + base + (slot ? ' :: WORN' : ''));
     const lines = el('div', 'inv-lines', box);
     for (const key in type.stats) {
       this.statLine(lines, key, type.stats[key]);
     }
     el('div', 'inv-text', box, type.text);
+    if (type.set) {
+      this.renderSet(box, type.set);
+    }
 
     // what wearing it would change, against what it replaces
     if (!slot) {
@@ -321,6 +326,26 @@ export class InventoryScreen {
       button('Wear', () => this.equip(item));
     }
     button('Drop', () => this.drop(item), 'secondary');
+  }
+
+  // A set: its pieces (the worn ones lit) and its bonuses (the earned ones
+  // lit).
+  renderSet(box, setId) {
+    const set = Sets[setId];
+    const inv = this.inventory;
+    const worn = setPiecesWorn(inv, setId);
+    const wornIds = new Set(inv.worn().map((i) => i.type.id));
+    const head = el('div', 'hud-heading inv-set-name', box, set.name + '  ' + worn + ' / ' + set.pieces.length);
+    head.style.color = Rarities.set.color;
+    const pieces = el('div', 'inv-lines', box);
+    for (const id of set.pieces) {
+      el('div', 'inv-set-piece' + (wornIds.has(id) ? ' on' : ''), pieces, Gear[id].name);
+    }
+    const bonuses = el('div', 'inv-lines', box);
+    for (const [count, bonus] of set.bonuses) {
+      const text = '(' + count + ') ' + Object.entries(bonus).map(([k, v]) => formatStat(k, v)).join(', ');
+      el('div', 'inv-set-bonus' + (worn >= count ? ' on' : ''), bonuses, text);
+    }
   }
 
   statLine(parent, key, value) {
