@@ -22,20 +22,16 @@ export const BarSlots = [
   { action: 'slot10', level: 15 }
 ];
 
-// Where a newly learned spell goes, by slot index: blink to the first slot
-// (Q), spells cast often (a cooldown of `quickCooldown` frames or less) to
-// the other keys around WASD, the rest to the number row. The first free open
-// slot in the order wins.
+// Where a newly learned spell goes, by slot index: spells cast often (a
+// cooldown of `quickCooldown` frames or less) to the bar in order, Q first;
+// the rest to the number row once it opens, and before that from Q too. The
+// first free open slot in the order wins.
 const PLACEMENT = {
-  blink: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-  quick: [1, 2, 3, 4, 0, 5, 6, 7, 8, 9],
-  slow: [5, 6, 7, 8, 9, 1, 2, 3, 4, 0]
+  quick: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  slow: [5, 6, 7, 8, 9, 0, 1, 2, 3, 4]
 };
 
 export function placementOrder(id, cooldown) {
-  if (id === 'blink') {
-    return PLACEMENT.blink;
-  }
   return cooldown <= WizardLevels.quickCooldown ? PLACEMENT.quick : PLACEMENT.slow;
 }
 

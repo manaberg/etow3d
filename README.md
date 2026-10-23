@@ -194,9 +194,9 @@ on its bar can be cast. Magic missile has its own key (RMB); the bar's ten slots
 F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange them
 (`src/entities/spellbar.js`, `src/ui/spellbook.js`).
 
-- A new spell goes into the first free slot that suits it: blink to Q, spells with a cooldown
-  of 6.7 s or less to E, F, R and 2, slower ones to the rest. With the bar full it waits
-  in the book.
+- A new spell goes into the first free slot that suits it: spells with a cooldown of 6.7 s or
+  less fill the bar in order from Q, slower ones the number row (4, 1, 3, C, 5) once it opens
+  and the first free slot from Q before that. With the bar full it waits in the book.
 - A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
