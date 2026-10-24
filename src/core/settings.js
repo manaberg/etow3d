@@ -1,14 +1,15 @@
 // Player settings other than key bindings, set on the controls screen and kept
 // in this browser's localStorage: how fast the camera turns (by mouse, by
-// the turn keys and by a finger on a touch screen) and how fast it follows
-// behind the wizard on a touch screen (0 = never), as a share of the
-// default speed (1 = 100%).
+// the turn keys and by a finger on a touch screen) and, on a touch screen,
+// how fast it follows behind the wizard and turns to face its target
+// (0 = never), as a share of the default speed (1 = 100%).
 
 export const Settings = [
   { id: 'cameraDrag', label: 'Mouse turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
   { id: 'cameraTurn', label: 'Turn key speed', min: 0.1, max: 2, step: 0.05, value: 1 },
   { id: 'touchTurn', label: 'Touch turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
-  { id: 'touchFollow', label: 'Touch camera follows behind (0 = off)', min: 0, max: 2, step: 0.05, value: 1 }
+  { id: 'touchFollow', label: 'Touch camera follows behind (0 = off)', min: 0, max: 2, step: 0.05, value: 1 },
+  { id: 'touchFace', label: 'Touch camera faces the target (0 = off)', min: 0, max: 2, step: 0.05, value: 1 }
 ];
 
 const STORAGE_KEY = 'etow3d.settings';

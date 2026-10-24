@@ -112,7 +112,8 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 | Let go over the cross | call the aimed spell off |
 | Blink, tapped | the way the wizard is heading (the joystick's, else the way it last walked), as far as open floor allows |
 | Spells with no aim | shield, healing word, haste and the like go off the moment they are touched |
-| Walking | the camera swings round behind the wizard, towards the way the joystick points (faster the more sideways, so the thumb steers), but not while backing away, so kiting keeps the foe in view. A slider on the Controls screen sets how fast, or turns it off |
+| With a target | the camera turns to look at the ringed foe from behind the wizard (smoothly when the ring moves to another), so the joystick circles it, closes in and backs away from it |
+| Walking, no target | the camera swings round behind the wizard, towards the way the joystick points (faster the more sideways, so the thumb steers), but not while backing away. Two sliders on the Controls screen set how fast the camera faces the target and follows behind, or turn either off |
 | Drag elsewhere / pinch | turn the camera by hand (its own slider; the camera then stays put for a moment before following again) / zoom |
 | Compass (top) | shows north; tap to turn the camera back to it |
 | Tap an item's name | survival: walk over and pick it up |

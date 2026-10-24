@@ -28,6 +28,12 @@ export const TOUCH_TURN = 1.6;
 // it leaves the camera alone after a finger turned it by hand (ms)
 const FOLLOW_RATE = 1.1;
 const FOLLOW_PAUSE = 1200;
+// with a target the camera turns to look at it: this share of the way per
+// second (at 100%), at most FACE_MAX radians per second, and not for a foe
+// closer than FACE_NEAR (sim px), whose bearing jumps about
+const FACE_RATE = 4;
+const FACE_MAX = 3.5;
+const FACE_NEAR = 60;
 
 // How each spell is aimed from a touch screen. `line`: a direction (the
 // bolt flies that way, magic missile's darts curve in on the foe nearest
@@ -406,18 +412,40 @@ export class TouchControls {
     return look;
   }
 
-  // The camera swings round behind the wizard as it walks: towards the way
-  // the joystick points, faster the more sideways, so a thumb steers like a
-  // third-person game. Not while backing away (kiting keeps the foe in
-  // view), for a moment after a finger turned the camera by hand, or in
-  // commander mode. Returns the yaw to turn this frame.
+  // The camera's own turning on a touch screen. With a target (the ringed
+  // foe) it looks at it from behind the wizard, so the joystick circles it
+  // and backs away from it; otherwise it swings round behind the wizard as
+  // it walks: towards the way the joystick points, faster the more
+  // sideways, so a thumb steers like a third-person game (not while backing
+  // away). Neither for a moment after a finger turned the camera by hand,
+  // nor in commander mode. Returns the yaw to turn this frame.
   followYaw(dt) {
     const game = this.game;
     const player = game.player;
+    if (!isTouch() || !player || player.dead || (game.battle && game.battle.commander) ||
+      performance.now() - this.lookedAt < FOLLOW_PAUSE) {
+      return 0;
+    }
+    const face = FACE_RATE * setting('touchFace');
+    const target = this.target;
+    if (face && target && !target.killed) {
+      const c = player.center();
+      const t = target.center();
+      const dx = t.x - c.x;
+      const dy = t.y - c.y;
+      if (Math.hypot(dx, dy) < FACE_NEAR) {
+        return 0;
+      }
+      // the camera looks along (-sin yaw, -cos yaw) on the ground
+      const want = Math.atan2(-dx, -dy);
+      let turn = want - game.gfx.yaw;
+      turn -= Math.PI * 2 * Math.round(turn / (Math.PI * 2));
+      const step = turn * Math.min(1, face * dt);
+      return Math.max(-FACE_MAX * dt, Math.min(FACE_MAX * dt, step));
+    }
     const s = this.input.stick;
     const rate = FOLLOW_RATE * setting('touchFollow');
-    if (!isTouch() || !rate || !this.stick || !(s.x || s.y) || !player || player.isFeared ||
-      (game.battle && game.battle.commander) || performance.now() - this.lookedAt < FOLLOW_PAUSE) {
+    if (!rate || !this.stick || !(s.x || s.y) || player.isFeared) {
       return 0;
     }
     if (Math.hypot(player.vel.x, player.vel.y) < 1) {
