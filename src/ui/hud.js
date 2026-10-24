@@ -9,6 +9,7 @@ import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
 import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
+import { isTouch } from '../core/device.js';
 import { DuelRules } from '../entities/duelRules.js';
 import { missileTier } from '../entities/spells.js';
 import { spellIcon } from './spellIcons.js';
@@ -138,9 +139,19 @@ export class Hud {
       if (!slot) {
         el('div', 'action-sep', bar);
       }
-      btn.addEventListener('mouseenter', () => this.showTip(btn, (tip) => this.fillSpellTip(tip, r)));
+      // on a touch screen the buttons cast instead (ui/touch.js), and only
+      // open the spellbook while it is open already
+      btn.addEventListener('mouseenter', () => {
+        if (!isTouch()) {
+          this.showTip(btn, (tip) => this.fillSpellTip(tip, r));
+        }
+      });
       btn.addEventListener('mouseleave', () => this.hideTip());
-      btn.addEventListener('click', () => this.openSlot(r.index));
+      btn.addEventListener('click', () => {
+        if (!isTouch() || this.game.inventoryOpen) {
+          this.openSlot(r.index);
+        }
+      });
       if (slot) {
         // while the spellbook is open, spells drag onto, off and along the bar
         dragSource(btn, () => (r.spellId && this.game.inventoryOpen ? { id: r.spellId, from: r.index } : null));
@@ -154,21 +165,26 @@ export class Hud {
 
     // the micro menu: spellbook, bag, map, controls, pause
     this.micro = el('div', 'hud-micro', root);
-    const micro = (svg, tip, fn) => {
-      const b = el('button', 'micro-btn', this.micro);
+    const micro = (svg, tip, fn, cls = '') => {
+      const b = el('button', 'micro-btn' + (cls ? ' ' + cls : ''), this.micro);
       b.type = 'button';
       b.tabIndex = -1;
       b.innerHTML = svg;
       // keep the focus off it, so Space and Enter stay the game's
       b.addEventListener('mousedown', (e) => e.preventDefault());
       b.onclick = fn;
-      b.addEventListener('mouseenter', () => this.showTip(b, (node) => {
-        const [title, text] = tip();
-        el('div', 'tip-title', node, title);
-        if (text) {
-          el('div', 'tip-dim', node, text);
+      b.addEventListener('mouseenter', () => {
+        if (isTouch()) {
+          return;
         }
-      }));
+        this.showTip(b, (node) => {
+          const [title, text] = tip();
+          el('div', 'tip-title', node, title);
+          if (text) {
+            el('div', 'tip-dim', node, text);
+          }
+        });
+      });
       b.addEventListener('mouseleave', () => this.hideTip());
       return { node: b, badge: el('span', 'micro-badge hidden', b, '') };
     };
@@ -176,11 +192,12 @@ export class Hud {
       () => game.toggleSpellbook());
     this.bagButton = micro(ICON_BAG, () => ['INVENTORY (' + actionKeyLabel('inventory') + ')', 'Your gear and your bag.'],
       () => game.toggleInventory(!(game.inventoryOpen && this.inventoryScreen.tab === 'gear'), 'gear'));
-    micro(ICON_MAP, () => ['MAP (' + actionKeyLabel('map') + ')', 'The larger map.'], () => this.toggleMap());
+    // touch screens tap the map itself, and reach the controls from the pause screen
+    micro(ICON_MAP, () => ['MAP (' + actionKeyLabel('map') + ')', 'The larger map.'], () => this.toggleMap(), 'desktop-only');
     micro(ICON_KEYS, () => ['CONTROLS', 'Movement, camera and every other key.'], () => {
       game.setPaused(true);
       openControls();
-    });
+    }, 'desktop-only');
     micro(ICON_PAUSE, () => ['PAUSE (' + actionKeyLabel('pause') + ')', ''], () => game.setPaused(!game.paused));
 
     this.tip = el('div', 'hud-tooltip hidden', root);
@@ -206,12 +223,24 @@ export class Hud {
     this.roomLabel = el('div', 'map-line', mapBox);
     this.slainLabel = el('div', 'map-line', mapBox);
     this.goalLabel = el('div', 'map-line goal', mapBox);
-    el('div', 'map-line dim', mapBox, actionKeyLabel('map') + ' :: LARGER MAP');
+    this.mapHint = el('div', 'map-line dim', mapBox, '');
+    // touch screens tap the map to enlarge it (and tap it again to close)
+    mapBox.addEventListener('click', () => {
+      if (isTouch()) {
+        this.toggleMap();
+      }
+    });
 
     this.banner = el('div', 'hud-banner', root);
     this.bannerTitle = el('div', 'banner-title', this.banner);
     this.bannerText = el('div', 'banner-text', this.banner);
     this.prompt = el('div', 'hud-prompt', root);
+    // on a touch screen the stairs' prompt is the button to go down
+    this.prompt.addEventListener('click', () => {
+      if (isTouch()) {
+        game.input.queued.add('descend');
+      }
+    });
     this.toastBox = el('div', 'hud-toasts', root);
 
     this.pauseScreen = el('div', 'screen hidden', root);
@@ -400,7 +429,7 @@ export class Hud {
 
   showPause(paused) {
     this.pauseScreen.classList.toggle('hidden', !paused);
-    this.pauseHint.textContent = 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
+    this.pauseHint.textContent = isTouch() ? 'The game waits.' : 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
   }
 
   showEnd({ title, text, stats, saved, time, win }) {
@@ -611,11 +640,18 @@ export class Hud {
     const dragons = { player: battle.dragonCount('player'), enemy: battle.dragonCount('enemy') };
     setText(this.battleArmies, 'ARMIES :: ' + (battle.armyCount('player') - dragons.player) + ' VS ' + (battle.armyCount('enemy') - dragons.enemy));
     setText(this.battleDragons, 'DRAGONS :: ' + dragons.player + ' VS ' + dragons.enemy);
-    setText(this.battleMode, (battle.commander ? 'COMMANDER MODE' : 'SPELL MODE') + ' :: ' + actionKeyLabel('mode_toggle') + ' TO SWITCH');
+    const touch = isTouch();
+    setText(this.battleMode, (battle.commander ? 'COMMANDER MODE' : 'SPELL MODE') + (touch ? '' : ' :: ' + actionKeyLabel('mode_toggle') + ' TO SWITCH'));
     this.battleMode.classList.toggle('commander', battle.commander);
-    setText(this.battleKeys, battle.commander
-      ? 'CLICK / DRAG SELECT :: RIGHT CLICK MOVE OR ATTACK'
-      : actionKeyLabel('order_charge') + ' CHARGE  ' + actionKeyLabel('order_hold') + ' MARCH  ' + actionKeyLabel('order_follow') + ' FOLLOW');
+    let keys;
+    if (touch) {
+      keys = battle.commander ? 'TAP YOUR SOLDIERS :: TAP GROUND TO MARCH, A FOE TO ATTACK' : 'ORDER THE SELECTED FROM THE BUTTONS';
+    } else {
+      keys = battle.commander
+        ? 'CLICK / DRAG SELECT :: RIGHT CLICK MOVE OR ATTACK'
+        : actionKeyLabel('order_charge') + ' CHARGE  ' + actionKeyLabel('order_hold') + ' MARCH  ' + actionKeyLabel('order_follow') + ' FOLLOW';
+    }
+    setText(this.battleKeys, keys);
     // the drag-select box
     const d = battle.drag;
     this.dragBox.style.display = d ? 'block' : 'none';
@@ -648,7 +684,8 @@ export class Hud {
       const order = el('span', 'regiment-order', node, '');
       const bar = el('div', 'regiment-bar', node);
       const fill = el('div', 'regiment-fill', bar);
-      node.onclick = (e) => battle.toggleSelect(regiment.id, e.shiftKey);
+      // a touch screen has no shift: a tap adds or takes away
+      node.onclick = (e) => battle.toggleSelect(regiment.id, e.shiftKey || isTouch());
       return { regiment, node, count, order, fill };
     });
   }
@@ -690,6 +727,7 @@ export class Hud {
       room = game.stageName();
     }
     setText(this.roomLabel, room);
+    setText(this.mapHint, isTouch() ? 'TAP THE MAP :: LARGER MAP' : actionKeyLabel('map') + ' :: LARGER MAP');
     if (game.duelMode) {
       return;
     }
@@ -709,11 +747,15 @@ export class Hud {
     this.goalLabel.classList.toggle('open', game.isStairsOpen());
 
     const stairs = game.stairs;
+    const open = game.isStairsOpen();
+    const touch = isTouch();
     if (stairs && stairs.playerOn && game.state === 'playing') {
-      setText(this.prompt, game.isStairsOpen() ? 'PRESS SPACE TO DESCEND' : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
+      setText(this.prompt, open ? (touch ? 'DESCEND' : 'PRESS ' + actionKeyLabel('descend').toUpperCase() + ' TO DESCEND') : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
       this.prompt.style.opacity = '1';
+      this.prompt.classList.toggle('actionable', touch && open);
     } else {
       this.prompt.style.opacity = '0';
+      this.prompt.classList.remove('actionable');
     }
   }
 
@@ -726,7 +768,8 @@ export class Hud {
         return (battle.armyCount(side) - dragons).toLocaleString('en') + ' ' + Races[battle.races[side]].name + ' AND ' + dragons + (dragons === 1 ? ' DRAGON' : ' DRAGONS');
       };
       setText(this.bannerTitle, game.stageName() + ' :: ' + count('player') + ' VS ' + count('enemy'));
-      setText(this.bannerText, 'DEPLOY YOUR REGIMENTS :: ' + actionKeyLabel('descend') + ' TO ATTACK NOW :: ' + Math.ceil(battle.deploy / 60));
+      const now = isTouch() ? 'ATTACK NOW TO START AT ONCE' : actionKeyLabel('descend') + ' TO ATTACK NOW';
+      setText(this.bannerText, 'DEPLOY YOUR REGIMENTS :: ' + now + ' :: ' + Math.ceil(battle.deploy / 60));
       this.banner.style.opacity = '1';
       return;
     }

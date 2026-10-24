@@ -5,6 +5,7 @@ import { DragonAges, ChromaticColors } from './dragon.js';
 import { MirrorImage } from './spells.js';
 import { Races, raceLook } from '../world/levels.js';
 import { TILE, UNIT } from '../core/constants.js';
+import { isTouch } from '../core/device.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
 import { BoltRenderer } from '../render/boltRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
@@ -569,15 +570,16 @@ export class Battle {
       const ahead = game.gfx.alignToView(0, -200);
       this.cam = { x: c.x + ahead.x, y: c.y + ahead.y };
     }
-    game.hud.toast(on ? 'COMMANDER MODE :: CLICK TO SELECT, RIGHT CLICK TO ORDER' : 'SPELL MODE', on ? '#ffd060' : '#c090ff');
+    const how = isTouch() ? 'TAP YOUR SOLDIERS, THEN GROUND OR A FOE' : 'CLICK TO SELECT, RIGHT CLICK TO ORDER';
+    game.hud.toast(on ? 'COMMANDER MODE :: ' + how : 'SPELL MODE', on ? '#ffd060' : '#c090ff');
   }
 
-  // WASD / arrows pan the commander's camera the way it looks; faster when
-  // zoomed out.
+  // WASD / arrows (or the on-screen joystick) pan the commander's camera the
+  // way it looks; faster when zoomed out.
   panCamera(input) {
     const speed = this.game.gfx.zoom * 0.55;
-    let mx = 0;
-    let my = 0;
+    let mx = input.stick.x * speed;
+    let my = input.stick.y * speed;
     if (input.state('up')) { my -= speed; }
     if (input.state('down')) { my += speed; }
     if (input.state('left')) { mx -= speed; }
@@ -632,6 +634,18 @@ export class Battle {
         this.boxSelect(d, d.add);
       }
     }, window);
+  }
+
+  // A tap in commander mode on a touch screen: one of your soldiers selects
+  // its regiment, or lets it go, keeping the others; with regiments
+  // selected, a foe sends them against it and open ground marches them there.
+  tap(screen) {
+    const unit = this.unitAt(screen, 'player');
+    if (unit && unit.regiment) {
+      this.toggleSelect(unit.regiment.id, true);
+    } else {
+      this.rightClick(screen);
+    }
   }
 
   // The unit nearest a screen point, within a little slack (more for dragons).

@@ -427,14 +427,15 @@ export class Mage extends Entity {
       this.vel.x = this.fearVel.x;
       this.vel.y = this.fearVel.y;
     } else {
-      let mx = 0;
-      let my = 0;
+      // the keys, plus the on-screen joystick on a touch screen
+      let mx = input.stick.x;
+      let my = input.stick.y;
       if (input.state('up')) { my -= 1; }
       if (input.state('down')) { my += 1; }
       if (input.state('left')) { mx -= 1; }
       if (input.state('right')) { mx += 1; }
       if (mx || my) {
-        // the keys move the way the camera looks
+        // the keys (and the joystick) move the way the camera looks
         this.walkTo = null;
         const dir = game.gfx.alignToView(mx, my);
         mx = dir.x;

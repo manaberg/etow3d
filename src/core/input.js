@@ -1,4 +1,5 @@
 import { actionFor } from './bindings.js';
+import { recentTouch } from './device.js';
 
 // px the mouse may wander between press and release for it to be a click
 const CLICK_SLOP = 6;
@@ -9,7 +10,10 @@ const CLICK_SLOP = 6;
 // runs no step. While 'camera_drag' is held, mouse movement turns the camera
 // (takeLook). A left button press that is let go without dragging also
 // reads as 'click' whatever it is bound to (survival loot is picked up by
-// clicking its name), so looking around never picks anything up.
+// clicking its name), so looking around never picks anything up. On a touch
+// screen (ui/touch.js) the on-screen controls press the same actions, set
+// `stick` and the aim, and tap() stands in for a click; the mouse events a
+// browser makes up after a touch are ignored.
 export class Input {
   constructor(element) {
     this.element = element;
@@ -21,6 +25,10 @@ export class Input {
     this.ground = { x: 0, y: 0 };
     this.wheel = 0;
     this.look = { x: 0, y: 0 };
+    // the on-screen joystick: x right, y down on the screen, length up to 1
+    this.stick = { x: 0, y: 0 };
+    // steps begun so far (touch.js holds a tapped aim until one has read it)
+    this.steps = 0;
     // how far the mouse moved since the left button went down, or null
     this.leftTravel = null;
     this.listeners = [];
@@ -45,6 +53,9 @@ export class Input {
     });
     this.on(window, 'blur', () => this.held.clear());
     this.on(element, 'mousedown', (e) => {
+      if (recentTouch()) {
+        return;
+      }
       if (e.button === 0) {
         this.leftTravel = 0;
       }
@@ -56,6 +67,9 @@ export class Input {
       }
     });
     this.on(window, 'mouseup', (e) => {
+      if (recentTouch()) {
+        return;
+      }
       if (e.button === 0) {
         if (this.leftTravel !== null && this.leftTravel < CLICK_SLOP) {
           this.queued.add('click');
@@ -68,6 +82,9 @@ export class Input {
       }
     });
     this.on(element, 'mousemove', (e) => {
+      if (recentTouch()) {
+        return;
+      }
       const rect = element.getBoundingClientRect();
       this.mouse.x = e.clientX - rect.left;
       this.mouse.y = e.clientY - rect.top;
@@ -75,6 +92,9 @@ export class Input {
     });
     // a drag may cross the HUD or leave the window: follow it on the window
     this.on(window, 'mousemove', (e) => {
+      if (recentTouch()) {
+        return;
+      }
       if (this.leftTravel !== null) {
         this.leftTravel += Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0);
       }
@@ -102,6 +122,15 @@ export class Input {
   beginStep() {
     this.current = this.queued;
     this.queued = new Set();
+    this.steps++;
+  }
+
+  // A tap on a touch screen: a click at that spot on the view.
+  tap(x, y) {
+    this.mouse.x = x;
+    this.mouse.y = y;
+    this.mouse.inside = true;
+    this.queued.add('click');
   }
 
   state(action) {

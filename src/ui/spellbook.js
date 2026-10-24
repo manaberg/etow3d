@@ -4,6 +4,13 @@ import { DuelRules } from '../entities/duelRules.js';
 import { missileTier } from '../entities/spells.js';
 import { RESERVED, actionKeyLabel, actionLabel, bind, bindingOf, keyLabel, resetActions } from '../core/bindings.js';
 import { spellIcon } from './spellIcons.js';
+import { isTouch } from '../core/device.js';
+
+// What the book calls bar slot `i`: its key, or on a touch screen (no keys)
+// its number.
+function slotName(i) {
+  return isTouch() ? 'SLOT ' + (i + 1) : actionKeyLabel(BarSlots[i].action);
+}
 
 // The spellbook tab of the inventory screen, laid out like WoW's: the action
 // bar at the top with the key of every slot under it, every spell the wizard
@@ -198,8 +205,9 @@ export class SpellbookPanel {
 
     this.details = el('div', 'inv-details sb-details', node);
     this.renderDetails();
-    el('div', 'map-line dim inv-help', node,
-      'DRAG OR CLICK A SPELL, THEN A SLOT :: DOUBLE CLICK TO PREPARE OR PUT BACK :: ' + actionKeyLabel('spellbook') + ' / ESC TO CLOSE');
+    el('div', 'map-line dim inv-help', node, isTouch()
+      ? 'TAP A SPELL, THEN A SLOT :: OR PICK ITS SLOT BELOW'
+      : 'DRAG OR CLICK A SPELL, THEN A SLOT :: DOUBLE CLICK TO PREPARE OR PUT BACK :: ' + actionKeyLabel('spellbook') + ' / ESC TO CLOSE');
   }
 
   // The key button under a bar tile: click it, then press the new key.
@@ -410,7 +418,7 @@ export class SpellbookPanel {
     const on = at >= 0 && at < player.slotLimit;
     if (on) {
       row.classList.add('prepared');
-      el('span', 'sb-where', row, actionKeyLabel(BarSlots[at].action));
+      el('span', 'sb-where', row, isTouch() ? String(at + 1) : actionKeyLabel(BarSlots[at].action));
     }
     if (this.isSelected({ id: spell.id })) {
       row.classList.add('selected');
@@ -501,7 +509,7 @@ export class SpellbookPanel {
       }
     }
     if (spell.id === 'missile') {
-      el('div', 'dim', box, 'Always ready on ' + actionKeyLabel('missile') + '; magic missile scrolls add darts.');
+      el('div', 'dim', box, 'Always ready on ' + (isTouch() ? 'the big button' : actionKeyLabel('missile')) + '; magic missile scrolls add darts.');
       return;
     }
     if (rank < RankRules.max) {
@@ -517,7 +525,7 @@ export class SpellbookPanel {
         continue;
       }
       const there = player.bar[i];
-      const b = el('button', 'secondary', buttons, actionKeyLabel(BarSlots[i].action) + (there ? ' :: ' + SpellById[there].name : ''));
+      const b = el('button', 'secondary', buttons, slotName(i) + (there ? ' :: ' + SpellById[there].name : ''));
       b.type = 'button';
       b.title = there ? (on ? 'Swap with ' : 'Replaces ') + SpellById[there].name.toLowerCase() : 'Empty slot';
       b.onclick = () => {

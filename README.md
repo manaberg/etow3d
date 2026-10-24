@@ -94,6 +94,35 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
 | `Esc` / `P` | pause |
 
+### Touch screens
+
+On a phone or tablet the game shows on-screen controls instead (`src/ui/touch.js`). They press
+the same actions as the keys, so everything plays as it does with a mouse. The game starts on
+them when the device's main pointer is a finger, and after that the last kind of input wins: a
+touch turns them on, moving a real mouse turns them off, and keys work either way
+(`src/core/device.js`). **Controls** can pin them on or off instead.
+
+| Touch | Action |
+| --- | --- |
+| Thumb on the left half, drag | a joystick that appears under the thumb: walk the way it points, relative to the camera |
+| Big button, bottom right | hold for magic missile |
+| Buttons around it | the bar's slots: the first four in an arc close in, the other six further out, each always in its place |
+| Tap a spell | cast it at the foe the wizard aims at by itself: the nearest one in sight, marked by the cursor ring (wizards and bosses count as a little nearer, and the ring stays on its foe while that one is not much further than the nearest) |
+| Drag off a spell, let go | aim by hand, with a guide on the ground: bolts fly the way you drag (bending onto a foe within about 17 degrees of the line), spells cast at a spot reach further the further you drag, up to their range |
+| Let go over the cross | call the aimed spell off |
+| Blink, tapped | the way the wizard is heading (the joystick's, else the way it last walked), as far as open floor allows |
+| Spells with no aim | shield, healing word, haste and the like go off the moment they are touched |
+| Drag elsewhere / pinch | turn the camera (its own slider on the Controls screen) / zoom |
+| Compass (top) | shows north; tap to turn the camera back to it |
+| Tap an item's name | survival: walk over and pick it up |
+| Tap the map | larger map |
+| DESCEND | the stairs' prompt becomes the button down |
+| Battles | the buttons under the micro menu switch COMMAND / SPELLS mode, select all regiments (or none), and order the selection to charge or follow; ATTACK NOW starts the fight early. In commander mode the joystick pans the camera, a tap on a soldier of yours selects (or lets go) its regiment, and with regiments selected a tap on a foe sends them against it and a tap on open ground marches them there. The regiment cards run along the bottom |
+
+The game is played in landscape: held upright, a phone shows a note and the game waits until it
+is turned back. On an iPhone, Safari's **Share, Add to Home Screen** opens it full screen
+(`public/manifest.webmanifest` and the icons in `public/icons/`).
+
 ## The game
 
 **The descent.** One run, twenty dungeon floors deep, from The Upper Halls to The Golden Hoard
@@ -412,7 +441,8 @@ game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 ```
 index.html, src/main.js     menu and start-up
 src/game.js                 game state, the run's stages, spawning, aggro and navigation helpers
-src/core/                   constants, rebindable input bindings, time stop, entity base class
+src/core/                   constants, rebindable input bindings, touch or mouse, time stop,
+                            entity base class
 src/world/                  dungeon generator, level plans and trials, floor looks, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
                             and warlord, duel wizard and reflection, battles, projectiles and
@@ -421,7 +451,8 @@ src/render/                 Three.js renderer, dungeon meshes, props, ambience, 
                             models, textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
-src/ui/                     HUD, minimap, inventory and spellbook, spell icons, controls screen
+src/ui/                     HUD, touch controls, minimap, inventory and spellbook, spell icons,
+                            controls screen
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 

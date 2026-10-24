@@ -194,6 +194,11 @@ export class Gfx {
     this.zoomTarget = clamp(this.zoomTarget + steps * step, this.zoomMin, this.zoomMax);
   }
 
+  // Zooms by a factor (a pinch on a touch screen), within the same limits.
+  zoomScale(factor) {
+    this.zoomTarget = clamp(this.zoomTarget * factor, this.zoomMin, this.zoomMax);
+  }
+
   // Turns the camera by `yaw` radians (positive turns the view left) and
   // tilts it by `pitch` (positive looks further down).
   rotate(yaw, pitch = 0) {

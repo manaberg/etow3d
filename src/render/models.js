@@ -1009,3 +1009,63 @@ export function buildCursor() {
   g.userData.area = area;
   return g;
 }
+
+let stripTex = null;
+// A strip that fades out along its length and at its edges.
+function stripMap() {
+  if (!stripTex) {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 16;
+    const ctx = c.getContext('2d');
+    const along = ctx.createLinearGradient(0, 0, 64, 0);
+    along.addColorStop(0, 'rgba(255,255,255,0.15)');
+    along.addColorStop(0.15, 'rgba(255,255,255,0.9)');
+    along.addColorStop(1, 'rgba(255,255,255,0.55)');
+    ctx.fillStyle = along;
+    ctx.fillRect(0, 0, 64, 16);
+    ctx.globalCompositeOperation = 'destination-in';
+    const across = ctx.createLinearGradient(0, 0, 0, 16);
+    across.addColorStop(0, 'rgba(0,0,0,0)');
+    across.addColorStop(0.35, 'rgba(0,0,0,1)');
+    across.addColorStop(0.65, 'rgba(0,0,0,1)');
+    across.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = across;
+    ctx.fillRect(0, 0, 64, 16);
+    stripTex = new THREE.CanvasTexture(c);
+    stripTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return stripTex;
+}
+
+// Aiming on a touch screen (ui/touch.js), drawn on the ground around the
+// wizard: a strip along a bolt's line, a ring for how far a spell reaches
+// and a ring with a faint disc for the spot it lands on. The group sits on
+// the wizard; `line` points along +x and is scaled to its length.
+export function buildAimGuide() {
+  const g = new THREE.Group();
+  const flat = (geometry, opacity, map) => {
+    const m = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+      color: 0x9fd8ff, map: map || null, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    }));
+    m.rotation.x = -Math.PI / 2;
+    return m;
+  };
+  const line = new THREE.Group();
+  const strip = flat(geo('aim.strip', () => new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0)), 0.55, stripMap());
+  line.add(strip);
+  line.position.y = 0.05;
+  const reach = flat(geo('aim.reach', () => new THREE.RingGeometry(0.985, 1, 96)), 0.35);
+  reach.position.y = 0.05;
+  const spot = new THREE.Group();
+  spot.add(flat(geo('aim.spotRing', () => new THREE.RingGeometry(0.92, 1, 64)), 0.8));
+  spot.add(flat(geo('aim.spotDisc', () => new THREE.CircleGeometry(1, 48)), 0.12));
+  spot.position.y = 0.055;
+  g.add(line, reach, spot);
+  g.userData.line = line;
+  g.userData.reach = reach;
+  g.userData.spot = spot;
+  g.userData.materials = [strip.material, reach.material, ...spot.children.map((m) => m.material)];
+  g.visible = false;
+  return g;
+}

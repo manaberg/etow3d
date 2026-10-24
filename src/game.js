@@ -23,6 +23,8 @@ import { setting } from './core/settings.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
+import { TouchControls, TOUCH_TURN } from './ui/touch.js';
+import { isTouch } from './core/device.js';
 
 // camera: radians turned per pixel the mouse is dragged, and per second a
 // turn key is held, at 100% (the controls screen scales both)
@@ -97,6 +99,8 @@ export class Game {
 
     this.startStage(null);
     this.hud.build();
+    // the on-screen controls of a touch screen (core/device.js picks them)
+    this.touch = new TouchControls(this);
 
     this.last = performance.now();
     this.acc = 0;
@@ -638,9 +642,11 @@ export class Game {
       return null;
     }
     const m = this.input.mouse;
+    // a fingertip is wider than the mouse's point
+    const slop = isTouch() ? 10 : 0;
     if (m.inside) {
       for (const tag of this.hud.itemTags) {
-        if (!tag.item.killed && m.x >= tag.x0 && m.x <= tag.x1 && m.y >= tag.y0 && m.y <= tag.y1) {
+        if (!tag.item.killed && m.x >= tag.x0 - slop && m.x <= tag.x1 + slop && m.y >= tag.y0 - slop && m.y <= tag.y1 + slop) {
           return tag.item;
         }
       }
@@ -1100,10 +1106,13 @@ export class Game {
   }
 
   onPlayerLevel(player, opened) {
-    const keys = opened.map((i) => actionKeyLabel(BarSlots[i].action));
+    // touch screens have no keys to name
+    const keys = isTouch() ? [] : opened.map((i) => actionKeyLabel(BarSlots[i].action));
     this.hud.toast('LEVEL ' + player.level + ' :: +' + WizardLevels.hp + ' HP :: +' + WizardLevels.manergy + ' MANERGY', '#ffd040');
     if (keys.length) {
       this.hud.toast('NEW SPELL SLOT :: ' + keys.join(' '), '#ffd040');
+    } else if (opened.length) {
+      this.hud.toast(opened.length === 1 ? 'NEW SPELL SLOT' : opened.length + ' NEW SPELL SLOTS', '#ffd040');
     }
     const c = player.center();
     this.fx.column(c.x, c.y, 26, { color: [0xffd040, 0xfff0c0], count: 40, rise: 3, life: 0.9, size: 0.8 });
@@ -1198,7 +1207,9 @@ export class Game {
     }
     this.gfx.zoomBy(this.input.takeWheel());
     this.turnCamera(dt);
-    if (this.input.mouse.inside || this.input.mouse.x || this.input.mouse.y) {
+    // a touch screen aims by itself or by finger (ui/touch.js); else the
+    // ground under the mouse is the aim
+    if (!this.touch.update() && (this.input.mouse.inside || this.input.mouse.x || this.input.mouse.y)) {
       const g = this.gfx.pickGround(this.input.mouse);
       if (g) {
         this.input.ground.x = g.x;
@@ -1225,16 +1236,21 @@ export class Game {
     this.render(dt);
   }
 
-  // The camera turns while its drag button is held and the mouse moves, or
-  // while a turn key is held; it stays where it was left.
+  // The camera turns while its drag button is held and the mouse moves,
+  // while a finger drags across the view of a touch screen, or while a turn
+  // key is held; it stays where it was left.
   turnCamera(dt) {
     const input = this.input;
     const look = input.takeLook();
     const drag = CAMERA_DRAG * setting('cameraDrag');
     const turn = CAMERA_TURN * setting('cameraTurn');
+    const finger = this.touch.takeLook();
+    const touchDrag = CAMERA_DRAG * TOUCH_TURN * setting('touchTurn');
     // commander mode: a left-button drag selects regiments instead
     let yaw = this.battle && this.battle.drag ? 0 : -look.x * drag;
-    const pitch = this.battle && this.battle.drag ? 0 : look.y * drag * 0.7;
+    let pitch = this.battle && this.battle.drag ? 0 : look.y * drag * 0.7;
+    yaw -= finger.x * touchDrag;
+    pitch += finger.y * touchDrag * 0.7;
     if (input.held.has('camera_left')) { yaw += turn * dt; }
     if (input.held.has('camera_right')) { yaw -= turn * dt; }
     this.gfx.rotate(yaw, pitch);
@@ -1279,15 +1295,17 @@ export class Game {
     const g = this.input.ground;
     this.cursor.position.set(g.x / TILE, 0, g.y / TILE);
     const ring = this.cursor.userData.ring;
+    const touch = isTouch();
     const hostile = this.player && this.hoveredHostile();
     const item = !hostile && this.player && this.hoveredItem();
     // commander mode: the cursor lights up blue over your own regiments
-    const own = !hostile && this.battle && this.battle.commander && this.battle.unitAt(this.input.mouse, 'player');
+    const own = !hostile && !touch && this.battle && this.battle.commander && this.battle.unitAt(this.input.mouse, 'player');
     ring.material.color.setHex(hostile ? 0xff4040 : (item ? 0xffd060 : (own ? 0x6aa8ff : 0xffffff)));
     const s = hostile || item || own ? 1.6 + Math.sin(time * 8) * 0.1 : 1;
     ring.scale.set(s, s, s);
     ring.rotation.z = time;
-    this.cursor.visible = this.input.mouse.inside && this.state === 'playing';
+    // on a touch screen it marks what the wizard aims at
+    this.cursor.visible = (touch ? this.touch.cursorShown : this.input.mouse.inside) && this.state === 'playing';
   }
 
   dispose() {
@@ -1306,6 +1324,7 @@ export class Game {
       this.bolts.dispose();
     }
     this.input.dispose();
+    this.touch.dispose();
     this.hud.dispose();
     this.gfx.dispose();
   }

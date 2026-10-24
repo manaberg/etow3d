@@ -1,5 +1,6 @@
 import { Actions, RESERVED, bind, bindingOf, keyLabel, resetBindings, onBindingsChange } from '../core/bindings.js';
 import { Settings, setting, setSetting, resetSettings } from '../core/settings.js';
+import { TouchModes, touchMode, setTouchMode } from '../core/device.js';
 
 // the actions the spellbook binds
 const SPELL_KEY = /^(missile|slot\d+)$/;
@@ -18,12 +19,12 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-// The controls screen: the camera's turn speeds as sliders, then every action
-// with its key; click one, then press a key or mouse button to rebind it
-// (Escape cancels). The spell keys are set in the spellbook instead, under
-// the bar's slots (ui/spellbook.js). Opened from the main menu, the pause
-// screen and the HUD's micro menu. While it is open it takes every key press,
-// so nothing reaches the game.
+// The controls screen: whether the touch controls show, the camera's turn
+// speeds as sliders, then every action with its key; click one, then press
+// a key or mouse button to rebind it (Escape cancels). The spell keys are
+// set in the spellbook instead, under the bar's slots (ui/spellbook.js).
+// Opened from the main menu, the pause screen and the HUD's micro menu.
+// While it is open it takes every key press, so nothing reaches the game.
 export function openControls({ onClose } = {}) {
   const screen = el('div', 'screen controls-screen', document.body);
   const card = el('div', 'card controls-card', screen);
@@ -31,6 +32,25 @@ export function openControls({ onClose } = {}) {
   el('p', 'dim', card, 'Click an action, then press a key or mouse button. Escape cancels; Escape and the arrow keys are fixed.');
   const status = el('div', 'controls-status', card, '');
   const list = el('div', 'controls-list', card);
+
+  // the on-screen controls: as the device is used (core/device.js), or always
+  // on or off
+  el('div', 'controls-group', list, 'TOUCH SCREEN');
+  const touchRow = el('div', 'controls-row', list);
+  el('span', 'controls-label', touchRow, 'On-screen controls');
+  const touchButton = el('button', 'secondary controls-key', touchRow, '');
+  touchButton.type = 'button';
+  const showTouch = () => {
+    const mode = TouchModes.find((m) => m.id === touchMode());
+    touchButton.textContent = mode.label;
+  };
+  touchButton.onclick = (e) => {
+    e.stopPropagation();
+    const i = TouchModes.findIndex((m) => m.id === touchMode());
+    setTouchMode(TouchModes[(i + 1) % TouchModes.length].id);
+    showTouch();
+  };
+  showTouch();
 
   el('div', 'controls-group', list, 'CAMERA SPEED');
   const sliders = [];
@@ -87,6 +107,8 @@ export function openControls({ onClose } = {}) {
     stopCapture();
     resetBindings();
     resetSettings();
+    setTouchMode('auto');
+    showTouch();
     for (const show of sliders) {
       show();
     }
