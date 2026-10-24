@@ -1,5 +1,6 @@
 import { UNIT, clamp } from '../core/constants.js';
 import { isTouch, onTouchModeChange } from '../core/device.js';
+import { setting } from '../core/settings.js';
 import { Arcana } from '../entities/arcana.js';
 import { Item } from '../entities/items.js';
 import { buildAimGuide } from '../render/models.js';
@@ -22,6 +23,11 @@ const AUTO_RANGE = 520;
 const SNAP_ANGLE = 0.3;
 // a finger turns the camera this much more than the mouse does per pixel
 export const TOUCH_TURN = 1.6;
+// how fast the camera swings round behind a walking wizard (radians per
+// second with the joystick pushed straight sideways, at 100%), and how long
+// it leaves the camera alone after a finger turned it by hand (ms)
+const FOLLOW_RATE = 1.1;
+const FOLLOW_PAUSE = 1200;
 
 // How each spell is aimed from a touch screen. `line`: a direction (the
 // bolt flies that way, magic missile's darts curve in on the foe nearest
@@ -103,6 +109,7 @@ export class TouchControls {
     this.target = null;
     this.facing = { x: 0, y: -1 };
     this.look = { x: 0, y: 0 };
+    this.lookedAt = -Infinity;
     this.pinch = null;
     this.cursorShown = false;
     this.autoPaused = false;
@@ -288,6 +295,7 @@ export class TouchControls {
     } else {
       this.look.x += dx;
       this.look.y += dy;
+      this.lookedAt = performance.now();
     }
   }
 
@@ -396,6 +404,31 @@ export class TouchControls {
     this.look.x = 0;
     this.look.y = 0;
     return look;
+  }
+
+  // The camera swings round behind the wizard as it walks: towards the way
+  // the joystick points, faster the more sideways, so a thumb steers like a
+  // third-person game. Not while backing away (kiting keeps the foe in
+  // view), for a moment after a finger turned the camera by hand, or in
+  // commander mode. Returns the yaw to turn this frame.
+  followYaw(dt) {
+    const game = this.game;
+    const player = game.player;
+    const s = this.input.stick;
+    const rate = FOLLOW_RATE * setting('touchFollow');
+    if (!isTouch() || !rate || !this.stick || !(s.x || s.y) || !player || player.isFeared ||
+      (game.battle && game.battle.commander) || performance.now() - this.lookedAt < FOLLOW_PAUSE) {
+      return 0;
+    }
+    if (Math.hypot(player.vel.x, player.vel.y) < 1) {
+      return 0;
+    }
+    // the stick's angle clockwise from straight ahead
+    const a = Math.atan2(s.x, -s.y);
+    if (Math.cos(a) < -0.25) {
+      return 0;
+    }
+    return -Math.sin(a) * rate * dt;
   }
 
   toggleAll() {

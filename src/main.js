@@ -56,7 +56,7 @@ const TOUCH_GUIDE = [
   ['Missile', 'hold the big button at the bottom right: the darts fly at the foe in the ring'],
   ['Spells', 'tap one around it to cast at the ringed foe, or drag off it to aim by hand and let go'],
   ['Cancel', 'drag an aimed spell onto the cross and let go'],
-  ['Camera', 'drag elsewhere to turn it, pinch to zoom, tap the compass to face north'],
+  ['Camera', 'it swings round behind you as you walk; drag elsewhere to turn it yourself, pinch to zoom, tap the compass to face north'],
   ['Loot', 'tap an item\'s name on the floor; scrolls and potions are picked up by walking over them'],
   ['Map', 'tap the map to enlarge it; the buttons at the top open the spellbook, the bag and the pause screen'],
   ['Battles', 'COMMAND to lead the army: tap your soldiers, then tap ground to march or a foe to attack'],

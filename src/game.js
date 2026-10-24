@@ -1238,7 +1238,8 @@ export class Game {
 
   // The camera turns while its drag button is held and the mouse moves,
   // while a finger drags across the view of a touch screen, or while a turn
-  // key is held; it stays where it was left.
+  // key is held; it stays where it was left, except that on a touch screen
+  // it swings round behind the wizard as it walks (touch.js followYaw).
   turnCamera(dt) {
     const input = this.input;
     const look = input.takeLook();
@@ -1251,6 +1252,8 @@ export class Game {
     let pitch = this.battle && this.battle.drag ? 0 : look.y * drag * 0.7;
     yaw -= finger.x * touchDrag;
     pitch += finger.y * touchDrag * 0.7;
+    // and on a touch screen it follows behind the walking wizard
+    yaw += this.touch.followYaw(dt);
     if (input.held.has('camera_left')) { yaw += turn * dt; }
     if (input.held.has('camera_right')) { yaw -= turn * dt; }
     this.gfx.rotate(yaw, pitch);
