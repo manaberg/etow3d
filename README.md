@@ -67,8 +67,9 @@ which that account may not do, hence the script.
 ## Controls
 
 These are the default keys. Every action can be moved to another key or mouse button from
-**Controls** on the main menu or the pause screen (binding a key that is taken swaps the
-two), where two sliders also set how fast the camera turns: by mouse drag and by the turn
+**Controls** on the main menu, the pause screen or the HUD's micro menu (binding a key that is
+taken swaps the two); magic missile and the bar's slots take their keys in the spellbook
+instead (click the key under a slot, then press the new one). Two sliders on the Controls screen also set how fast the camera turns: by mouse drag and by the turn
 keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` always pauses and the arrow keys always move.
 
 | Key | Action |
@@ -80,7 +81,7 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `V` | swing the camera back to the starting view, looking north |
 | `RMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
 | `Q` `E` `F` `R` `2` `4` `1` `3` `C` `5` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
-| `B` | spellbook: choose which spells sit on the bar (the game waits while it is open) |
+| `B` | spellbook: choose which spells sit on the bar and which keys cast them (the game waits while it is open) |
 | `Tab` | battle: switch between spell mode and commander mode |
 | Commander mode | click / drag to select regiments, right-click ground to march and hold, right-click an enemy to attack it, WASD pans (the way the camera looks) |
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
@@ -194,6 +195,23 @@ cut off, so every floor can be walked from end to end.
 on its bar can be cast. Magic missile has its own key (RMB); the bar's ten slots sit on Q, E,
 F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange them
 (`src/entities/spellbar.js`, `src/ui/spellbook.js`).
+
+- The HUD is laid out like WoW's: your unit frame (health, manergy, level) at the top left with
+  the rival's beside it in duels and battles, the minimap at the top right, and the action bar
+  along the bottom: magic missile, then the bar's slots, each an icon of its spell
+  (`src/ui/spellIcons.js`) with its key, rank and charges, a cooldown that sweeps round the
+  icon (seconds left on long ones), a blue tint when manergy is short, and a tooltip with the
+  spell's cost, cooldown, school and effect. Survival's experience runs along the top of the
+  bar. The micro menu at the bottom right opens the spellbook (it glows while spells wait in
+  the book and the bar has room), the inventory, the larger map, the controls and the pause
+  screen. Clicking a button of the action bar opens the spellbook on that slot.
+- The spellbook shows the bar with the key of every slot under it, every spell you know as a
+  grid of icons, and the selected spell's details. Drag a spell onto a slot (in the book or on
+  the HUD's action bar) to prepare it, drag slots onto each other to swap them, and drag a
+  slot's spell back onto the book to take it off; clicking a spell and then a slot, or double
+  clicking, works too. Click the key under a slot (or under magic missile) and press a key or
+  mouse button to bind it; a key another action had moves to the slot's old key, and
+  **Default keys** puts the spell keys back.
 
 - A new spell goes into the first free slot that suits it: spells with a cooldown of 6.7 s or
   less fill the bar in order from Q, slower ones the number row (4, 1, 3, C, 5) once it opens
@@ -362,8 +380,8 @@ runs for loot when it is worth it and tells you what it learned. **Classic** due
 (`?rules=classic`, or the toggle on the menu) put every spell in the book, the ten D&D spells
 included: the duel opens on the spellbook to choose the eight spells for your bar (free until
 you start), and shows the eight the rival brings (shield, blink and fireball, and five at
-random). There each slot also gets a key of its own, the **duel keys**, which hold only in
-classic duels and take over whatever else that key does (movement, camera, missile, pause,
+random). There each slot also gets a key of its own, the **duel keys** (the keys under the
+slots in the spellbook while a classic duel is on), which hold only in classic duels and take over whatever else that key does (movement, camera, missile, pause,
 inventory and spellbook keys stay put). **Save as my loadout** keeps the bar and its keys for
 the next classic duels; **Default loadout** brings back the built-in one: fireball on Q, iron
 shot on E, chain root on F, blink on R, disintegrate on G, shield on 4, chain lightning on 1
@@ -392,7 +410,7 @@ src/render/                 Three.js renderer, dungeon meshes, props, ambience, 
                             models, textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
-src/ui/                     HUD, minimap, inventory and spellbook, controls screen
+src/ui/                     HUD, minimap, inventory and spellbook, spell icons, controls screen
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 

@@ -143,6 +143,8 @@ export class InventoryScreen {
     const inv = this.inventory;
     const node = this.node;
     node.innerHTML = '';
+    // the spellbook opens wider, like a book
+    node.classList.toggle('book', this.tab === 'spells');
     if (!inv) {
       return;
     }

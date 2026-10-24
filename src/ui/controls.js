@@ -1,6 +1,9 @@
 import { Actions, RESERVED, bind, bindingOf, keyLabel, resetBindings, onBindingsChange } from '../core/bindings.js';
 import { Settings, setting, setSetting, resetSettings } from '../core/settings.js';
 
+// the actions the spellbook binds
+const SPELL_KEY = /^(missile|slot\d+)$/;
+
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
   if (className) {
@@ -17,8 +20,10 @@ function el(tag, className, parent, text) {
 
 // The controls screen: the camera's turn speeds as sliders, then every action
 // with its key; click one, then press a key or mouse button to rebind it
-// (Escape cancels). Opened from the main menu and the pause screen. While it is open it takes every key press, so nothing
-// reaches the game.
+// (Escape cancels). The spell keys are set in the spellbook instead, under
+// the bar's slots (ui/spellbook.js). Opened from the main menu, the pause
+// screen and the HUD's micro menu. While it is open it takes every key press,
+// so nothing reaches the game.
 export function openControls({ onClose } = {}) {
   const screen = el('div', 'screen controls-screen', document.body);
   const card = el('div', 'card controls-card', screen);
@@ -56,6 +61,13 @@ export function openControls({ onClose } = {}) {
     if (action.group !== group) {
       group = action.group;
       el('div', 'controls-group', list, group.toUpperCase());
+      if (group === 'Spells') {
+        el('div', 'controls-note dim', list, 'Magic missile and the spell bar take their keys in the spellbook (' +
+          keyLabel(bindingOf('spellbook')) + ' in game): click the key under a slot, then press the new one.');
+      }
+    }
+    if (SPELL_KEY.test(action.id)) {
+      continue;
     }
     const row = el('div', 'controls-row', list);
     el('span', 'controls-label', row, action.label);

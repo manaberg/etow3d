@@ -1,4 +1,5 @@
-// Key and mouse bindings, rebindable from the controls screen and kept in this
+// Key and mouse bindings, rebindable from the controls screen (the spell keys
+// from the spellbook, on the bar's slots) and kept in this
 // browser's localStorage. A binding is a KeyboardEvent.code ('KeyQ', 'Digit1',
 // 'Space') or a mouse button ('Mouse0' left, 'Mouse1' middle, 'Mouse2' right),
 // so any action can sit on any key or button. Escape always pauses and the
@@ -219,6 +220,23 @@ export function bind(action, code) {
 export function resetBindings() {
   bindings = defaults();
   changed();
+}
+
+// Puts only `ids` back on their default keys (the spellbook resets the spell
+// keys this way); whatever held one of those keys takes the old key in
+// exchange, as with bind.
+export function resetActions(ids) {
+  for (const id of ids) {
+    const action = Actions.find((a) => a.id === id);
+    if (action && bindings[id] !== action.key) {
+      bind(id, action.key);
+    }
+  }
+}
+
+export function actionLabel(id) {
+  const action = Actions.find((a) => a.id === id);
+  return action ? action.label : id;
 }
 
 // Bumped on every change, so views can refresh their key labels cheaply.
