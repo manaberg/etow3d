@@ -36,8 +36,7 @@ The game also runs from any static host (`dist/` after `npm run build`); runs ar
 not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app; see
 **Deploying** below.
 
-URLs work like the 2D game: `/?mode=survival` starts the descent (add `&army=N` for the size
-the armies of the deepest battles grow to) and `/` shows the main menu.
+URLs work like the 2D game: `/?mode=survival` starts the descent and `/` shows the main menu.
 
 ## Deploying
 
@@ -137,10 +136,9 @@ the reflection runs for them when they are worth the trip.
 army (blue against red) across open grassland ringed by cliffs. Battles grow with the
 descent, like the floors and the reflection: about 300 a side in a battle below the first
 floors, then a little over a sixth more every floor, until a battle below floor 19 fields the
-largest armies. The menu sets that largest size, about 3,000, 5,000 (the default), 8,000 or
-12,000 a side (`?army=N` in the URL sets any other from 200 to 12,000), so with the default a
-battle below floor 4 brings about 480 a side, below floor 10 about 1,200 and below floor 16
-about 3,100. Dragons come one for about every 650 soldiers (at least one), and their ages
+largest armies, 5,000 a side: a battle below floor 4 brings about 480 a side, below floor 10
+about 1,200 and below floor 16 about 3,100. There is nothing to choose; for testing,
+`?army=N` in the URL sets the largest size to any other from 200 to 12,000. Dragons come one for about every 650 soldiers (at least one), and their ages
 follow the dungeon's: wyrmlings from the start, young dragons below floor 6, adults below
 floor 11 and ancients below floor 15 (`armySize` and `dragonAgesAt` in `BattleRules`). Where
 a machine cannot keep up, the battle runs in slow motion.

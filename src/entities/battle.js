@@ -27,8 +27,8 @@ export const BattleRules = {
   // Battles grow with the descent: about `armyStart` soldiers a side (in an
   // army of average cost) in a battle below the first floor, growing by the
   // same share every floor to `army` a side in a battle below floor
-  // `armyFullDepth`. ?army=N on the URL (or the menu) sets that largest size,
-  // within `armyRange`.
+  // `armyFullDepth`. ?army=N on the URL sets another largest size for
+  // testing, within `armyRange`.
   army: 5000,
   armyRange: [200, 12000],
   armyStart: 300,

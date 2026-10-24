@@ -3,7 +3,6 @@ import { Game } from './game.js';
 import { loadModels } from './render/models.js';
 import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
-import { BattleRules } from './entities/battle.js';
 
 // The game is one descent: /?mode=survival starts it (as in the 2D game), and
 // without it the main menu is shown.
@@ -25,24 +24,6 @@ const container = document.getElementById('viewport');
 const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
-
-// The largest armies of the battle trials, which grow with depth up to it:
-// BattleRules.army a side unless ?army=N (the battle reads it from the URL).
-let army = (window.location.search.match(/[?&]army=(\d+)/i) || [])[1] || String(BattleRules.army);
-function showArmy() {
-  for (const b of document.querySelectorAll('[data-army]')) {
-    const on = b.dataset.army === army;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  }
-}
-for (const b of document.querySelectorAll('[data-army]')) {
-  b.addEventListener('click', () => {
-    army = b.dataset.army;
-    showArmy();
-  });
-}
-showArmy();
 
 function start() {
   menu.classList.add('hidden');
@@ -98,7 +79,7 @@ onBindingsChange(renderMenuControls);
 document.getElementById('open-controls').addEventListener('click', () => openControls());
 
 document.getElementById('descend').addEventListener('click', () => {
-  history.replaceState(null, '', window.location.pathname + '?mode=survival&army=' + army);
+  history.replaceState(null, '', window.location.pathname + '?mode=survival');
   modelsReady.then(() => start());
 });
 
