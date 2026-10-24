@@ -24,10 +24,15 @@ import { TEAM_COLORS } from '../render/models.js';
 // (damage between them, the global cooldown); soldiers take the dungeon
 // damage, so a fireball wrecks a regiment.
 export const BattleRules = {
-  // soldiers a side in an army of average cost; ?army=N on the URL (or the
-  // menu) sets another size, within `armyRange`
+  // Battles grow with the descent: about `armyStart` soldiers a side (in an
+  // army of average cost) in a battle below the first floor, growing by the
+  // same share every floor to `army` a side in a battle below floor
+  // `armyFullDepth`. ?army=N on the URL (or the menu) sets that largest size,
+  // within `armyRange`.
   army: 5000,
   armyRange: [200, 12000],
+  armyStart: 300,
+  armyFullDepth: 19,
   // battle soldiers are hardier than dungeon orcs, so wizards shape a battle
   // instead of deleting an army with magic missiles; dragons likewise
   hpScale: 2,
@@ -53,9 +58,12 @@ export const BattleRules = {
   roll: [0.4, 1.6],
   dropChance: 0.15,
   // dragons: one a side for every `dragonEvery` soldiers (at least one), of
-  // ages drawn from `dragonAges`; both sides get the same ages
+  // ages drawn from `dragonAges` among those the depth has reached
+  // (`dragonAgeFrom`, the floor below which each age first flies); both
+  // sides get the same ages
   dragonEvery: 650,
   dragonAges: { wyrmling: 3, young: 4, adult: 3, ancient: 1 },
+  dragonAgeFrom: { wyrmling: 1, young: 6, adult: 11, ancient: 15 },
   // dragons' bites and breath hit soldiers this many times harder than the mage
   dragonVsTroops: 5,
 
@@ -74,11 +82,30 @@ export const BattleRules = {
     };
   },
 
-  // The army size asked for on the URL, or the default.
-  armySize() {
+  // The largest army, asked for on the URL, or the default.
+  largestArmy() {
     const m = (typeof window !== 'undefined' ? window.location.search : '').match(/[?&]army=(\d+)/i);
     const n = m ? parseInt(m[1], 10) : this.army;
     return Math.max(this.armyRange[0], Math.min(this.armyRange[1], n));
+  },
+
+  // Soldiers a side in a battle below floor `depth`.
+  armySize(depth) {
+    const top = this.largestArmy();
+    const start = Math.min(this.armyStart, top);
+    const t = Math.max(0, Math.min(1, (depth - 1) / (this.armyFullDepth - 1)));
+    return Math.round(start * Math.pow(top / start, t));
+  },
+
+  // The dragon ages that fly in a battle below floor `depth`, with their weights.
+  dragonAgesAt(depth) {
+    const out = {};
+    for (const age in this.dragonAges) {
+      if (depth >= this.dragonAgeFrom[age]) {
+        out[age] = this.dragonAges[age];
+      }
+    }
+    return out;
   }
 };
 
@@ -139,7 +166,8 @@ function kindCost(kind, race) {
 export class Battle {
   constructor(game) {
     this.game = game;
-    this.size = BattleRules.armySize();
+    // the deeper the battle, the bigger the armies
+    this.size = BattleRules.armySize(game.depth);
     // both armies are random: any two different races
     const races = shuffle(Object.keys(Races));
     this.races = { player: races[0], enemy: races[1] };
@@ -195,12 +223,13 @@ export class Battle {
   }
 
   // The same dragons for both sides: one per `dragonEvery` soldiers, of
-  // random ages; each side's are of random colours.
+  // random ages the depth has reached; each side's are of random colours.
   rollDragons() {
     const n = Math.max(1, Math.round(this.size / BattleRules.dragonEvery));
+    const weights = BattleRules.dragonAgesAt(this.game.depth);
     const ages = [];
     for (let i = 0; i < n; i++) {
-      ages.push(pickWeighted(BattleRules.dragonAges));
+      ages.push(pickWeighted(weights));
     }
     // the oldest first, so they stand in the middle of their line
     const order = Object.keys(DragonAges);

@@ -26,8 +26,8 @@ const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
 
-// The armies of the battle trials: BattleRules.army a side unless ?army=N
-// (the battle reads it from the URL).
+// The largest armies of the battle trials, which grow with depth up to it:
+// BattleRules.army a side unless ?army=N (the battle reads it from the URL).
 let army = (window.location.search.match(/[?&]army=(\d+)/i) || [])[1] || String(BattleRules.army);
 function showArmy() {
   for (const b of document.querySelectorAll('[data-army]')) {
