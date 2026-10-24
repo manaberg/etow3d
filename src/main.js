@@ -1,26 +1,14 @@
 import './style.css';
 import { Game } from './game.js';
-import { resolveDifficulty } from './entities/duelWizard.js';
 import { loadModels } from './render/models.js';
 import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
 import { BattleRules } from './entities/battle.js';
 
-// Same URLs as the 2D game: /?mode=duel&ai=hard starts a duel, ?mode=survival
-// the descent, ?mode=battle&ai=hard a battle. Without a mode the main menu is shown.
-function resolveMode() {
-  const search = (window.location.search || '').toLowerCase();
-  const hash = (window.location.hash || '').toLowerCase();
-  if (search.includes('mode=battle')) {
-    return 'battle';
-  }
-  if (search.includes('mode=duel') || search.includes('duel=1') || hash.includes('duel')) {
-    return 'duel';
-  }
-  if (search.includes('mode=survival')) {
-    return 'survival';
-  }
-  return null;
+// The game is one descent: /?mode=survival starts it (as in the 2D game), and
+// without it the main menu is shown.
+function startsAtOnce() {
+  return /[?&]mode=survival/i.test(window.location.search || '');
 }
 
 function supportsWebGL() {
@@ -38,35 +26,25 @@ const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
 
-// Duel options: progressive rules (one spell, loot the rest) unless
-// ?rules=classic, fought in the rooms dungeon unless ?map=arena. Battle
-// armies are BattleRules.army a side unless ?army=N.
-const armyParam = (window.location.search.match(/[?&]army=(\d+)/i) || [])[1];
-const duelOptions = {
-  rules: /[?&]rules=classic/i.test(window.location.search) ? 'classic' : 'progressive',
-  map: /[?&]map=arena/i.test(window.location.search) ? 'arena' : 'rooms',
-  army: armyParam || String(BattleRules.army)
-};
-function showDuelOptions() {
-  for (const key of Object.keys(duelOptions)) {
-    for (const b of document.querySelectorAll('[data-' + key + ']')) {
-      const on = b.dataset[key] === duelOptions[key];
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    }
+// The armies of the battle trials: BattleRules.army a side unless ?army=N
+// (the battle reads it from the URL).
+let army = (window.location.search.match(/[?&]army=(\d+)/i) || [])[1] || String(BattleRules.army);
+function showArmy() {
+  for (const b of document.querySelectorAll('[data-army]')) {
+    const on = b.dataset.army === army;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
 }
-for (const key of Object.keys(duelOptions)) {
-  for (const b of document.querySelectorAll('[data-' + key + ']')) {
-    b.addEventListener('click', () => {
-      duelOptions[key] = b.dataset[key];
-      showDuelOptions();
-    });
-  }
+for (const b of document.querySelectorAll('[data-army]')) {
+  b.addEventListener('click', () => {
+    army = b.dataset.army;
+    showArmy();
+  });
 }
-showDuelOptions();
+showArmy();
 
-function start(mode, difficulty) {
+function start() {
   menu.classList.add('hidden');
   if (game) {
     game.dispose();
@@ -74,13 +52,9 @@ function start(mode, difficulty) {
   game = new Game({
     container,
     hudRoot,
-    mode,
-    difficulty,
-    rules: duelOptions.rules,
-    map: duelOptions.map,
     onExit(action) {
       if (action === 'restart') {
-        start(mode, difficulty);
+        start();
       } else {
         game.dispose();
         game = null;
@@ -123,27 +97,13 @@ renderMenuControls();
 onBindingsChange(renderMenuControls);
 document.getElementById('open-controls').addEventListener('click', () => openControls());
 
-for (const button of menu.querySelectorAll('[data-mode]')) {
-  button.addEventListener('click', () => {
-    const mode = button.dataset.mode;
-    const ai = button.dataset.ai;
-    let query = '?mode=survival';
-    if (mode === 'duel') {
-      query = '?mode=duel&ai=' + ai + (duelOptions.rules === 'classic' ? '&rules=classic' : '') +
-        (duelOptions.map === 'arena' ? '&map=arena' : '');
-    } else if (mode === 'battle') {
-      query = '?mode=battle&ai=' + ai + '&army=' + duelOptions.army;
-    }
-    history.replaceState(null, '', window.location.pathname + query);
-    modelsReady.then(() => start(mode, ai));
-  });
-}
+document.getElementById('descend').addEventListener('click', () => {
+  history.replaceState(null, '', window.location.pathname + '?mode=survival&army=' + army);
+  modelsReady.then(() => start());
+});
 
 if (!supportsWebGL()) {
   document.getElementById('nogl').classList.remove('hidden');
-} else {
-  const mode = resolveMode();
-  if (mode) {
-    modelsReady.then(() => start(mode, resolveDifficulty()));
-  }
+} else if (startsAtOnce()) {
+  modelsReady.then(() => start());
 }

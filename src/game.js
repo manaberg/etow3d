@@ -1,23 +1,24 @@
-import { STEP, TILE, randInt } from './core/constants.js';
+import { STEP, TILE, randInt, clamp } from './core/constants.js';
 import { Input } from './core/input.js';
 import { TimeSlower } from './core/timeslower.js';
 import { World } from './world/world.js';
-import { DungeonLevels } from './world/levels.js';
+import { DungeonLevels, Trials } from './world/levels.js';
 import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage, DuelInnate, SpellBook } from './entities/mage.js';
-import { BarSlots, WizardLevels, RankRules, CircleFloors, bookId } from './entities/spellbar.js';
+import { Mage, SpellBook } from './entities/mage.js';
+import { BarSlots, WizardLevels, CircleFloors, bookId } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
 import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage, Projectile } from './entities/spells.js';
-import { Item, Scroll, Potion, Ring, GearItem, Stairs } from './entities/items.js';
+import { Item, Scroll, Potion, Ring, GearItem, Stairs, studySpell } from './entities/items.js';
 import { Kits, outfit, rollGear } from './entities/gear.js';
-import { DuelLoot, DuelSpells, startRank } from './entities/duelLoot.js';
-import { actionKeyLabel, currentSlotKeys, setSlotKeys } from './core/bindings.js';
+import { DuelLoot } from './entities/duelLoot.js';
+import { spawnReflection, rollSpoils, spoilName } from './entities/mirror.js';
+import { actionKeyLabel } from './core/bindings.js';
 import { setting } from './core/settings.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
@@ -27,13 +28,6 @@ import { Hud } from './ui/hud.js';
 // turn key is held, at 100% (the controls screen scales both)
 const CAMERA_DRAG = 0.003;
 const CAMERA_TURN = 1.4;
-// Classic duels: the default loadout (the bar's eight spells in slot order,
-// and a key for each slot that holds only in classic duels), the spells the
-// rival always takes, and where the player's own loadout is kept.
-const CLASSIC_LOADOUT = ['fireball', 'ironshot', 'stun', 'blink', 'disintegrate', 'shield', 'lightning', 'timestop'];
-const CLASSIC_KEYS = { slot1: 'KeyQ', slot2: 'KeyE', slot3: 'KeyF', slot4: 'KeyR', slot5: 'KeyG', slot6: 'Digit4', slot7: 'Digit1', slot8: 'Digit2' };
-const RIVAL_CORE = ['shield', 'blink', 'fireball'];
-const LOADOUT_KEY = 'etow3d.duelLoadout';
 
 // Power word kill: damage to the target (at least its own pwkillDamage) and to
 // every orc within the splash radius around it.
@@ -52,19 +46,22 @@ const STAT_KEYS = [
 ];
 
 export class Game {
-  constructor({ container, hudRoot, mode, difficulty, rules, map, onExit }) {
-    this.mode = mode;
-    // battles are duels between two wizards with armies: they share the duel
-    // rules (spell damage, global cooldown, the rival's brain and HUD panel)
-    this.battleMode = mode === 'battle';
-    this.duelMode = mode === 'duel' || this.battleMode;
+  constructor({ container, hudRoot, onExit }) {
+    // the descent: twenty dungeon floors with trials against the wizard's
+    // reflection between them (levels.js Trials), and the stage the run is on
+    this.run = Trials.schedule();
+    this.stage = 0;
+    // the current trial (a stage of the run), or null on a dungeon floor.
+    // Trials are fought by the duel rules (duel damage and health); a battle
+    // is a duel with armies.
+    this.trial = null;
+    this.duelMode = false;
+    this.battleMode = false;
     this.battle = null;
-    this.difficulty = difficulty || 'hard';
-    // duels are progressive (start with one spell, loot the rest) unless classic
-    this.progressive = mode === 'duel' && rules !== 'classic';
-    // duels are fought in a six-room dungeon, or in one open arena
-    this.duelArena = mode === 'duel' && map === 'arena';
+    this.rival = null;
     this.duelLoot = null;
+    // the player's health before a trial put it on the duel scale
+    this.trialBase = null;
     this.onExit = onExit;
     this.gfx = new Gfx(container);
     this.fx = this.gfx.fx;
@@ -89,9 +86,6 @@ export class Game {
     this.state = 'playing';
     this.paused = false;
     this.inventoryOpen = false;
-    // classic duels open on the spellbook to choose the loadout; changes are
-    // free until it closes and the duel starts
-    this.loadout = false;
     // enemies idle until they see, hear or get hit by the player
     this.aggroSightRange = 460;
     this.aggroHearRange = 130;
@@ -101,22 +95,8 @@ export class Game {
     this.cursor = buildCursor();
     this.gfx.add(this.cursor);
 
-    if (this.battleMode) {
-      this.battle = new Battle(this);
-      this.battle.start();
-    } else if (this.duelMode) {
-      this.startDuel();
-    } else {
-      this.startFloor(null);
-    }
+    this.startStage(null);
     this.hud.build();
-    if (this.battle) {
-      this.hud.onBattleStart(this.battle);
-    }
-    if (this.mode === 'duel' && !this.progressive) {
-      this.loadout = true;
-      this.toggleInventory(true, 'spells');
-    }
 
     this.last = performance.now();
     this.acc = 0;
@@ -126,48 +106,74 @@ export class Game {
 
   // --------------------------------------------------------------- floors
 
-  // `options` overrides the map size and layout (battlefields).
+  // `options` overrides the map size and layout (duels and battlefields).
   buildWorld(options) {
     for (const e of this.entities) {
       e.dispose();
     }
     this.entities = [];
     this.player = null;
-    const plan = DungeonLevels.getPlan(this.depth);
-    // survival floors grow with depth; duels get a compact dungeon of six
-    // rooms, big enough to hide, flank and race for loot, or a single open
-    // arena (a pillarless hall) to fight face to face
     if (!options) {
-      if (this.duelArena) {
-        options = { cols: 44, rows: 30, roomCount: 1, minRoomW: 30, maxRoomW: 30, minRoomH: 16, maxRoomH: 16 };
-      } else if (this.duelMode) {
-        options = { cols: 56, rows: 38, roomCount: 6 };
-      } else {
-        // every floor is laid out after its name (looks.js), some bigger
-        const look = floorLook(this.depth);
-        const scale = look.mapScale || 1;
-        options = {
-          cols: Math.round((34 + plan.rooms * 4) * scale),
-          rows: Math.round((22 + plan.rooms * 3) * scale),
-          roomCount: plan.rooms,
-          look
-        };
-      }
+      // dungeon floors grow with depth, and every floor is laid out after
+      // its name (looks.js), some bigger
+      const plan = DungeonLevels.getPlan(this.depth);
+      const look = floorLook(this.depth);
+      const scale = look.mapScale || 1;
+      options = {
+        cols: Math.round((34 + plan.rooms * 4) * scale),
+        rows: Math.round((22 + plan.rooms * 3) * scale),
+        roomCount: plan.rooms,
+        look
+      };
     }
     this.world = new World(options, () => this.navFrame);
     this.gfx.buildLevel(this.world, this.battleMode);
     this.currentRoomIndex = -1;
   }
 
-  // Builds the current depth's dungeon, places the player (carrying over
-  // spells, rings and stats from the floor above) and populates it.
-  startFloor(carry) {
-    this.buildWorld();
+  // Starts the run's current stage: a dungeon floor, a duel or a battle.
+  // `carry` is what the wizard brings down the stairs (null at the start).
+  startStage(carry) {
+    const stage = this.run[this.stage];
+    this.depth = stage.depth;
+    this.trial = stage.kind === 'dungeon' ? null : stage;
+    this.duelMode = !!this.trial;
+    this.battleMode = stage.kind === 'battle';
+    // clear the last stage away (the battle's soldiers before their instances)
+    for (const e of this.entities) {
+      e.dispose();
+    }
+    this.entities = [];
+    this.player = null;
+    this.rival = null;
+    this.duelLoot = null;
+    if (this.battle) {
+      this.battle.dispose();
+      this.battle = null;
+    }
+    if (this.army) {
+      this.army.clear();
+    }
+    this.gfx.setBattlefield(this.battleMode);
     this.stairs = null;
-    this.warlordSlain = false;
     this.descendRequested = false;
-    const spawn = this.world.getRoomSpawnPoint(this.world.getMainRoom(), 4);
-    const player = this.spawn(Mage, spawn.x, spawn.y);
+    this.state = 'playing';
+    this.bannerFrames = 240;
+    if (stage.kind === 'battle') {
+      this.battle = new Battle(this);
+      this.battle.start(carry);
+    } else if (stage.kind === 'duel') {
+      this.startDuel(stage, carry);
+    } else {
+      this.startFloor(carry);
+    }
+    this.hud.onFloorChanged();
+  }
+
+  // The wizard, with everything carried down the stairs (spells, bar, ranks,
+  // level, gear and stats), or at the start of the run in an apprentice's kit.
+  spawnPlayer(x, y, carry) {
+    const player = this.spawn(Mage, x, y);
     this.player = player;
     if (carry) {
       const { inventory, ...rest } = carry;
@@ -176,156 +182,77 @@ export class Game {
     } else {
       outfit(player, Kits.apprentice);
     }
-    this.populateFloor(DungeonLevels.getPlan(this.depth), player);
-    this.floorSlain = 0;
-    this.bannerFrames = 240;
-    this.hud.onFloorChanged();
     return player;
   }
 
-  startDuel() {
+  // Builds the current depth's dungeon, places the player and populates it.
+  startFloor(carry) {
     this.buildWorld();
-    if (this.duelArena) {
-      // the duelists start facing each other from opposite ends of the hall
+    this.warlordSlain = false;
+    const spawn = this.world.getRoomSpawnPoint(this.world.getMainRoom(), 4);
+    const player = this.spawnPlayer(spawn.x, spawn.y, carry);
+    this.populateFloor(DungeonLevels.getPlan(this.depth), player);
+    this.floorSlain = 0;
+    return player;
+  }
+
+  // A duel trial: a small dungeon of six rooms, big enough to hide, flank and
+  // race for potions, the wizards starting in the two rooms farthest apart;
+  // or an open arena (a pillarless hall) to fight face to face. No stairs,
+  // and the whole (small) map is known from the start.
+  startDuel(stage, carry) {
+    if (stage.arena) {
+      this.buildWorld({ cols: 44, rows: 30, roomCount: 1, minRoomW: 30, maxRoomW: 30, minRoomH: 16, maxRoomH: 16 });
       const room = this.world.getMainRoom();
       room.visited = true;
       const center = this.world.getRoomCenterPixel(room);
       const offset = Math.min(520, Math.floor(room.w * TILE / 2) - 150);
-      const player = this.spawn(Mage, center.x - offset - 24, center.y - 24);
-      this.player = player;
-      this.configureDuelPlayer(player);
-      this.rival = this.spawn(DuelWizard, center.x + offset - 24, center.y - 24, { difficulty: this.difficulty });
-      this.startDuelLoot();
-      return;
-    }
-    // the duelists start in the two rooms farthest apart; no stairs, and the
-    // whole (small) map is known from the start
-    const rooms = this.world.rooms;
-    let pair = [0, Math.min(1, rooms.length - 1)];
-    let farthest = -1;
-    for (let a = 0; a < rooms.length; a++) {
-      for (let b = a + 1; b < rooms.length; b++) {
-        const ca = this.world.getRoomCenterPixel(rooms[a]);
-        const cb = this.world.getRoomCenterPixel(rooms[b]);
-        const d = Math.hypot(ca.x - cb.x, ca.y - cb.y);
-        if (d > farthest) {
-          farthest = d;
-          pair = [a, b];
+      this.startTrialDuelists(center.x - offset - 24, center.y - 24, center.x + offset - 24, center.y - 24, carry);
+    } else {
+      this.buildWorld({ cols: 56, rows: 38, roomCount: 6 });
+      const rooms = this.world.rooms;
+      let pair = [0, Math.min(1, rooms.length - 1)];
+      let farthest = -1;
+      for (let a = 0; a < rooms.length; a++) {
+        for (let b = a + 1; b < rooms.length; b++) {
+          const ca = this.world.getRoomCenterPixel(rooms[a]);
+          const cb = this.world.getRoomCenterPixel(rooms[b]);
+          const d = Math.hypot(ca.x - cb.x, ca.y - cb.y);
+          if (d > farthest) {
+            farthest = d;
+            pair = [a, b];
+          }
         }
       }
-    }
-    for (const room of rooms) {
-      room.visited = true;
-    }
-    const ps = this.world.getRoomSpawnPoint(rooms[pair[0]], 3);
-    const player = this.spawn(Mage, ps.x, ps.y);
-    this.player = player;
-    this.configureDuelPlayer(player);
-    const rs = this.world.getRoomSpawnPoint(rooms[pair[1]], 3);
-    this.rival = this.spawn(DuelWizard, rs.x, rs.y, { difficulty: this.difficulty });
-    this.startDuelLoot();
-  }
-
-  startDuelLoot() {
-    if (this.progressive) {
-      this.duelLoot = new DuelLoot(this);
-      this.duelLoot.setup(this.player, this.rival);
-    } else {
-      this.chooseRivalLoadout(this.rival);
-    }
-    this.duelWinnerDeclared = false;
-  }
-
-  // Classic duels: the rival takes its core spells and five more at random,
-  // as many as the player's bar holds.
-  chooseRivalLoadout(rival) {
-    const pool = DuelSpells.map((e) => e.id).filter((id) => !RIVAL_CORE.includes(id));
-    const known = new Set(RIVAL_CORE);
-    while (known.size < WizardLevels.classicSlots && pool.length) {
-      known.add(pool.splice(randInt(0, pool.length - 1), 1)[0]);
-    }
-    rival.known = known;
-    rival.ranks = {};
-    for (const entry of DuelSpells) {
-      rival.ranks[entry.id] = startRank(entry);
-    }
-  }
-
-  // The player's classic loadout, { bar, keys }: the one they saved, or the
-  // default.
-  savedLoadout() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(LOADOUT_KEY) || 'null');
-      if (saved && Array.isArray(saved.bar)) {
-        return { bar: saved.bar, keys: { ...CLASSIC_KEYS, ...(saved.keys || {}) } };
+      for (const room of rooms) {
+        room.visited = true;
       }
-    } catch {
-      // the default then
+      const ps = this.world.getRoomSpawnPoint(rooms[pair[0]], 3);
+      const rs = this.world.getRoomSpawnPoint(rooms[pair[1]], 3);
+      this.startTrialDuelists(ps.x, ps.y, rs.x, rs.y, carry);
     }
-    return this.defaultLoadout();
+    this.duelLoot = new DuelLoot(this);
   }
 
-  defaultLoadout() {
-    return { bar: CLASSIC_LOADOUT.slice(), keys: { ...CLASSIC_KEYS } };
-  }
-
-  // Keeps the bar and the duel keys as they are now for the next classic
-  // duels. Returns whether it could.
-  saveLoadout(player) {
-    try {
-      localStorage.setItem(LOADOUT_KEY, JSON.stringify({ bar: player.bar.slice(0, player.slotLimit), keys: currentSlotKeys() }));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Puts a loadout on the player's bar and keys (the loadout screen).
-  applyLoadout(player, loadout) {
-    const known = player.learnOrder.slice();
-    player.resetSpells(known, { slots: player.slotLimit, ranks: player.ranks, bar: loadout.bar });
-    setSlotKeys(loadout.keys);
-  }
-
-  configureDuelPlayer(player) {
-    const flags = [
-      'hasFireball', 'hasFb2', 'hasLightning', 'hasLg2', 'hasIronshot', 'hasIs2', 'hasBlink', 'hasBk2', 'hasTimestop',
-      'hasShield', 'hasHaste', 'hasStun', 'hasImage', 'hasBlizzard', 'hasBz2', 'hasRay', 'hasInvis', 'hasFear',
-      'hasPwkill', 'hasPwk2', 'hasTele',
-      'hasScorch', 'hasCone', 'hasThunder', 'hasMeteor', 'hasGuardians', 'hasCloud', 'hasHeal', 'hasPolymorph',
-      'hasDisintegrate', 'hasWeapon'
-    ];
-    for (const flag of flags) {
-      player[flag] = true;
-    }
-    // classic duels know every spell and fight with eight of them (progressive
-    // duels and battles start the spellbook over); the tier 2 spells start at
-    // rank II, as the 2D duel had them
-    const ids = SpellBook.filter((s) => s.flag).map((s) => s.id);
-    const ranks = {};
-    for (const id in RankRules.tierFlags) {
-      ranks[id] = 2;
-    }
-    const order = [...CLASSIC_LOADOUT, ...ids.filter((id) => !CLASSIC_LOADOUT.includes(id))];
-    const loadout = this.savedLoadout();
-    player.resetSpells(order, { slots: WizardLevels.classicSlots, ranks, bar: loadout.bar });
-    // classic duels play on the loadout's own keys
-    if (!this.progressive) {
-      setSlotKeys(loadout.keys);
-    }
-    // the 2D duel's five rings come built in
-    player.innate = { ...DuelInnate };
-    player.is2Charges = 3;
-    // every dart of magic missile (progressive duels and battles start at one)
-    player.missileTier = 3;
-    // the rival moves at 120, the duel player's 100 with the ring of speed
-    player.desiredVel = 100;
-    player.hp = player.maxHp = DuelRules.hp;
-    player.stunDuration = DuelRules.stunFrames;
-    player.fearDuration = DuelRules.fearFrames;
+  // The two wizards of a trial: the player, whole and on the duel scale
+  // (Trials.hpScale), and its reflection (mirror.js).
+  startTrialDuelists(px, py, rx, ry, carry) {
+    const player = this.spawnPlayer(px, py, carry);
+    this.trialBase = { maxHp: player.maxHp, gearHp: player.gearStats.maxHp || 0 };
+    player.maxHp = Math.round(player.maxHp * Trials.hpScale);
+    player.hp = player.maxHp;
     player.manergy = player.maxManergy;
-    // the same kit as the rival's, in blue (duelWizard.js)
-    outfit(player, Kits.apprentice);
+    this.rival = spawnReflection(this, rx, ry, player);
+  }
+
+  // Back from the duel scale: the share of health left carries on (with
+  // whatever gear worn in the trial added or took away).
+  leaveTrial(player) {
+    const base = this.trialBase;
+    const share = clamp(player.hp / player.maxHp, 0, 1);
+    player.maxHp = base.maxHp + (player.gearStats.maxHp || 0) - base.gearHp;
+    player.hp = Math.max(1, Math.round(player.maxHp * share));
+    this.trialBase = null;
   }
 
   snapshotPlayer(player) {
@@ -352,14 +279,23 @@ export class Game {
     this.descendRequested = true;
   }
 
+  // On to the run's next stage.
   descend() {
+    if (this.trialBase) {
+      this.leaveTrial(this.player);
+    }
     const carry = this.snapshotPlayer(this.player);
     // a breather on the stairs: full manergy and a little health
     carry.manergy = carry.maxManergy;
     carry.hp += 30;
-    this.depth = Math.min(DungeonLevels.count, this.depth + 1);
+    this.stage = Math.min(this.run.length - 1, this.stage + 1);
     this.time = new TimeSlower();
-    this.startFloor(carry);
+    this.startStage(carry);
+  }
+
+  // What the stage is called (the HUD's title and banner).
+  stageName() {
+    return this.trial ? Trials.name(this.trial) : DungeonLevels.getPlan(this.depth).name;
   }
 
   getKillsToUnseal() {
@@ -1019,27 +955,20 @@ export class Game {
 
   // --------------------------------------------------------------- outcomes
 
+  // The wizard fell, on a dungeon floor or in a trial: the run is over.
   onPlayerDeath(player) {
     if (this.state !== 'playing') {
       return;
     }
     const c = player.center();
     this.deathFx(player);
-    if (this.battle) {
-      // losing your wizard loses this battle, not the match
-      this.battle.onWizardDown('player');
-      return;
-    }
     this.state = 'over';
-    if (this.duelMode) {
-      this.hud.showEnd({ title: 'DUEL LOST', text: 'The rival wizard (' + this.difficulty.toUpperCase() + ') defeated you.', stats: this.stats, duel: true });
-      return;
-    }
     this.fx.burst(c.x, c.y, 1.4, { color: 0x6aa8ff, count: 60, speed: 6, life: 1.2, size: 1.2 });
+    const where = (this.trial ? 'Slain by your reflection below depth ' : 'Fell on depth ') + this.depth + ' of ' + DungeonLevels.count + ' :: ' + this.stageName();
     this.saveGame(player).then((msg) => {
       this.hud.showEnd({
         title: 'YOU DIED',
-        text: 'Fell on depth ' + this.depth + ' of ' + DungeonLevels.count + ' :: ' + DungeonLevels.getPlan(this.depth).name,
+        text: where,
         stats: this.stats,
         saved: msg,
         time: player.timePlayed
@@ -1065,18 +994,52 @@ export class Game {
     });
   }
 
+  // The reflection fell.
   onDuelVictory() {
     if (this.battle) {
-      this.battle.onWizardDown('enemy');
+      this.battle.onWizardDown();
       return;
     }
-    if (this.duelWinnerDeclared) {
+    this.winTrial('Your reflection fell.');
+  }
+
+  // A trial won: the wizard takes one of the spoils (mirror.js), then goes on
+  // down the stairs.
+  winTrial(why) {
+    if (this.state !== 'playing') {
       return;
     }
-    this.duelWinnerDeclared = true;
-    this.state = 'over';
-    this.stats.wincount++;
-    this.hud.showEnd({ title: 'DUEL WON', text: 'You defeated the rival wizard (' + this.difficulty.toUpperCase() + ').', stats: this.stats, duel: true, win: true });
+    this.state = 'intermission';
+    const player = this.player;
+    const spoils = rollSpoils(player, this.depth);
+    this.hud.showTrialEnd({
+      won: true,
+      title: this.battle ? 'BATTLE WON' : 'DUEL WON',
+      text: why,
+      choices: spoils.map((id) => ({ id, name: spoilName(player, id) })),
+      onPick: (id) => {
+        if (id) {
+          this.hud.toast(studySpell(player, id), '#ffd040');
+        }
+        this.descend();
+      }
+    });
+  }
+
+  // A battle lost with the wizard still standing: on down the stairs, without
+  // the spoils.
+  loseTrial(why) {
+    if (this.state !== 'playing') {
+      return;
+    }
+    this.state = 'intermission';
+    this.hud.showTrialEnd({
+      won: false,
+      title: 'BATTLE LOST',
+      text: why + ' You escape down the stairs, without the spoils.',
+      choices: [],
+      onPick: () => this.descend()
+    });
   }
 
   // Posts the run to the backend like the 2D game did; works without one.
@@ -1110,10 +1073,6 @@ export class Game {
     if (!open) {
       // clicks on the screen must not turn into spells when play resumes
       this.input.queued.clear();
-      if (this.loadout) {
-        // the classic duel starts
-        this.loadout = false;
-      }
     }
   }
 
@@ -1128,9 +1087,9 @@ export class Game {
 
   // ------------------------------------------------------------ experience
 
-  // A foe fell: survival experience for the player (spellbar.js WizardLevels).
-  // Survival: experience for the kill, and whatever the mage's gear gives
-  // back for one.
+  // A foe fell on a dungeon floor: experience for the kill (spellbar.js
+  // WizardLevels), and whatever the mage's gear gives back for one. Trials
+  // give none; their reward is the spoils.
   onEnemySlain(enemy) {
     const player = this.player;
     if (!this.duelMode && player && !player.dead) {
@@ -1185,6 +1144,9 @@ export class Game {
     if (before !== this.entities.length && this.rival && this.rival.killed) {
       this.rival = null;
     }
+    if (this.bannerFrames > 0) {
+      this.bannerFrames--;
+    }
     if (this.duelMode) {
       if (player) {
         this.updateCurrentRoom(player);
@@ -1206,9 +1168,6 @@ export class Game {
     }
     this.updateCurrentRoom(player);
     this.floorSlain = Math.max(0, this.levelEnemyTotal - this.floorEnemies().length);
-    if (this.bannerFrames > 0) {
-      this.bannerFrames--;
-    }
   }
 
   frame(now) {
@@ -1249,7 +1208,8 @@ export class Game {
     if (!this.paused && !this.inventoryOpen && this.state === 'playing') {
       this.acc += dt;
       let steps = 0;
-      while (this.acc >= STEP && steps < 5) {
+      // a step that ends the stage (a trial won, the wizard fallen) is the last
+      while (this.acc >= STEP && steps < 5 && this.state === 'playing') {
         this.step();
         this.acc -= STEP;
         steps++;
@@ -1332,8 +1292,6 @@ export class Game {
 
   dispose() {
     cancelAnimationFrame(this.frameHandle);
-    // duel keys hold only in their duel
-    setSlotKeys(null);
     for (const e of this.entities) {
       e.dispose();
     }

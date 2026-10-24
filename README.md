@@ -7,8 +7,9 @@ ImpactJS wizard-versus-orcs dungeon game, rebuilt with [Three.js](https://threej
 Pre Alpha 0.1.0
 
 The game plays like the original: the same ten-floor survival descent (now followed by ten
-more, down through the dragons' lairs), the same spells, orc classes, mini-bosses, warlord
-and duel AI, with the same numbers. It is now rendered
+more, down through the dragons' lairs, with duels and battles against your own reflection
+between the floors), the same spells, orc classes, mini-bosses, warlord and duel AI, with
+the same numbers. It is now rendered
 as a lit 3D dungeon seen from an angled camera that follows the mage and can be turned
 all the way around it, so you can look ahead whichever way you go.
 
@@ -35,8 +36,8 @@ The game also runs from any static host (`dist/` after `npm run build`); runs ar
 not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app; see
 **Deploying** below.
 
-URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=duel&ai=normal|hard|insane`
-starts a duel, and `/` shows the main menu.
+URLs work like the 2D game: `/?mode=survival` starts the descent (add `&army=N` for the size
+of the armies in battles) and `/` shows the main menu.
 
 ## Deploying
 
@@ -79,7 +80,7 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `LMB` (hold and drag) | turn the camera around the mage (left / right) and tilt it (up / down); it stays where you leave it |
 | `Z` / `X` | turn the camera left / right |
 | `V` | swing the camera back to the starting view, looking north |
-| `RMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in duels, the rival's missiles) |
+| `RMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in the trials, the reflection's missiles) |
 | `Q` `E` `F` `R` `2` `4` `1` `3` `C` `5` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
 | `B` | spellbook: choose which spells sit on the bar and which keys cast them (the game waits while it is open) |
 | `Tab` | battle: switch between spell mode and commander mode |
@@ -87,7 +88,7 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
-| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion only while you are hurt); gear only by clicking. In duels and battles all loot is picked up by walking over it |
+| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion only while you are hurt); gear only by clicking. In the trials all loot is picked up by walking over it |
 | `G` | survival: show item names on the floor, or only the one under the cursor |
 | Mouse wheel | zoom |
 | `M` | larger map |
@@ -96,9 +97,43 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 
 ## The game
 
-Three modes; the main menu explains each in full under **How each mode works**.
+**The descent.** One run, twenty dungeon floors deep, from The Upper Halls to The Golden Hoard
+(`DungeonLevels` in `src/world/levels.js`). Every two or three floors the stairs lead not to the
+next floor but to a **trial** against your reflection: a duel, or a battle between two armies.
+Each run rolls its own order (`Trials.schedule`): the first trial follows floor 2 or 3, then
+one comes every two or three floors, six to nine in all, half duels and half battles, and a
+third of the duels are fought in the open arena. A trial keeps the depth of the floor above it.
+Your spells, bar, ranks, level, gear and stats go down with you through every floor and every
+trial. The main menu explains it all under **How the descent works**.
 
-**Battle.** One great battle, fought to the end: you and a rival wizard each lead a vast
+**Trials.** Your reflection (`src/entities/mirror.js`) is a wizard of your level with your
+health, manergy, regeneration, speed, armour and magic missile darts, and as many spells as
+you have on your bar, but its own: drawn at random from the circles your depth has reached
+(table below), at the ranks of your spells. It wears the Red Order's crimson kit, so the two of
+you can be told apart. Trials follow the duel rules: duel damage between the wizards, at full
+strength (no `hitScale`), and the global cooldown. Both wizards start whole, on the duel scale
+(your health times seven, `Trials.hpScale`, so a level 1 wizard has a duellist's 700), and the
+share you have left when the trial ends carries on down the stairs, plus the stairs' usual
+breather. Trials give no experience; win one and you take one of three spoils instead: a new
+spell, another magic missile dart or a rank for a spell you know (one is a rank whenever there
+is one to take). Fall and the run is over.
+
+The reflection has the duel rival's brain: it reads the bolts in flight, scores escape
+directions, shields or blinks out of hits it cannot dodge, picks tactics (kite, engage, punish,
+pressure, retreat, hunt) and learns how far to lead its shots from how you dodge. It thinks
+with an easy brain to depth 5, a normal one to depth 12 and a hard one below (`Trials.difficulty`;
+`difficulties` in `src/entities/duelRules.js`): a normal brain reacts after 0.4 s, casts at
+most every half second, aims loosely, learns slowly and never notices one bolt in five at all
+(the easy brain misses one in three); a hard one notices every one.
+
+**Duels.** Most are fought in a small dungeon of six themed rooms and corridors; you start in
+the two rooms farthest apart. Walls block sight and bolts, so you can hide, flank and ambush,
+and your reflection hunts you through the corridors when it loses you. A third are fought in
+the arena, one open hall with no pillars, the wizards starting face to face from opposite ends.
+Potions keep appearing around the map (`DuelLoot`), and whoever reaches one first drinks it;
+the reflection runs for them when they are worth the trip.
+
+**Battles.** One great battle, fought to the end: you and your reflection each lead a vast
 army (blue against red) across open grassland ringed by cliffs. The menu sets the size,
 about 3,000, 5,000 (the default), 8,000 or 12,000 a side (`?army=N` in the URL sets any
 other from 200 to 12,000); where a machine cannot keep up, the battle runs in slow motion.
@@ -134,11 +169,10 @@ select regiments, right-click to march them or to attack an enemy regiment); the
 (charge, march and hold, follow) work in both. Soldiers fight by class (brawlers close in,
 slingers and warlocks keep range, knights charge, shamans heal) and you turn the fight with
 spells: fireballs and blizzards into packed ranks, lightning chaining through them (to the
-nearest 24 in a battle). The rival commands its own regiments (line charges, knights flank,
-mystics guard it). Both wizards start with ten random spells on a ten-slot bar and a
-three-dart magic missile, and duel rules apply between them.
-The battle is lost when your wizard falls or your army, dragons included, is destroyed.
-Battle soldiers have double the dungeon orcs' health.
+nearest 24 in a battle). The reflection commands its own regiments (line charges, knights
+flank, mystics guard it). The battle is won when the reflection falls or its army, dragons
+included, is destroyed; if your army is destroyed you escape down the stairs without the
+spoils. Battle soldiers have double the dungeon orcs' health.
 
 Armies this size are simulated and drawn with care for speed. Soldiers find foes and
 neighbours through a spatial grid rebuilt every step by counting sort, and bolts, zones and
@@ -147,7 +181,7 @@ splashes only look at the grid cells around them. Soldiers are drawn instanced
 off a coarse copy in one piece, and nothing off screen; the armies' arrows, stones and bolts
 are instanced too (`src/render/boltRenderer.js`).
 
-**Survival.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
+**Dungeon floors.** Twenty floors, from The Upper Halls down to the Throne of the Warlord and on
 through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/levels.js`). Every floor
 is a freshly generated dungeon of themed rooms joined by corridors, laid out and dressed after
 the floor's name (see **The floors** below). The stairs down wait in the room farthest from the
@@ -156,12 +190,12 @@ enemies are slain. Spells are learnt from scrolls into the
 spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
 maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
-to spiritual weapon in the table below). Duels and battles use them too.
+to spiritual weapon in the table below). Reflections use them too.
 
 **The floors.** Each floor has a look (`src/world/looks.js`): the shape of its rooms and
 corridors, what its floors, walls and pillars are made of, its water, lava or chasms, its light,
 fog and drifting particles, its props and its room names. The first floor is the classic
-dungeon; every floor below gets stranger. Duels keep the classic look.
+dungeon; every floor below gets stranger. Duel trials keep the classic look.
 
 | Depth | Floor | Laid out as | Looks like |
 | --- | --- | --- | --- |
@@ -197,11 +231,11 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 (`src/entities/spellbar.js`, `src/ui/spellbook.js`).
 
 - The HUD is laid out like WoW's: your unit frame (health, manergy, level) at the top left with
-  the rival's beside it in duels and battles, the minimap at the top right, and the action bar
+  your reflection's beside it in trials, the minimap at the top right, and the action bar
   along the bottom: magic missile, then the bar's slots, each an icon of its spell
   (`src/ui/spellIcons.js`) with its key, rank and charges, a cooldown that sweeps round the
   icon (seconds left on long ones), a blue tint when manergy is short, and a tooltip with the
-  spell's cost, cooldown, school and effect. Survival's experience runs along the top of the
+  spell's cost, cooldown, school and effect. Your experience runs along the top of the
   bar. The micro menu at the bottom right opens the spellbook (it glows while spells wait in
   the book and the bar has room), the inventory, the larger map, the controls and the pause
   screen. Clicking a button of the action bar opens the spellbook on that slot.
@@ -219,15 +253,15 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 - A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
-- **Levels** (survival). Every kill gives experience (the square root of the foe's health,
+- **Levels.** Every kill on a dungeon floor gives experience (the square root of the foe's health,
   three times that for a dark wizard), and each level adds 6 health and 4 manergy. The bar
   opens with three slots (Q, E, F); R opens at level 2, 2 at 4, then 4, 1, 3 and C at 6, 8,
   10 and 12, and 5 at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
-  spell waiting in the book. Duels and battles have no levels: progressive duels open six
-  slots, classic duels eight and battles all ten.
-- **Circles** (survival). A scroll only teaches spells of the circles its floor has reached:
-  circle I from floor 1, II from floor 3, III from floor 6 and IV from floor 9 (table below).
+  spell waiting in the book. Trials give no experience.
+- **Circles.** A scroll (or a trial's spoils, or a reflection's spells) only comes from the
+  circles its floor has reached: circle I from floor 1, II from floor 3, III from floor 6 and
+  IV from floor 9 (table below).
   While those circles hold spells you do not know, two scrolls in three teach one of them
   (the rest may still), so ranks come once the new spells run out. A slain dark wizard's
   scroll is the exception: it teaches one of its own spells, whatever its circle.
@@ -236,8 +270,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
   other spell's rank II adds 30% to its main number (damage, duration, reach or healing), or,
   for chain root, mirror image and telekinesis, cuts its cooldown by a quarter. Rank III cuts
-  every spell's cooldown by a quarter (`RankRules`). Duels are fought with the tier 2 spells,
-  so those start at rank II there.
+  every spell's cooldown by a quarter (`RankRules`).
 
 | Spell | Circle | Rank II |
 | --- | --- | --- |
@@ -270,17 +303,17 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
 little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
-game's single missile (51, plus gear); between wizards a dart deals 36. Survival scrolls are
-magic missile scrolls 15% of the time until the third dart; progressive duels start both
-wizards at one dart (scrolls add more), classic duels and battles give
-both all three, and the dungeon's dark wizards have two from depth 3 and three from depth 6.
+game's single missile (51, plus gear); between wizards a dart deals 36. Scrolls are magic
+missile scrolls 15% of the time until the third dart, and a trial's spoils may offer one; your
+reflection has as many darts as you, and the dungeon's dark wizards have two from depth 3 and
+three from depth 6.
 
 **Global cooldown.** Every spell but magic missile holds back all the others (magic missile
-aside) for one second, in every mode and for every wizard, on top of its own cooldown; the bar
-shows the wait on each slot (`GLOBAL_COOLDOWN` in `src/entities/spellbar.js`). Lifesteal pays
+aside) for one second, on every floor and in every trial and for every wizard, on top of its
+own cooldown; the bar shows the wait on each slot (`GLOBAL_COOLDOWN` in `src/entities/spellbar.js`). Lifesteal pays
 it once when the ray starts, not while it is held.
 
-Every spell belongs to a school of magic, shown beside it in the spell list:
+Every spell belongs to a school of magic, shown beside it in the spellbook:
 
 | School | Spells |
 | --- | --- |
@@ -321,8 +354,8 @@ compared with what it would replace; double-click to wear or take off, or drop a
 the floor. You start in an apprentice's kit; the 2D game's rings and new gear drop from
 champions, and the orcs wear gear too (casters now and then a hat or robe, champions often
 a ring or a robe, the orc mage a rare hat, the cleric the High Priest's Mitre), which makes
-them tougher, faster or harder to hurt and drops when they fall. In duels and battles both wizards wear matching kits (the rival's in red) and
-keep the 2D duel's five rings as built-in bonuses. The catalogue is `Gear` in
+them tougher, faster or harder to hurt and drops when they fall. Your reflection wears the Red
+Order's crimson kit but has your stats. The catalogue is `Gear` in
 `src/entities/gear.js`; the pieces are modelled in `src/render/gearModels.js`.
 
 The orcs share the dungeon with warbands of humans (from the first floor), dwarves (from the
@@ -366,46 +399,19 @@ which turns it. On floor 20 the great golden wyrm (immune to fire and poison, re
 most else) breathes fire and weakening gas by turns, rains meteors, and at 75%, 50% and 25%
 health calls two of its chromatic brood and takes to the air. Slaying it wins the run.
 
-**Duel.** You against a rival wizard in a small dungeon of six themed rooms and corridors (no
-stairs); you start in the two rooms farthest apart. Walls block sight and bolts, so you can
-hide, flank and ambush, and the rival hunts you through the corridors when it loses you.
-The **arena** map (`?map=arena`, or the Rooms / Arena toggle on the menu) is the old
-straightforward duel instead: one open hall with no pillars, the wizards starting face to
-face from opposite ends.
-In **progressive** duels (the default) each wizard starts with a one-dart magic missile and
-one random spell; scrolls and potions keep appearing around the map, and whoever reaches a
-scroll first learns a spell they lack or adds a magic missile dart until their six bar slots
-are full, and after that raises a spell's rank (potions heal or restore manergy). The rival
-runs for loot when it is worth it and tells you what it learned. **Classic** duels
-(`?rules=classic`, or the toggle on the menu) put every spell in the book, the ten D&D spells
-included: the duel opens on the spellbook to choose the eight spells for your bar (free until
-you start), and shows the eight the rival brings (shield, blink and fireball, and five at
-random). There each slot also gets a key of its own, the **duel keys** (the keys under the
-slots in the spellbook while a classic duel is on), which hold only in classic duels and take over whatever else that key does (movement, camera, missile, pause,
-inventory and spellbook keys stay put). **Save as my loadout** keeps the bar and its keys for
-the next classic duels; **Default loadout** brings back the built-in one: fireball on Q, iron
-shot on E, chain root on F, blink on R, disintegrate on G, shield on 4, chain lightning on 1
-and time stop on 2.
-Casts are paced by the one-second global cooldown. The rival wizard reads the bolts in
-flight, scores escape directions, shields or blinks out of hits it cannot dodge, picks tactics
-(kite, engage, punish, pressure, retreat, hunt) and learns how far to lead its shots from how
-you dodge. Normal, hard and insane differ in reaction time, aim and tricks (`difficulties` in
-`src/entities/duelRules.js`): a normal rival reacts after 0.4 s, casts at most every half
-second, aims loosely, learns slowly and never notices one bolt in five at all (the easy brain
-of the upper floors' dark wizards misses one in three); hard and insane notice every one.
-
-When a survival run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
+When a run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
 game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 
 ## Code layout
 
 ```
 index.html, src/main.js     menu and start-up
-src/game.js                 game state, floors, spawning, aggro and navigation helpers
+src/game.js                 game state, the run's stages, spawning, aggro and navigation helpers
 src/core/                   constants, rebindable input bindings, time stop, entity base class
-src/world/                  dungeon generator, level plans, floor looks, pathfinder, collision
+src/world/                  dungeon generator, level plans and trials, floor looks, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
-                            and warlord, duel wizard, projectiles and zones, loot and stairs
+                            and warlord, duel wizard and reflection, battles, projectiles and
+                            zones, loot and stairs
 src/render/                 Three.js renderer, dungeon meshes, props, ambience, character
                             models, textures and particle effects
 public/models/              character models (.glb) built in Blender
