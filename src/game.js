@@ -1100,14 +1100,15 @@ export class Game {
   // ------------------------------------------------------------ experience
 
   // A foe fell on a dungeon floor: experience for the kill (spellbar.js
-  // WizardLevels), and whatever the mage's gear gives back for one. Trials
-  // give none; their reward is the spoils.
+  // WizardLevels), and whatever the mage's gear gives back for one, up to
+  // the maximum (never taking away what a potion put above it). Trials give
+  // none; their reward is the spoils.
   onEnemySlain(enemy) {
     const player = this.player;
     if (!this.duelMode && player && !player.dead) {
       player.gainXp(WizardLevels.xpFor(enemy) * (1 + player.bonus('xpGain')));
-      player.hp = Math.min(player.maxHp, player.hp + player.bonus('killHeal'));
-      player.manergy = Math.min(player.maxManergy, player.manergy + player.bonus('killManergy'));
+      player.hp = Math.max(player.hp, Math.min(player.maxHp, player.hp + player.bonus('killHeal')));
+      player.manergy = Math.max(player.manergy, Math.min(player.maxManergy, player.manergy + player.bonus('killManergy')));
     }
   }
 

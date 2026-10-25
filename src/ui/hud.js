@@ -519,6 +519,7 @@ export class Hud {
       this.updateBattle();
     }
     this.updateMap();
+    this.updatePrompt();
     this.updateBanner();
     this.updateToasts(dt);
     this.updateEffects(dt);
@@ -745,7 +746,12 @@ export class Hud {
     }
     setText(this.goalLabel, goal);
     this.goalLabel.classList.toggle('open', game.isStairsOpen());
+  }
 
+  // Standing on the stairs: whether they are open (on a touch screen the
+  // prompt is the button down), and gone everywhere else, trials included.
+  updatePrompt() {
+    const game = this.game;
     const stairs = game.stairs;
     const open = game.isStairsOpen();
     const touch = isTouch();

@@ -88,7 +88,7 @@ keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` alwa
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
-| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion only while you are hurt); gear only by clicking. In the trials all loot is picked up by walking over it |
+| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion even at full health: its 35 health may go past the maximum); gear only by clicking. In the trials all loot is picked up by walking over it |
 | `G` | survival: show item names on the floor, or only the one under the cursor |
 | Mouse wheel | zoom |
 | `M` | larger map |

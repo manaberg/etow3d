@@ -210,11 +210,6 @@ export class Potion extends Item {
     this.autoPickup = true;
   }
 
-  // a health potion stays on the floor while the mage is unhurt
-  wanted(player) {
-    return this.isBlue || player.hp < player.maxHp;
-  }
-
   init() {
     this.isBlue = Math.floor(Math.random() * 10) + 1 > 7;
     if (this.isSpecial) {
