@@ -5,10 +5,12 @@ import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
 import { isTouch, onTouchModeChange } from './core/device.js';
 
-// The game is one descent: /?mode=survival starts it (as in the 2D game), and
-// without it the main menu is shown.
-function startsAtOnce() {
-  return /[?&]mode=survival/i.test(window.location.search || '');
+// The game is one descent: /?mode=survival starts it (as in the 2D game),
+// /?mode=mobile the mobile descent (tunnels and duels, made for touch
+// screens), and without either the main menu is shown.
+function modeInUrl() {
+  const m = /[?&]mode=(survival|mobile)/i.exec(window.location.search || '');
+  return m ? m[1].toLowerCase() : null;
 }
 
 function supportsWebGL() {
@@ -26,7 +28,7 @@ const hudRoot = document.getElementById('hud');
 let game = null;
 const modelsReady = loadModels();
 
-function start() {
+function start(mode) {
   menu.classList.add('hidden');
   if (game) {
     game.dispose();
@@ -34,9 +36,10 @@ function start() {
   game = new Game({
     container,
     hudRoot,
+    mobile: mode === 'mobile',
     onExit(action) {
       if (action === 'restart') {
-        start();
+        start(mode);
       } else {
         game.dispose();
         game = null;
@@ -101,15 +104,27 @@ function renderMenuControls() {
 renderMenuControls();
 onBindingsChange(renderMenuControls);
 onTouchModeChange(renderMenuControls);
+
+// On a touch screen the mobile descent is the one offered first.
+const descendButton = document.getElementById('descend');
+const mobileButton = document.getElementById('descend-mobile');
+function renderModeButtons() {
+  descendButton.classList.toggle('secondary', isTouch());
+  mobileButton.classList.toggle('secondary', !isTouch());
+}
+renderModeButtons();
+onTouchModeChange(renderModeButtons);
 document.getElementById('open-controls').addEventListener('click', () => openControls());
 
-document.getElementById('descend').addEventListener('click', () => {
-  history.replaceState(null, '', window.location.pathname + '?mode=survival');
-  modelsReady.then(() => start());
-});
+for (const [button, mode] of [[descendButton, 'survival'], [mobileButton, 'mobile']]) {
+  button.addEventListener('click', () => {
+    history.replaceState(null, '', window.location.pathname + '?mode=' + mode);
+    modelsReady.then(() => start(mode));
+  });
+}
 
 if (!supportsWebGL()) {
   document.getElementById('nogl').classList.remove('hidden');
-} else if (startsAtOnce()) {
-  modelsReady.then(() => start());
+} else if (modeInUrl()) {
+  modelsReady.then(() => start(modeInUrl()));
 }

@@ -478,7 +478,7 @@ export class Hud {
       this.fpsTime = 0;
     }
     const where = 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count + (game.trial ? ' :: ' + game.stageName() : '');
-    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + where + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
+    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + (game.mobile ? 'MOBILE DESCENT  ::  ' : '') + where + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
     if (!player) {
       return;
     }
@@ -788,7 +788,7 @@ export class Hud {
     } else {
       // every floor names the room where its stairs wait (world/looks.js)
       const stairsRoom = game.world.look.rooms.throne || 'THRONE ROOM';
-      text = 'FIND THE STAIRS IN THE ' + stairsRoom;
+      text = (game.mobile ? 'FOLLOW THE TUNNEL TO THE STAIRS IN THE ' : 'FIND THE STAIRS IN THE ') + stairsRoom;
       if (plan.boss === 'warlord') {
         text = 'THE WARLORD AWAITS IN THE ' + stairsRoom;
       } else if (plan.boss === 'wyrm') {

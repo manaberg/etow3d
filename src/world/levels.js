@@ -125,7 +125,8 @@ export const DungeonLevels = {
 // A duel is fought in a small dungeon of six rooms or, now and then, an open
 // arena; a battle on an open field, each wizard leading an army
 // (battle.js). The first trial follows floor 2 or 3, the next ones come every
-// two or three floors, and they are half duels and half battles. A trial is
+// two or three floors, and they are half duels and half battles (the mobile
+// descent has no battles, only duels). A trial is
 // fought on the duel scale: the wizard's health is multiplied by `hpScale`
 // for the fight (a level 1 wizard has a duellist's 700) and the share left
 // carries on down the stairs.
@@ -138,12 +139,13 @@ export const Trials = {
 
   // The run: the dungeon floors in order, with the trials between them. A
   // trial keeps the depth of the floor above it (its circles, its foes).
-  schedule() {
+  // Without `battles` every trial is a duel.
+  schedule({ battles = true } = {}) {
     const after = [];
     for (let depth = randInt(...this.first); depth < DungeonLevels.count; depth += randInt(...this.every)) {
       after.push(depth);
     }
-    const kinds = after.map((_, i) => (i % 2 === 0 ? 'duel' : 'battle'));
+    const kinds = after.map((_, i) => (i % 2 === 0 || !battles ? 'duel' : 'battle'));
     for (let i = kinds.length - 1; i > 0; i--) {
       const j = randInt(0, i);
       [kinds[i], kinds[j]] = [kinds[j], kinds[i]];

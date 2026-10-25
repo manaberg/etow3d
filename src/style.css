@@ -197,6 +197,49 @@ button.danger {
   margin-top: 0;
 }
 
+/* touch screens offer the mobile descent first, right under the heading */
+body.touch #descend-mobile {
+  order: -1;
+}
+
+body.touch .mode {
+  display: flex;
+  flex-direction: column;
+}
+
+body.touch .mode h3 {
+  order: -2;
+}
+
+body.touch .mode .buttons,
+body.touch .mode .mode-note {
+  order: -1;
+}
+
+body.touch .mode .mode-note {
+  margin: 10px auto 14px;
+}
+
+@media (max-height: 500px) {
+  .card h1 {
+    font-size: 22px;
+  }
+
+  .tagline {
+    margin-bottom: 10px;
+  }
+}
+
+.mode .mode-note {
+  margin: 12px auto 0;
+  max-width: 640px;
+  font-size: 11px;
+}
+
+.mode .mode-note strong {
+  color: var(--text);
+}
+
 /* the three kinds of level on the way down */
 .stage-kinds {
   display: grid;

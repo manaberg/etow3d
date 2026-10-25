@@ -31,8 +31,13 @@ export class Minimap {
     const cell = this.cell;
     this.base.width = dungeon.cols * cell;
     this.base.height = dungeon.rows * cell;
+    // a map far taller than wide (a tunnel) shows a window of it that
+    // follows the wizard
     this.canvas.width = this.base.width;
-    this.canvas.height = this.base.height;
+    this.canvas.height = this.base.height > this.base.width * 2
+      ? Math.round(this.base.width * (this.large ? 2.2 : 1.4))
+      : this.base.height;
+    this.offset = 0;
     const ctx = this.base.getContext('2d');
     ctx.clearRect(0, 0, this.base.width, this.base.height);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
@@ -78,8 +83,12 @@ export class Minimap {
     }
     const ctx = this.canvas.getContext('2d');
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.drawImage(this.base, 0, 0);
     const scale = this.cell / 48;
+    const spare = this.base.height - this.canvas.height;
+    this.offset = spare > 0 ? Math.max(0, Math.min(spare, Math.round(player.center().y * scale - this.canvas.height / 2))) : 0;
+    ctx.save();
+    ctx.translate(0, -this.offset);
+    ctx.drawImage(this.base, 0, 0);
     // stairs show once their room is explored or they unseal
     if (game.stairs && (game.isStairsOpen() || game.world.rooms[game.stairsRoomIndex].visited)) {
       const sc = game.stairs.center();
@@ -138,5 +147,6 @@ export class Minimap {
     ctx.moveTo(pc.x * scale, pc.y * scale);
     ctx.lineTo(pc.x * scale + ahead.x * reach, pc.y * scale + ahead.y * reach);
     ctx.stroke();
+    ctx.restore();
   }
 }

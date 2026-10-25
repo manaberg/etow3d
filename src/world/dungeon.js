@@ -1,4 +1,4 @@
-import { randInt } from '../core/constants.js';
+import { randInt, clamp } from '../core/constants.js';
 
 // Room themes. Colours drive the 3D materials and the minimap.
 export const DungeonThemes = [
@@ -57,7 +57,8 @@ const DY4 = [0, 0, 1, -1];
 // few extra loops, carved in their shape, and joined by corridors routed with
 // A* so they keep clear of other rooms. A floor's look (looks.js) picks the
 // shapes, how corridors wander, pillars, pools and rivers; a last pass makes
-// sure every floor cell can be walked to from the start.
+// sure every floor cell can be walked to from the start. A tunnel (the
+// mobile descent) chains the rooms one after another instead (planTunnel).
 export class DungeonGenerator {
   constructor(options = {}) {
     this.cols = 64;
@@ -98,10 +99,24 @@ export class DungeonGenerator {
     // radius, margin, throne } and a river { width, meander } across the map
     this.pools = null;
     this.river = null;
+    // a tunnel: the rooms one after another from the start at the bottom of
+    // the map to the throne room at the top, each linked only to the next,
+    // none wider than `tunnelWidth` (the throne room a little wider), swaying
+    // up to `tunnelSway` cells off the middle with `tunnelGap` cells of
+    // corridor between them, and rubble in the plainer rooms
+    this.tunnel = false;
+    this.tunnelWidth = 14;
+    this.tunnelSway = 4;
+    this.tunnelGap = [3, 6];
     Object.assign(this, options);
   }
 
   generate() {
+    // a tunnel is cut to fit its rooms, and is never mirrored
+    const planned = this.tunnel ? this.planTunnel() : null;
+    if (this.tunnel) {
+      this.mirror = false;
+    }
     if (this.mirror) {
       // the start and the throne room sit exactly on the middle line
       if ((this.cols - this.maxRoomW) % 2 !== 0) {
@@ -116,8 +131,8 @@ export class DungeonGenerator {
     this.owner = grid(cols, rows, -1);
     this.tags = grid(cols, rows, 0);
     this.wind = this.winding > 0 ? this.noiseField(5) : null;
-    const rooms = this.placeRooms();
-    const links = this.pickLinks(rooms);
+    const rooms = planned || this.placeRooms();
+    const links = planned ? rooms.slice(1).map((_, i) => [i, i + 1]) : this.pickLinks(rooms);
     this.assignThemes(rooms, links);
     rooms.forEach((room, r) => {
       room.shape = room.twin !== undefined && room.twin < r ? rooms[room.twin].shape : this.shapeFor(room, r);
@@ -140,6 +155,9 @@ export class DungeonGenerator {
       rooms.forEach((room, r) => this.addPools(room, r));
     }
     rooms.forEach((room, r) => this.addPillars(room, r));
+    if (this.tunnel) {
+      rooms.forEach((room, r) => this.addRubble(room, r));
+    }
     if (this.outcrops > 0) {
       this.addOutcrops(rooms[0]);
     }
@@ -213,6 +231,43 @@ export class DungeonGenerator {
       }
     }
     return rooms;
+  }
+
+  // A tunnel's rooms, from the start up to the throne room, and the map's
+  // size to hold them: long rooms turn to run along the tunnel, and each
+  // room sways a little left or right of the one before.
+  planTunnel() {
+    const maxW = this.tunnelWidth;
+    const sway = this.tunnelSway;
+    const sizes = [];
+    for (let i = 0; i < this.roomCount; i++) {
+      let { w, h } = i === 0 ? { w: this.maxRoomW, h: this.maxRoomH } : this.roomSize();
+      if (w > maxW) {
+        [w, h] = [h, w];
+      }
+      sizes.push({ w: Math.min(w, maxW), h });
+    }
+    const last = sizes.length - 1;
+    if (this.throneSize && last > 0) {
+      const [w, h] = this.throneSize;
+      sizes[last] = { w: Math.min(w, maxW + sway * 2), h, great: true };
+    }
+    const gaps = sizes.map(() => randInt(...this.tunnelGap));
+    // room for the sway, winding corridors and a margin of rock
+    this.cols = maxW + sway * 2 + 8;
+    this.rows = 6 + sizes.reduce((sum, s) => sum + s.h, 0) + gaps.slice(1).reduce((sum, g) => sum + g, 0);
+    const mid = this.cols / 2;
+    let offset = 0;
+    let y = this.rows - 3;
+    return sizes.map((size, i) => {
+      if (i > 0) {
+        offset = clamp(offset + randInt(-3, 3), -sway, sway);
+        y -= gaps[i];
+      }
+      y -= size.h;
+      const x = clamp(Math.round(mid + offset - size.w / 2), 3, this.cols - size.w - 3);
+      return size.great ? { x, y, w: size.w, h: size.h, great: true } : { x, y, w: size.w, h: size.h };
+    });
   }
 
   // The throne room of `throneSize`, as far from the start as it fits (or,
@@ -858,6 +913,23 @@ export class DungeonGenerator {
     }
   }
 
+  // Tunnels: fallen rock dotted about the rooms whose pillars leave them
+  // open, so the way through winds a little. Each block keeps two cells of
+  // floor from the walls (canPillar), so the way is never shut.
+  addRubble(room, r) {
+    if (r === 0 || room.theme === 'throne' || !['corners', 'colonnade', 'ring'].includes(this.pillars)) {
+      return;
+    }
+    const count = Math.floor(room.w * room.h / 40);
+    for (let n = 0, tries = 0; n < count && tries < count * 12; tries++) {
+      const x = randInt(room.x + 2, room.x + room.w - 3);
+      const y = randInt(room.y + 2, room.y + room.h - 3);
+      if (this.setPillar(x, y, r)) {
+        n++;
+      }
+    }
+  }
+
   // Four pillars near the corners of big rooms, and two rows of columns lining
   // the approach to the throne.
   cornerPillars(room, r) {
@@ -991,16 +1063,16 @@ export class DungeonGenerator {
   }
 
   // A river of low ground (lava, molten iron) winding right across the map
-  // along its long side, clear of the start and the throne room. Corridors
-  // carved after it cross it on bridges.
+  // along its long side (across a tunnel), clear of the start and the throne
+  // room. Corridors carved after it cross it on bridges.
   carveRiver(rooms) {
     const spec = this.river;
-    const along = this.cols >= this.rows;
+    const along = this.tunnel || this.cols >= this.rows;
     const length = along ? this.cols : this.rows;
     const across = along ? this.rows : this.cols;
     const [w0, w1] = spec.width || [2, 3];
     const width = randInt(w0, w1);
-    const amp = (spec.meander === undefined ? 0.6 : spec.meander) * across * 0.14;
+    const amp = (spec.meander === undefined ? 0.6 : spec.meander) * Math.min(across, length) * 0.14;
     const guard = rooms.filter((room) => room.theme === 'hall' || room.theme === 'throne');
     const blocked = (x, y) => guard.some((room) => x >= room.x - 1 && x <= room.x + room.w && y >= room.y - 1 && y <= room.y + room.h);
     // the course: try a few and keep the one that runs clear of the start

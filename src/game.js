@@ -48,10 +48,14 @@ const STAT_KEYS = [
 ];
 
 export class Game {
-  constructor({ container, hudRoot, onExit }) {
+  // `mobile`: the mobile descent, made for touch screens: every floor a
+  // tunnel from the start to the stairs (dungeon.js planTunnel), and duels
+  // for trials, no battles.
+  constructor({ container, hudRoot, onExit, mobile = false }) {
+    this.mobile = mobile;
     // the descent: twenty dungeon floors with trials against the wizard's
     // reflection between them (levels.js Trials), and the stage the run is on
-    this.run = Trials.schedule();
+    this.run = Trials.schedule({ battles: !mobile });
     this.stage = 0;
     // the current trial (a stage of the run), or null on a dungeon floor.
     // Trials are fought by the duel rules (duel damage and health); a battle
@@ -127,7 +131,9 @@ export class Game {
         cols: Math.round((34 + plan.rooms * 4) * scale),
         rows: Math.round((22 + plan.rooms * 3) * scale),
         roomCount: plan.rooms,
-        look
+        look,
+        // the mobile descent's tunnels size their own map
+        tunnel: this.mobile
       };
     }
     this.world = new World(options, () => this.navFrame);

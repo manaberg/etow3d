@@ -36,7 +36,8 @@ The game also runs from any static host (`dist/` after `npm run build`); runs ar
 not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app; see
 **Deploying** below.
 
-URLs work like the 2D game: `/?mode=survival` starts the descent and `/` shows the main menu.
+URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=mobile` the mobile
+descent (see **The game**) and `/` shows the main menu.
 
 ## Deploying
 
@@ -121,8 +122,9 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 | DESCEND | the stairs' prompt becomes the button down |
 | Battles | the buttons under the micro menu switch COMMAND / SPELLS mode, select all regiments (or none), and order the selection to charge or follow; ATTACK NOW starts the fight early. In commander mode the joystick pans the camera, a tap on a soldier of yours selects (or lets go) its regiment, and with regiments selected a tap on a foe sends them against it and a tap on open ground marches them there. The regiment cards run along the bottom |
 
-The game is played in landscape: held upright, a phone shows a note and the game waits until it
-is turned back. On an iPhone, Safari's **Share, Add to Home Screen** opens it full screen
+On a touch screen the main menu offers the **mobile descent** first (tunnels and duels, no
+battles; see **The game**). The game is played in landscape: held upright, a phone shows a note and
+the game waits until it is turned back. On an iPhone, Safari's **Share, Add to Home Screen** opens it full screen
 (`public/manifest.webmanifest` and the icons in `public/icons/`).
 
 ## The game
@@ -135,6 +137,18 @@ one comes every two or three floors, six to nine in all, half duels and half bat
 third of the duels are fought in the open arena. A trial keeps the depth of the floor above it.
 Your spells, bar, ranks, level, gear and stats go down with you through every floor and every
 trial. The main menu explains it all under **How the descent works**.
+
+**The mobile descent.** A second way down, made for touch screens and offered first on one: the
+same twenty floors, foes, spells and loot, but every floor is one long tunnel, and the trials are
+all duels, no battles (`Trials.schedule({ battles: false })`). A tunnel (`planTunnel` in
+`src/world/dungeon.js`) chains the floor's rooms from the start at the bottom of the map to the
+throne room at the top, each linked only to the next by a corridor, so there is only forward and
+back, and forward is the way the camera first looks. Rooms are at most 14 cells wide (a long room
+turns to run along the tunnel, the throne room may be wider) and sway a few cells left and right of
+each other. Each floor keeps its look, so the rooms bring their own pillars, pools, erosion and
+winding corridors, a river of lava or molten iron crosses the tunnel on a bridge, and the plainer
+floors get fallen rock dotted about their rooms; nothing ever closes the way. The minimap shows the
+stretch of the tunnel around the wizard. Duels are fought as in the descent.
 
 **Trials.** Your reflection (`src/entities/mirror.js`) is a wizard of your level with your
 health, manergy, regeneration, speed, armour and magic missile darts, and as many spells as
