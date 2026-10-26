@@ -41,6 +41,19 @@ const PWKILL = {
 // the zones that slow whoever stands in them
 const SLOWING_ZONES = new Set(['blizzard', 'guardians', 'gloom']);
 
+// A copy of what the wizard carries down the stairs, to start a stage over
+// from (god mode, Game.retryStage).
+function copyCarry(carry) {
+  return {
+    ...carry,
+    bar: carry.bar.slice(),
+    ranks: { ...carry.ranks },
+    learnOrder: carry.learnOrder.slice(),
+    gearStats: { ...carry.gearStats },
+    inventory: carry.inventory.copy()
+  };
+}
+
 const STAT_KEYS = [
   'wincount', 'killcount', 'bosscount', 'micount', 'fbcount', 'lgcount', 'iscount', 'bzcount', 'bkcount',
   'hscount', 'tscount', 'shcount', 'lscount', 'imcount', 'fecount', 'incount', 'crcount', 'tlcount', 'pwkcount',
@@ -145,6 +158,8 @@ export class Game {
   // `carry` is what the wizard brings down the stairs (null at the start).
   startStage(carry) {
     const stage = this.run[this.stage];
+    // the wizard as it came to this stage, for god mode's retry
+    this.stageCarry = carry ? copyCarry(carry) : null;
     this.depth = stage.depth;
     this.trial = stage.kind === 'dungeon' ? null : stage;
     this.duelMode = !!this.trial;
@@ -292,6 +307,14 @@ export class Game {
 
   requestDescend() {
     this.descendRequested = true;
+  }
+
+  // God mode (playtesting): the stage the wizard fell on starts over, the
+  // wizard as it came to it.
+  retryStage() {
+    this.time = new TimeSlower();
+    this.trialBase = null;
+    this.startStage(this.stageCarry ? copyCarry(this.stageCarry) : null);
   }
 
   // On to the run's next stage.
@@ -982,13 +1005,17 @@ export class Game {
     this.state = 'over';
     this.fx.burst(c.x, c.y, 1.4, { color: 0x6aa8ff, count: 60, speed: 6, life: 1.2, size: 1.2 });
     const where = (this.trial ? 'Slain by your reflection below depth ' : 'Fell on depth ') + this.depth + ' of ' + DungeonLevels.count + ' :: ' + this.stageName();
-    this.saveGame(player).then((msg) => {
+    // god mode (playtesting) offers to retry the stage, and saves nothing
+    const god = setting('godMode');
+    (god ? Promise.resolve(null) : this.saveGame(player)).then((msg) => {
       this.hud.showEnd({
         title: 'YOU DIED',
         text: where,
         stats: this.stats,
         saved: msg,
-        time: player.timePlayed
+        unsaved: god ? 'God mode :: this run is not saved.' : null,
+        time: player.timePlayed,
+        onRetry: god ? () => this.retryStage() : null
       });
     });
   }
@@ -999,12 +1026,14 @@ export class Game {
     }
     this.state = 'over';
     this.stats.wincount++;
-    this.saveGame(this.player).then((msg) => {
+    const god = setting('godMode');
+    (god ? Promise.resolve(null) : this.saveGame(this.player)).then((msg) => {
       this.hud.showEnd({
         title: 'VICTORY',
         text: 'You slew the great golden wyrm and escaped the end of the world.',
         stats: this.stats,
         saved: msg,
+        unsaved: god ? 'God mode :: this run is not saved.' : null,
         time: this.player.timePlayed,
         win: true
       });

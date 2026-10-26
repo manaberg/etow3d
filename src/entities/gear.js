@@ -639,6 +639,15 @@ export class Inventory {
     return this.bag.length >= this.size;
   }
 
+  // The same bag and worn items in an inventory of their own (items never
+  // change, so they are shared).
+  copy() {
+    const out = new Inventory(this.owner, this.size);
+    out.bag = this.bag.slice();
+    out.equipped = { ...this.equipped };
+    return out;
+  }
+
   worn() {
     return Slots.map((s) => this.equipped[s.id]).filter(Boolean);
   }

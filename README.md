@@ -71,7 +71,10 @@ These are the default keys. Every action can be moved to another key or mouse bu
 **Controls** on the main menu, the pause screen or the HUD's micro menu (binding a key that is
 taken swaps the two); magic missile and the bar's slots take their keys in the spellbook
 instead (click the key under a slot, then press the new one). Two sliders on the Controls screen also set how fast the camera turns: by mouse drag and by the turn
-keys, from 10% to 200%. Bindings and speeds are saved in the browser. `Esc` always pauses and the arrow keys always move.
+keys, from 10% to 200%. Bindings and speeds are saved in the browser. For playtesting, **God mode** on
+the same screen (under PLAYTESTING) puts a **Retry** button on the death screen: the floor, duel or
+battle you fell on starts over, with the wizard as it came to it (spells, bar, level, gear and
+health). Runs played with it are not saved, and the unit frame reads YOU :: GOD MODE while it is on. `Esc` always pauses and the arrow keys always move.
 
 | Key | Action |
 | --- | --- |

@@ -2,7 +2,7 @@
 // in this browser's localStorage: how fast the camera turns (by mouse, by
 // the turn keys and by a finger on a touch screen) and, on a touch screen,
 // how fast it follows behind the wizard and turns to face its target
-// (0 = never), as a share of the default speed (1 = 100%).
+// (0 = never), as a share of the default speed (1 = 100%); and switches.
 
 export const Settings = [
   { id: 'cameraDrag', label: 'Mouse turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
@@ -12,13 +12,20 @@ export const Settings = [
   { id: 'touchFace', label: 'Touch camera faces the target (0 = off)', min: 0, max: 2, step: 0.05, value: 1 }
 ];
 
+// On or off, shown as switches on the controls screen. God mode is for
+// playtesting: when the wizard falls it may retry the stage, as it came to
+// it (Game.retryStage), and the run is not saved.
+export const Toggles = [
+  { id: 'godMode', label: 'God mode: retry when you die', value: false }
+];
+
 const STORAGE_KEY = 'etow3d.settings';
 
 let values = load();
 
 function defaults() {
   const out = {};
-  for (const s of Settings) {
+  for (const s of [...Settings, ...Toggles]) {
     out[s.id] = s.value;
   }
   return out;
@@ -33,6 +40,11 @@ function load() {
     for (const s of Settings) {
       if (typeof saved[s.id] === 'number' && Number.isFinite(saved[s.id])) {
         out[s.id] = Math.min(s.max, Math.max(s.min, saved[s.id]));
+      }
+    }
+    for (const t of Toggles) {
+      if (typeof saved[t.id] === 'boolean') {
+        out[t.id] = saved[t.id];
       }
     }
   } catch {
@@ -60,6 +72,13 @@ export function setSetting(id, value) {
   }
   values[id] = Math.min(s.max, Math.max(s.min, value));
   save();
+}
+
+export function setToggle(id, on) {
+  if (Toggles.some((t) => t.id === id)) {
+    values[id] = !!on;
+    save();
+  }
 }
 
 export function resetSettings() {

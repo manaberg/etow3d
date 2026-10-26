@@ -1,5 +1,5 @@
 import { Actions, RESERVED, bind, bindingOf, keyLabel, resetBindings, onBindingsChange } from '../core/bindings.js';
-import { Settings, setting, setSetting, resetSettings } from '../core/settings.js';
+import { Settings, Toggles, setting, setSetting, setToggle, resetSettings } from '../core/settings.js';
 import { TouchModes, touchMode, setTouchMode } from '../core/device.js';
 
 // the actions the spellbook binds
@@ -20,7 +20,8 @@ function el(tag, className, parent, text) {
 }
 
 // The controls screen: whether the touch controls show, the camera's turn
-// speeds as sliders, then every action with its key; click one, then press
+// speeds as sliders, the playtesting switches (god mode), then every action
+// with its key; click one, then press
 // a key or mouse button to rebind it (Escape cancels). The spell keys are
 // set in the spellbook instead, under the bar's slots (ui/spellbook.js).
 // Opened from the main menu, the pause screen and the HUD's micro menu.
@@ -75,6 +76,26 @@ export function openControls({ onClose } = {}) {
     sliders.push(show);
   }
 
+  el('div', 'controls-group', list, 'PLAYTESTING');
+  const switches = [];
+  for (const t of Toggles) {
+    const row = el('div', 'controls-row', list);
+    el('span', 'controls-label', row, t.label);
+    const button = el('button', 'secondary controls-key', row, '');
+    button.type = 'button';
+    const show = () => {
+      button.textContent = setting(t.id) ? 'On' : 'Off';
+      button.classList.toggle('capturing', !!setting(t.id));
+    };
+    button.onclick = (e) => {
+      e.stopPropagation();
+      setToggle(t.id, !setting(t.id));
+      show();
+    };
+    show();
+    switches.push(show);
+  }
+
   const rows = [];
   let group = null;
   for (const action of Actions) {
@@ -109,7 +130,7 @@ export function openControls({ onClose } = {}) {
     resetSettings();
     setTouchMode('auto');
     showTouch();
-    for (const show of sliders) {
+    for (const show of [...sliders, ...switches]) {
       show();
     }
     status.textContent = 'Defaults restored.';

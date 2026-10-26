@@ -10,6 +10,7 @@ import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
 import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
 import { isTouch } from '../core/device.js';
+import { setting } from '../core/settings.js';
 import { DuelRules } from '../entities/duelRules.js';
 import { missileTier } from '../entities/spells.js';
 import { spellIcon } from './spellIcons.js';
@@ -432,7 +433,9 @@ export class Hud {
     this.pauseHint.textContent = isTouch() ? 'The game waits.' : 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
   }
 
-  showEnd({ title, text, stats, saved, time, win }) {
+  // The run is over. `onRetry` (god mode) offers to start the stage over;
+  // `unsaved` says why the run was not saved.
+  showEnd({ title, text, stats, saved, unsaved, time, win, onRetry }) {
     const screen = this.endScreen;
     screen.innerHTML = '';
     screen.classList.remove('hidden');
@@ -457,9 +460,15 @@ export class Hud {
       el('span', 'stat-label', grid, label);
       el('span', 'stat-value', grid, String(value));
     }
-    el('p', 'dim', card, saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).');
+    el('p', 'dim', card, unsaved || (saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).'));
     const buttons = el('div', 'buttons', card);
-    const again = el('button', null, buttons, 'Descend again');
+    if (onRetry) {
+      const game = this.game;
+      const what = game.battle ? 'battle' : (game.trial ? 'duel' : 'floor');
+      const retry = el('button', null, buttons, 'Retry this ' + what);
+      retry.onclick = () => onRetry();
+    }
+    const again = el('button', onRetry ? 'secondary' : null, buttons, 'Descend again');
     again.onclick = () => this.game.onExit && this.game.onExit('restart');
     const menu = el('button', 'secondary', buttons, 'Main menu');
     menu.onclick = () => this.game.onExit && this.game.onExit('menu');
@@ -496,6 +505,7 @@ export class Hud {
     }
 
     setText(this.playerFrame.level, String(player.level));
+    setText(this.playerFrame.name, setting('godMode') ? 'YOU :: GOD MODE' : 'YOU');
     const table = WizardLevels.xp;
     const top = player.level >= WizardLevels.max;
     const span = top ? 1 : table[player.level + 1] - table[player.level];
