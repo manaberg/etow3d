@@ -6,8 +6,8 @@ import { DungeonLevels, Trials } from './world/levels.js';
 import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage, SpellBook } from './entities/mage.js';
-import { BarSlots, WizardLevels, CircleFloors, bookId } from './entities/spellbar.js';
+import { Mage } from './entities/mage.js';
+import { BarSlots, WizardLevels } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
@@ -430,7 +430,6 @@ export class Game {
         total++;
       }
     }
-    total += this.spawnFloorWizard(lairs);
     // dragons lair in the biggest rooms, the greatest in the throne room
     if (plan.dragons) {
       const lairsBySize = lairs.slice().sort((a, b) => rooms[b].w * rooms[b].h - rooms[a].w * rooms[a].h);
@@ -470,39 +469,6 @@ export class Game {
       this.spawn(Ring, spot.x, spot.y, { persistent: true });
     }
     this.levelEnemyTotal = total;
-  }
-
-  // The floor's dark wizard, in a lair room, with a fresh random spellbook
-  // from the circles the floor has reached.
-  spawnFloorWizard(lairs) {
-    const rules = DungeonLevels.wizard;
-    const roomIndex = this.pickLairRoom(lairs, 'library');
-    const spot = this.world.getRoomSpawnPoint(this.world.rooms[roomIndex], 3);
-    const hp = rules.hp(this.depth);
-    const wizard = this.spawn(DuelWizard, spot.x, spot.y, {
-      difficulty: rules.difficulty(this.depth),
-      hp,
-      maxHp: hp,
-      hitScale: rules.hitScale,
-      controlScale: rules.controlScale,
-      desiredVel: rules.speed,
-      homeRoom: roomIndex,
-      label: 'DARK WIZARD'
-    });
-    const open = (s) => {
-      const spell = SpellBook.find((b) => b.id === bookId(s));
-      return spell && CircleFloors[spell.circle] <= this.depth;
-    };
-    const pool = Object.keys(wizard.spellBook).filter((s) => s !== 'missile' && open(s));
-    wizard.known = new Set();
-    wizard.ranks = {};
-    for (let n = Math.min(pool.length, rules.spells(this.depth)); n > 0; n--) {
-      const id = pool.splice(randInt(0, pool.length - 1), 1)[0];
-      wizard.known.add(id);
-      wizard.ranks[id] = rules.rank(this.depth);
-    }
-    wizard.missileTier = rules.missileTier(this.depth);
-    return 1;
   }
 
   spawnDragon(roomIndex, color, age) {
@@ -556,9 +522,8 @@ export class Game {
     return this.spawn(Potion, from.pos.x + from.size.x / 2 - 24, from.pos.y + from.size.y / 2 - 24, settings);
   }
 
-  // `spell`: a scroll of that one spell (a slain dark wizard's)
-  dropScroll(from, tier, offset = 0, spell = null) {
-    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset, { tier, spell });
+  dropScroll(from, tier, offset = 0) {
+    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset, { tier });
   }
 
   dropRing(from) {
@@ -582,7 +547,7 @@ export class Game {
   }
 
   floorEnemies() {
-    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof DuelWizard || e instanceof Dragon));
+    return this.entities.filter((e) => !e.killed && (e instanceof Orc || e instanceof Clericorc || e instanceof Mageorc || e instanceof Boss || e instanceof Dragon));
   }
 
   duelRival() {

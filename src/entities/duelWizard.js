@@ -6,19 +6,15 @@ import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
-import { GLOBAL_COOLDOWN, RankRules, bookId, rankCooldown, rankOf } from './spellbar.js';
+import { GLOBAL_COOLDOWN, rankCooldown } from './spellbar.js';
 
-// The rival wizard: the player's reflection in the trials (mirror.js) and
-// the dark wizard of the dungeon floors. It reads every bolt in flight, scores
-// sixteen escape directions a short horizon ahead, shields or blinks out of
-// hits it cannot dodge, and learns how far to lead its shots from where the
-// player actually went. Duels are fought in a small dungeon: it only sees and
-// shoots along clear lines of sight, follows the corridors (flow fields) to
-// hunt a player it cannot see, and runs for potions when they are worth the
-// trip. On dungeon floors it is the dark wizard: it waits in its lair like the
-// orcs until it notices the player, its hits are scaled down (hitScale), its
-// root, fear and polymorph shortened (controlScale), and when slain it leaves
-// an upgrade scroll and a scroll of one of its own spells.
+// The rival wizard: the player's reflection in the trials (mirror.js). It
+// reads every bolt in flight, scores sixteen escape directions a short horizon
+// ahead, shields or blinks out of hits it cannot dodge, and learns how far to
+// lead its shots from where the player actually went. Duels are fought in a
+// small dungeon: it only sees and shoots along clear lines of sight, follows
+// the corridors (flow fields) to hunt a player it cannot see, and runs for
+// potions when they are worth the trip.
 export class DuelWizard extends Enemy {
   defaults() {
     super.defaults();
@@ -69,17 +65,12 @@ export class DuelWizard extends Enemy {
     this.stunDuration = DuelRules.stunFrames;
     this.fearDuration = DuelRules.fearFrames;
     this.label = 'RIVAL WIZARD';
-    // spells it can cast (null knows them all); the reflection and the dark
-    // wizards are handed a set
+    // spells it can cast (null knows them all); the reflection is handed a set
     this.known = null;
     // magic missile darts per cast (spells.js MissileTiers); the reflection
-    // and the dark wizards set it
+    // sets it
     this.missileTier = 3;
     this.isWizard = true;
-    // share of duel damage its spells deal to the player, and of a duel's
-    // root, fear and polymorph time (survival floors)
-    this.hitScale = 1;
-    this.controlScale = 1;
     // spell ranks (spellbar.js); its tier 2 spells count as rank II
     this.ranks = {};
   }
@@ -93,8 +84,6 @@ export class DuelWizard extends Enemy {
     this.ironCharges = 2;
     // power word kill being spoken: { left } frames
     this.channel = null;
-    // the spells it has cast, for the one it teaches when slain
-    this.castSpells = new Set();
     this.frame = 0;
     this.acc = 0;
     // short grace period at the start of the duel
@@ -132,8 +121,7 @@ export class DuelWizard extends Enemy {
     // lead model: how far ahead of the player to aim, learnt from where the player actually went
     this.leadModel = [{ k: 0, err: 30 }, { k: 0.5, err: 30 }, { k: 1, err: 30 }];
     this.pendingShots = [];
-    // duel rivals hunt from the start; dark wizards wait to notice the player
-    this.aggro = !!this.game.duelMode;
+    this.aggro = true;
     this.rig = buildMage({ robe: 0x8a1a1a, hat: 0x2a0a0a, trim: 0xb0b0b0, orb: 0xff5040, beard: 0x404040 });
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -177,7 +165,6 @@ export class DuelWizard extends Enemy {
     if (spell !== 'missile') {
       this.gcd = GLOBAL_COOLDOWN;
     }
-    this.castSpells.add(spell);
     if (offensive) {
       this.castLock = this.ai.castLock;
       // attacking breaks invisibility
@@ -211,28 +198,8 @@ export class DuelWizard extends Enemy {
       return;
     }
     game.skullFx(pc.x, pc.y);
-    DuelRules.applyHit(player, 'pwkill', this, this.hitScale);
+    DuelRules.applyHit(player, 'pwkill', this);
     this.spend('pwkill', true);
-  }
-
-  // Survival: the spell (the player's id) its scroll teaches when slain, one
-  // it cast if it can, one the player does not know yet if any, else one
-  // the player can still rank up; or null.
-  spellToTeach(player) {
-    if (!player || !this.known) {
-      return null;
-    }
-    const cast = [...this.known].filter((id) => this.castSpells.has(id));
-    for (const ids of [cast, [...this.known]]) {
-      const book = ids.map(bookId);
-      const fresh = book.filter((id) => !player.knowsSpell(id));
-      const rankable = book.filter((id) => rankOf(player, id) < RankRules.max);
-      const pool = fresh.length ? fresh : rankable;
-      if (pool.length) {
-        return pool[Math.floor(Math.random() * pool.length)];
-      }
-    }
-    return null;
   }
 
   arenaBounds() {
@@ -386,8 +353,6 @@ export class DuelWizard extends Enemy {
       this.tickTimers();
       if (this.channel) {
         this.speakWord(player);
-      } else if (player && !player.dead && !game.duelMode && !game.updateAggro(this, player, game.hasRoomLineOfSight(this, player))) {
-        game.idleEntity(this);
       } else if (player && !player.dead && !deploying) {
         this.inSlowZone = game.zoneSlow(this) < 1;
         this.think(player);
@@ -443,16 +408,6 @@ export class DuelWizard extends Enemy {
     game.stats.killcount++;
     game.deathFx(this);
     this.kill();
-    if (!game.duelMode) {
-      game.stats.bosscount++;
-      game.dropScroll(this, 1);
-      const taught = this.spellToTeach(game.player);
-      if (taught) {
-        game.dropScroll(this, 1, 48, taught);
-      }
-      game.onEnemySlain(this);
-      return;
-    }
     game.onDuelVictory();
   }
 
@@ -1028,12 +983,12 @@ export class DuelWizard extends Enemy {
     }
     // power word kill cannot be dodged or reflected, but it takes a second
     // to speak, standing still (speakWord)
-    if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill * this.hitScale) &&
+    if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill) &&
       Math.random() < this.ai.pwkillRate) {
       this.channel = { left: DuelRules.pwkillCast };
       this.vel.x = 0;
       this.vel.y = 0;
-      game.hud.toast((game.duelMode ? 'YOUR REFLECTION' : 'THE DARK WIZARD') + ' SPEAKS A WORD OF DEATH', '#c040ff');
+      game.hud.toast('YOUR REFLECTION SPEAKS A WORD OF DEATH', '#c040ff');
       return;
     }
     // time stop: everyone crawls except us, then unload
@@ -1164,7 +1119,7 @@ export class DuelWizard extends Enemy {
       (dist < 190 || this.cdLeft.root < 40 || this.cdLeft.fireball === 0)) {
       player.isFeared = true;
       player.fearFrames = 0;
-      player.fearDuration = DuelRules.fearFrames * this.controlScale;
+      player.fearDuration = DuelRules.fearFrames;
       this.spend('fear', true);
       game.fx.ring(me.x, me.y, { color: 0xc040ff, radius: 430, life: 0.6 });
       return;

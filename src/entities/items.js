@@ -126,8 +126,6 @@ export class Scroll extends Item {
   defaults() {
     super.defaults();
     this.tier = 0;
-    // a scroll of one spell (a slain dark wizard's), or null
-    this.spell = null;
     this.isLoot = true;
     this.autoPickup = true;
   }
@@ -141,9 +139,6 @@ export class Scroll extends Item {
   // there is nothing left to learn from the circles open so far.
   choose(player) {
     const rankable = (id) => rankOf(player, id) < RankRules.max;
-    if (this.spell && (!player.knowsSpell(this.spell) || rankable(this.spell))) {
-      return this.spell;
-    }
     if (this.tier) {
       const onBar = player.bar.filter((id, i) => id && i < player.slotLimit && rankable(id));
       if (rankable('missile')) {
@@ -172,16 +167,10 @@ export class Scroll extends Item {
   }
 
   label() {
-    if (this.spell) {
-      return 'SCROLL OF ' + SpellById[this.spell].name;
-    }
     return this.tier ? 'GOLD SCROLL' : 'SCROLL';
   }
 
   labelColor() {
-    if (this.spell) {
-      return '#d0a0ff';
-    }
     return this.tier ? '#ffd040' : '#f3e6c4';
   }
 

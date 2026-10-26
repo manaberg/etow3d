@@ -7,9 +7,9 @@ import { DuelRules } from './duelRules.js';
 import { rankPower } from './spellbar.js';
 
 // The ten spells from D&D that the 2D game never had. Either wizard can
-// cast them: the player from the keys, the rival (duels, battles) and the
-// dark wizards (survival) from their brain. Against orcs they deal the
-// dungeon numbers below; between wizards they use DuelRules.arcana.
+// cast them: the player from the keys, the rival (duels, battles) from its
+// brain. Against orcs they deal the dungeon numbers below; between wizards
+// they use DuelRules.arcana.
 // Numbers are in the game's units: pixels (24 to a tile) and 60 frames a second.
 export const Arcana = {
   scorch: { damage: 60, spread: 0.16 },
@@ -29,8 +29,7 @@ export function teamOf(caster) {
   return caster.isDuelWizard ? 'enemy' : 'player';
 }
 
-// One of these spells lands on `target`: wizards take the duel number,
-// scaled by the caster's hitScale (dark wizards on survival floors), and
+// One of these spells lands on `target`: wizards take the duel number, and
 // everything else the dungeon number.
 // The element each spell's hit carries (resistances, enemy.js Elements).
 const ARCANA_ELEMENTS = { scorch: 'fire', cone: 'cold', thunder: 'thunder', meteor: 'fire', guardians: 'radiant', cloud: 'poison', disintegrate: 'force', weapon: 'radiant' };
@@ -39,7 +38,7 @@ const ARCANA_ELEMENTS = { scorch: 'fire', cone: 'cold', thunder: 'thunder', mete
 export function arcanaHit(caster, target, key, dungeonDamage) {
   const power = rankPower(caster, key);
   if (target.isWizard) {
-    const dmg = DuelRules.arcana[key].damage * (caster.hitScale || 1) * power;
+    const dmg = DuelRules.arcana[key].damage * power;
     target.hurt(dmg);
     if (target.onDuelDamage) {
       target.onDuelDamage(dmg, key);
@@ -52,7 +51,7 @@ export function arcanaHit(caster, target, key, dungeonDamage) {
 // Damage per frame of a guardians or cloudkill zone on a wizard.
 export function arcanaZoneDamage(zone, k) {
   const caster = zone.timeOwner;
-  return DuelRules.arcana[zone.kind].dps / 60 * k * ((caster && caster.hitScale) || 1) * rankPower(caster, zone.kind);
+  return DuelRules.arcana[zone.kind].dps / 60 * k * rankPower(caster, zone.kind);
 }
 
 // The casts themselves, for any caster. Each returns whether it went off
@@ -151,7 +150,7 @@ export const ArcanaCast = {
     return true;
   },
 
-  // duelists (and dark wizards, who have duel hit points) heal the duel amount
+  // duelists heal the duel amount
   heal(caster) {
     const game = caster.game;
     const amount = (caster.isDuelWizard || game.duelMode ? DuelRules.arcana.heal.amount : Arcana.heal.amount) * rankPower(caster, 'heal');
@@ -173,7 +172,7 @@ export const ArcanaCast = {
     }
     const tc = target.center();
     if (target.canPolymorph || target.isWizard) {
-      target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph') * (caster.controlScale || 1));
+      target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph'));
       fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
     } else {
       if (caster === game.player) {

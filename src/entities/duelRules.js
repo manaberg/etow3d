@@ -5,9 +5,8 @@ export const DuelRules = {
   hp: 700,
   stunFrames: 120,
   fearFrames: 120,
-  // power word kill is spoken over this many frames, standing still (any
-  // caster: the mage, the rival, the dark wizards); a root, fear or
-  // polymorph breaks it off
+  // power word kill is spoken over this many frames, standing still (either
+  // wizard); a root, fear or polymorph breaks it off
   pwkillCast: 60,
   rayHeal: 3,
   damage: {
@@ -94,23 +93,21 @@ export const DuelRules = {
   // pwkillRate: per-frame chance to use power word kill once it is ready
   // advanced: time stop and blink-in engages
   difficulties: {
-    // the dark wizards of the upper floors: slow to react, loose aim
+    // the upper floors' reflections: slow to react, loose aim
     easy: { reaction: 26, castLock: 32, decisionInterval: 10, aimNoise: 0.25, learnRate: 0.04, decoyFoolChance: 0.9, pwkillRate: 0, missChance: 0.35, advanced: false },
     normal: { reaction: 24, castLock: 28, decisionInterval: 9, aimNoise: 0.2, learnRate: 0.05, decoyFoolChance: 0.8, pwkillRate: 0.005, missChance: 0.2, advanced: false },
     hard: { reaction: 8, castLock: 7, decisionInterval: 3, aimNoise: 0.035, learnRate: 0.15, decoyFoolChance: 0.5, pwkillRate: 0.04, advanced: true },
     insane: { reaction: 3, castLock: 3, decisionInterval: 1, aimNoise: 0, learnRate: 0.22, decoyFoolChance: 0.25, pwkillRate: 1, advanced: true }
   },
 
-  // Apply one spell hit to either duelist. `scale` shrinks the damage for
-  // dungeon floors, where the player has far fewer hit points.
-  applyHit(target, kind, attacker, scale = 1) {
+  // Apply one spell hit to either duelist.
+  applyHit(target, kind, attacker) {
     if (kind === 'root' || kind === 'rootchain') {
-      // dark wizards root the survival mage for less (controlScale)
-      target.stun(this.stunFrames * ((attacker && attacker.controlScale) || 1));
+      target.stun(this.stunFrames);
       return;
     }
     // rank II of lifesteal and scorching ray (spellbar.js) hits harder
-    const dmg = (this.damage[kind] || 0) * scale * rankPower(attacker, kind);
+    const dmg = (this.damage[kind] || 0) * rankPower(attacker, kind);
     target.hurt(dmg);
     if (kind === 'ray' && attacker) {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + this.rayHeal);

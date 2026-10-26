@@ -158,8 +158,8 @@ stretch of the tunnel around the wizard. Duels are fought as in the descent.
 health, manergy, regeneration, speed, armour and magic missile darts, and as many spells as
 you have on your bar, but its own: drawn at random from the circles your depth has reached
 (table below), at the ranks of your spells. It wears the Red Order's crimson kit, so the two of
-you can be told apart. Trials follow the duel rules: duel damage between the wizards, at full
-strength (no `hitScale`), and the global cooldown. Both wizards start whole, on the duel scale
+you can be told apart. Trials follow the duel rules: duel damage between the wizards and the
+global cooldown. Both wizards start whole, on the duel scale
 (your health times seven, `Trials.hpScale`, so a level 1 wizard has a duellist's 700), and the
 share you have left when the trial ends carries on down the stairs, plus the stairs' usual
 breather. Trials give no experience; win one and you take one of three spoils instead: a new
@@ -307,8 +307,8 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 - A spell brought onto the bar from the book starts on its cooldown (at least 3 s), so swapping
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
-- **Levels.** Every kill on a dungeon floor gives experience (the square root of the foe's health,
-  three times that for a dark wizard), and each level adds 6 health and 4 manergy. The bar
+- **Levels.** Every kill on a dungeon floor gives experience (the square root of the foe's
+  health), and each level adds 6 health and 4 manergy. The bar
   opens with three slots (Q, E, F); R opens at level 2, 2 at 4, then 4, 1, 3 and C at 6, 8,
   10 and 12, and 5 at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
@@ -317,8 +317,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   circles its floor has reached: circle I from floor 1, II from floor 3, III from floor 6 and
   IV from floor 9 (table below).
   While those circles hold spells you do not know, two scrolls in three teach one of them
-  (the rest may still), so ranks come once the new spells run out. A slain dark wizard's
-  scroll is the exception: it teaches one of its own spells, whatever its circle.
+  (the rest may still), so ranks come once the new spells run out.
 - **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
   on your bar. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot, blink,
   blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
@@ -359,8 +358,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
 game's single missile (51, plus gear); between wizards a dart deals 36. Scrolls are magic
 missile scrolls 15% of the time until the third dart, and a trial's spoils may offer one; your
-reflection has as many darts as you, and the dungeon's dark wizards have two from depth 3 and
-three from depth 6.
+reflection has as many darts as you.
 
 **Global cooldown.** Every spell but magic missile holds back all the others (magic missile
 aside) for one second, on every floor and in every trial and for every wizard, on top of its
@@ -421,15 +419,6 @@ shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orc
 and champions, which grow more common with depth, drop the most loot. Potions are scarce: a
 few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 4 and grow in
 number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
-
-Every floor also hides a dark wizard with the duel rival's brain. It waits in its lair until it
-notices you and knows magic missile plus random spells from the circles its floor has reached,
-as your scrolls do: one every second floor to depth 5 (two there), then one more each floor (no
-more than a player that deep has slots on the bar), at rank II from depth 8 and III from depth
-15. It fights with an easy brain (slow to react, loose aim) to depth 5 and a normal one below,
-moves at your pace, and its root, fear and polymorph hold you half as long as in a duel. When
-slain it leaves a gold scroll and a scroll of one of its own spells (one it cast, and one you
-do not know if it can), so beating it is the way to deeper magic early.
 
 Below him the climb steepens (foes' health grows with the square of the depth past 10, to
 5.4x on floor 20; damage to 2.6x; more foes, champions and mini-bosses) and dragons lair in

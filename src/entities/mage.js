@@ -4,7 +4,6 @@ import { UNIT } from '../core/constants.js';
 import { buildMage, buildSheep, glowMap } from '../render/models.js';
 import { Projectile, Zone, MirrorImage, castMissiles, missileTier } from './spells.js';
 import { DuelRules } from './duelRules.js';
-import { DungeonLevels } from '../world/levels.js';
 import { castArcana, arcanaZoneDamage } from './arcana.js';
 import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
 import { dressRig } from '../render/gearModels.js';
@@ -768,10 +767,7 @@ export class Mage extends Entity {
     }
     const c = this.center();
     if (p.duel) {
-      // on dungeon floors every duel bolt comes from (or off) a dark wizard
-      const game = this.game;
-      const caster = game.duelRival() || (p.timeOwner && p.timeOwner.isDuelWizard ? p.timeOwner : null);
-      DuelRules.applyHit(this, p.kind, caster, game.duelMode ? 1 : DungeonLevels.wizard.hitScale);
+      DuelRules.applyHit(this, p.kind, this.game.duelRival() || p.timeOwner);
     } else if (p.kind === 'shadowbolt') {
       this.stun();
     } else {
@@ -790,8 +786,7 @@ export class Mage extends Entity {
       this.hurt(10);
       zone.kill();
     } else if (zone.kind === 'blizzard') {
-      const scale = this.game.duelMode ? 1 : DungeonLevels.wizard.hitScale;
-      this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k * scale, true);
+      this.hurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k, true);
     } else if ((zone.kind === 'guardians' || zone.kind === 'cloud') && zone.timeOwner) {
       // a wizard's spirit guardians or cloudkill
       this.hurt(arcanaZoneDamage(zone, k), true);

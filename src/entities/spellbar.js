@@ -50,19 +50,13 @@ export const WizardLevels = {
   // least this many frames, before it can be cast
   prepareFrames: 180,
 
-  // the square root of the foe's health, so a cleric is worth about nine
-  // grunts; wizards are worth three times that for the fight they put up
+  // the square root of the foe's health, so a cleric is worth about nine grunts
   xpFor(enemy) {
-    return Math.round(Math.sqrt(Math.max(0, enemy.maxHp || 0))) * (enemy.isDuelWizard ? 3 : 1);
+    return Math.round(Math.sqrt(Math.max(0, enemy.maxHp || 0)));
   },
 
   slotsAt(level) {
     return BarSlots.filter((s) => s.level <= level).length;
-  },
-
-  // the level a wizard who clears 60% of each floor has reached at `depth`
-  levelAt(depth) {
-    return depth <= 10 ? depth : Math.min(this.max, 10 + Math.floor((depth - 10) / 2));
   }
 };
 
@@ -93,11 +87,6 @@ export const ROMAN = ['', 'I', 'II', 'III'];
 // others (magic missile aside) for this many frames, in every mode, for the
 // mage and the wizards alike; each spell's own cooldown runs as well.
 export const GLOBAL_COOLDOWN = 60;
-
-// The player's id for one of the rival's spells (it calls chain root 'root').
-export function bookId(id) {
-  return id === 'root' ? 'stun' : id;
-}
 
 export function rankOf(caster, id) {
   if (id === 'missile') {

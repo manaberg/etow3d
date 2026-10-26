@@ -1,4 +1,3 @@
-import { WizardLevels } from '../entities/spellbar.js';
 import { randInt } from '../core/constants.js';
 
 // Twenty floors: ten from the upper halls down to the warlord, then ten more
@@ -18,7 +17,6 @@ import { randInt } from '../core/constants.js';
 //   scrolls, potions, rings  loot placed on the floor at the start
 //   tier2    chance that a placed scroll is a tier 2 upgrade scroll
 //   champion chance that an orc rolls as a champion (tougher, drops more loot)
-// Every floor also has a dark wizard (see `wizard` below).
 export const DungeonLevels = {
   count: 20,
   // share of the floor's enemies to slay before the stairs unseal
@@ -45,37 +43,6 @@ export const DungeonLevels = {
     { name: 'THE BONEYARD OF KINGS', rooms: 14, orcs: 140, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 4, mages: 3, dragons: { ages: { adult: 2, ancient: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 12, potions: 4, rings: 3, tier2: 1, champion: 0.46 },
     { name: 'THE GOLDEN HOARD', rooms: 11, orcs: 60, classes: { knight: 3, shaman: 2, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, dragons: { ages: { adult: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, boss: 'wyrm', scrolls: 10, potions: 5, rings: 2, tier2: 1, champion: 0.48 }
   ],
-
-  // The dark wizard waiting on every floor: the duel rival's brain, knowing
-  // magic missile plus `spells(depth)` others drawn at random each floor
-  // from the circles the floor has reached, as the mage's scrolls are (no
-  // more than a player that deep has slots on the bar), at `rank(depth)`.
-  // Its spells hit the player at `hitScale` of their duel damage, since the
-  // survival mage has far fewer hit points than a duelist, and its root,
-  // fear and polymorph hold the mage for `controlScale` of a duel's time.
-  // It moves at the mage's own pace (`speed`, mage.js) rather than faster.
-  wizard: {
-    hitScale: 0.15,
-    controlScale: 0.5,
-    speed: 115,
-    hp(depth) {
-      return 280 + depth * 40;
-    },
-    // one spell every second floor to depth 5, then one more each floor
-    spells(depth) {
-      return Math.min(depth <= 5 ? Math.floor(depth / 2) : depth - 3, WizardLevels.slotsAt(WizardLevels.levelAt(depth)));
-    },
-    rank(depth) {
-      return depth >= 15 ? 3 : (depth >= 8 ? 2 : 1);
-    },
-    // magic missile darts (spells.js MissileTiers)
-    missileTier(depth) {
-      return depth >= 6 ? 3 : (depth >= 3 ? 2 : 1);
-    },
-    difficulty(depth) {
-      return depth <= 5 ? 'easy' : 'normal';
-    }
-  },
 
   getPlan(depth) {
     const index = Math.max(1, Math.min(this.count, depth)) - 1;
@@ -165,8 +132,8 @@ export const Trials = {
     return stage.arena ? this.names.arena : this.names[stage.kind];
   },
 
-  // the reflection fights at full duel strength (no hitScale), so it starts
-  // as gentle as the upper floors' dark wizards and sharpens below the warlord
+  // the reflection fights at full duel strength, so it starts gentle on the
+  // upper floors and sharpens below the warlord
   difficulty(depth) {
     return depth <= 5 ? 'easy' : (depth <= 12 ? 'normal' : 'hard');
   }
