@@ -7,7 +7,9 @@ import { ClassicLook } from './looks.js';
 // 2x2 collision tiles), room records in collision-tile units and the
 // pathfinder over it. `options.look` (looks.js) shapes the dungeon and names
 // its rooms. Low ground (dungeon cell 2: water, lava, chasms) stops anything
-// on foot but not bolts, and it does not block sight.
+// on foot but not bolts, and it does not block sight. Free-standing pillars,
+// shelves and ribs block sight too, except for a look past them
+// (hasLineOfSight's `pastPillars`).
 export class World {
   constructor(options, frameSource) {
     this.look = options.look || ClassicLook;
@@ -18,18 +20,23 @@ export class World {
     // the pathfinder walks the floor and sees past everything but walls
     const grid = [];
     const sight = [];
+    const past = [];
     this.solid = new Uint8Array(this.width * this.height);
     for (let y = 0; y < this.height; y++) {
       const walk = new Array(this.width);
       const see = new Array(this.width);
+      const over = new Array(this.width);
       for (let x = 0; x < this.width; x++) {
         const cell = dungeon.cells[y >> 1][x >> 1];
         walk[x] = cell === 0 ? 0 : 1;
         see[x] = cell === 1 ? 1 : 0;
+        // a tagged wall cell stands free in a room (a pillar, a shelf, a rib)
+        over[x] = cell === 1 && !dungeon.tags[y >> 1][x >> 1] ? 1 : 0;
         this.solid[y * this.width + x] = cell;
       }
       grid.push(walk);
       sight.push(see);
+      past.push(over);
     }
     const names = this.look.rooms || {};
     this.rooms = dungeon.rooms.map((room, r) => ({
@@ -43,7 +50,7 @@ export class World {
       visited: r === 0
     }));
     this.mainRoomIndex = 0;
-    this.pathfinder = new Pathfinder(grid, TILE, frameSource, sight);
+    this.pathfinder = new Pathfinder(grid, TILE, frameSource, sight, past);
   }
 
   get pixelWidth() {
@@ -197,8 +204,8 @@ export class World {
     return this.rooms.findIndex((room) => room.theme === theme);
   }
 
-  hasLineOfSight(ax, ay, bx, by) {
-    return this.pathfinder.hasLineOfSight(ax, ay, bx, by);
+  hasLineOfSight(ax, ay, bx, by, pastPillars = false) {
+    return this.pathfinder.hasLineOfSight(ax, ay, bx, by, pastPillars);
   }
 
   canStandAt(x, y, w, h) {

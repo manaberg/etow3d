@@ -62,8 +62,10 @@ const DIRS_COST = [1, 1, 1, 1, SQRT2, SQRT2, SQRT2, SQRT2];
 // how many tiles of open space surround it, so an entity of a given size can
 // be routed through tiles where its whole body fits. `sightData` marks what
 // blocks sight (walls); without it, whatever blocks walking does.
+// `openSightData` marks what blocks a look past free-standing pillars (the
+// walls alone), for hasLineOfSight's `pastPillars`.
 export class Pathfinder {
-  constructor(collisionData, tilesize, frameSource, sightData) {
+  constructor(collisionData, tilesize, frameSource, sightData, openSightData) {
     this.tilesize = tilesize || 24;
     this.frameSource = frameSource || (() => 0);
     this.height = collisionData.length;
@@ -71,11 +73,14 @@ export class Pathfinder {
     const size = this.width * this.height;
     this.walkable = new Uint8Array(size);
     this.seeThrough = new Uint8Array(size);
+    this.seePast = new Uint8Array(size);
     const sight = sightData || collisionData;
+    const open = openSightData || sight;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         this.walkable[(y * this.width) + x] = collisionData[y][x] === 0 ? 1 : 0;
         this.seeThrough[(y * this.width) + x] = sight[y][x] === 0 ? 1 : 0;
+        this.seePast[(y * this.width) + x] = open[y][x] === 0 ? 1 : 0;
       }
     }
     this.computeClearance();
@@ -160,12 +165,14 @@ export class Pathfinder {
   }
 
   // A tile a segment may cross: walkable ground with room for `radius`, or
-  // for `sight` anything but a wall (sight carries over water and chasms).
+  // for `sight` anything but a wall (sight carries over water and chasms),
+  // and for sight 'past' anything but the walls themselves (pillars too).
   passes(x, y, radius, sight) {
     if (!sight) {
       return this.isPassable(x, y, radius);
     }
-    return this.inBounds(x, y) && this.seeThrough[(y * this.width) + x] === 1;
+    const see = sight === 'past' ? this.seePast : this.seeThrough;
+    return this.inBounds(x, y) && see[(y * this.width) + x] === 1;
   }
 
   isAreaWalkable(worldX, worldY, w, h) {
@@ -369,8 +376,8 @@ export class Pathfinder {
     return this.passes(endX, endY, radius, sight);
   }
 
-  hasLineOfSight(ax, ay, bx, by) {
-    return this.isSegmentClear(ax, ay, bx, by, 0, true);
+  hasLineOfSight(ax, ay, bx, by, pastPillars = false) {
+    return this.isSegmentClear(ax, ay, bx, by, 0, pastPillars ? 'past' : true);
   }
 
   // Dijkstra distance map from a target tile. Every entity chasing the same

@@ -108,7 +108,7 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 | Thumb on the left half, drag | a joystick that appears under the thumb: walk the way it points, relative to the camera |
 | Big button, bottom right | hold for magic missile |
 | Buttons around it | the bar's slots: the first four in an arc close in, the other six further out, each always in its place |
-| Tap a spell | cast it at the foe the wizard aims at by itself: the nearest one in sight, marked by the cursor ring (wizards and bosses count as a little nearer, and the ring stays on its foe while that one is not much further than the nearest) |
+| Tap a spell | cast it at the foe the wizard aims at by itself: the nearest one in sight (only walls hide a foe from it, not pillars, shelves or ribs, so a column passing between keeps the ring on its foe), marked by the cursor ring (wizards and bosses count as a little nearer, and the ring stays on its foe while that one is not much further than the nearest) |
 | Drag off a spell, let go | aim by hand, with a guide on the ground: bolts fly the way you drag (bending onto a foe within about 17 degrees of the line), spells cast at a spot reach further the further you drag, up to their range |
 | Let go over the cross | call the aimed spell off |
 | Blink, tapped | the way the wizard is heading (the joystick's, else the way it last walked), as far as open floor allows |

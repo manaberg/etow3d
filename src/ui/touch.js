@@ -492,8 +492,10 @@ export class TouchControls {
     return s.x || s.y ? this.screenDir(s.x, s.y) : this.facing;
   }
 
+  // Aiming looks past pillars, shelves and ribs (only walls hide a foe), so
+  // a column passing between the wizard and its foe keeps the ring on it.
   inSight(a, b) {
-    return this.game.world.hasLineOfSight(a.x, a.y, b.x, b.y);
+    return this.game.world.hasLineOfSight(a.x, a.y, b.x, b.y, true);
   }
 
   foes() {
