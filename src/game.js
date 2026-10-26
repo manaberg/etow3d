@@ -165,6 +165,11 @@ export class Game {
       this.army.clear();
     }
     this.gfx.setBattlefield(this.battleMode);
+    // the mobile descent starts every stage looking up the tunnel (north),
+    // as a new run does; the descent keeps the camera where it was left
+    if (this.mobile) {
+      this.gfx.resetView(true);
+    }
     this.stairs = null;
     this.descendRequested = false;
     this.state = 'playing';

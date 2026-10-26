@@ -143,7 +143,8 @@ same twenty floors, foes, spells and loot, but every floor is one long tunnel, a
 all duels, no battles (`Trials.schedule({ battles: false })`). A tunnel (`planTunnel` in
 `src/world/dungeon.js`) chains the floor's rooms from the start at the bottom of the map to the
 throne room at the top, each linked only to the next by a corridor, so there is only forward and
-back, and forward is the way the camera first looks. Rooms are at most 14 cells wide (a long room
+back, and forward is the way the camera first looks: every floor and duel of the mobile descent
+starts with the camera looking north up the tunnel, however it was turned on the floor above. Rooms are at most 14 cells wide (a long room
 turns to run along the tunnel, the throne room may be wider) and sway a few cells left and right of
 each other. Each floor keeps its look, so the rooms bring their own pillars, pools, erosion and
 winding corridors, a river of lava or molten iron crosses the tunnel on a bridge, and the plainer

@@ -209,9 +209,13 @@ export class Gfx {
     this.elevation = clamp(this.elevation + pitch, this.elevationMin, this.elevationMax);
   }
 
-  // Swings the camera back to the old view, looking north.
-  resetView() {
-    this.yawHome = 0;
+  // Swings the camera back to the old view, looking north (or, `snap`, puts
+  // it there at once).
+  resetView(snap = false) {
+    this.yawHome = snap ? null : 0;
+    if (snap) {
+      this.yaw = 0;
+    }
     this.elevation = THREE.MathUtils.degToRad(52);
   }
 
