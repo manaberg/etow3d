@@ -6,6 +6,12 @@ import { Fx } from './fx.js';
 import { Ambience } from './ambience.js';
 
 const ROOM_LIGHTS = 6;
+// how far the camera sits from the mage in the dungeon (and duels), and
+// how far out the wheel or a pinch takes it; a touch screen's small screen
+// starts further back, with the fog pushed back as far (`fogShift`)
+const DUNGEON_ZOOM = 26;
+const DUNGEON_ZOOM_OUT = 14;
+const TOUCH_ZOOM = 34;
 
 // An angle brought into -PI..PI.
 function wrapAngle(a) {
@@ -31,10 +37,12 @@ export class Gfx {
     this.scene.fog = new THREE.Fog(0x07070a, 26, 58);
 
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 400);
-    this.zoom = 26;
-    this.zoomTarget = 26;
+    this.zoom = DUNGEON_ZOOM;
+    this.zoomTarget = DUNGEON_ZOOM;
     this.zoomMin = 15;
-    this.zoomMax = 40;
+    this.zoomMax = DUNGEON_ZOOM + DUNGEON_ZOOM_OUT;
+    this.field = false;
+    this.fogShift = 0;
     // the camera orbits the focus: `yaw` turns it around (0 looks north, the
     // old fixed view), `elevation` tilts it between a low look ahead and
     // almost straight down. It stays where it is put; nothing turns it back.
@@ -157,8 +165,8 @@ export class Gfx {
     this.ambient.intensity = sky.ambient[1];
     this.scene.background.setHex(sky.fog[0]);
     this.scene.fog.color.setHex(sky.fog[0]);
-    this.scene.fog.near = sky.fog[1];
-    this.scene.fog.far = sky.fog[2];
+    this.scene.fog.near = sky.fog[1] + this.fogShift;
+    this.scene.fog.far = sky.fog[2] + this.fogShift;
     this.renderer.toneMappingExposure = sky.exposure;
     this.playerLight.color.setHex(sky.player[0]);
     this.playerPower = sky.player[1];
@@ -171,7 +179,12 @@ export class Gfx {
 
   // Battlefields are open ground under a grey sky rather than torchlit halls:
   // brighter, hazy in the distance, and the camera pulls much further back.
-  setBattlefield(on) {
+  // `touch`: a touch screen, whose dungeon camera starts further back (at
+  // once, not swinging out).
+  setBattlefield(on, touch = false) {
+    const home = on ? 70 : (touch ? TOUCH_ZOOM : DUNGEON_ZOOM);
+    this.field = on;
+    this.fogShift = on ? 0 : home - DUNGEON_ZOOM;
     this.baseHemi = null;
     this.hemisphere.intensity = on ? 2.6 : 1.9;
     this.hemisphere.color.setHex(on ? 0xd8e0f0 : 0x9aa0c0);
@@ -181,16 +194,19 @@ export class Gfx {
     this.scene.background.setHex(sky);
     this.scene.fog.color.setHex(sky);
     // great battles are watched from high above
-    this.scene.fog.near = on ? 120 : 26;
-    this.scene.fog.far = on ? 420 : 58;
+    this.scene.fog.near = on ? 120 : 26 + this.fogShift;
+    this.scene.fog.far = on ? 420 : 58 + this.fogShift;
     this.camera.far = on ? 700 : 400;
     this.camera.updateProjectionMatrix();
-    this.zoomMax = on ? 180 : 40;
-    this.zoomTarget = on ? 70 : 26;
+    this.zoomMax = on ? 180 : home + DUNGEON_ZOOM_OUT;
+    this.zoomTarget = home;
+    if (touch) {
+      this.zoom = home;
+    }
   }
 
   zoomBy(steps) {
-    const step = this.zoomMax > 40 ? Math.max(5, this.zoomTarget * 0.1) : 2.5;
+    const step = this.field ? Math.max(5, this.zoomTarget * 0.1) : 2.5;
     this.zoomTarget = clamp(this.zoomTarget + steps * step, this.zoomMin, this.zoomMax);
   }
 

@@ -115,7 +115,7 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 | Spells with no aim | shield, healing word, haste and the like go off the moment they are touched |
 | With a target | the camera turns to look at the ringed foe from behind the wizard (smoothly when the ring moves to another), so the joystick circles it, closes in and backs away from it |
 | Walking, no target | the camera swings round behind the wizard, towards the way the joystick points (faster the more sideways, so the thumb steers), but not while backing away. Two sliders on the Controls screen set how fast the camera faces the target and follows behind, or turn either off |
-| Drag elsewhere / pinch | turn the camera by hand (its own slider; the camera then stays put for a moment before following again) / zoom |
+| Drag elsewhere / pinch | turn the camera by hand (its own slider; the camera then stays put for a moment before following again) / zoom. A small screen starts each floor and duel with the camera further back than a desktop does (34 against 26; pinching out goes to 48 instead of 40), the fog pushed back as far, so the floors look as they do on a desktop |
 | Compass (top) | shows north; tap to turn the camera back to it |
 | Tap an item's name | survival: walk over and pick it up |
 | Tap the map | larger map |
