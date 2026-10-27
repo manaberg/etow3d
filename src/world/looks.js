@@ -49,7 +49,7 @@ const FloorLooks = [
   // 1: the familiar halls under the surface, warm and well kept
   {
     id: 'upperHalls',
-    layout: { pillars: 'corners', hallPillars: false },
+    layout: { minRoomW: 9, maxRoomW: 13, minRoomH: 7, maxRoomH: 10, pillars: 'corners', hallPillars: false },
     rooms: CLASSIC_ROOMS,
     themeMix: 0.45,
     dressing: true,
@@ -94,8 +94,8 @@ const FloorLooks = [
   // 3: the orcs' parade halls: broad, square and lined with columns
   {
     id: 'muster',
-    layout: { minRoomW: 12, maxRoomW: 18, minRoomH: 9, maxRoomH: 13, corridorWidth: 4, pillars: 'colonnade', extraLoopChance: 0.3 },
-    mapScale: 1.22,
+    layout: { minRoomW: 10, maxRoomW: 15, minRoomH: 8, maxRoomH: 11, corridorWidth: 4, pillars: 'colonnade', extraLoopChance: 0.3 },
+    mapScale: 1.08,
     rooms: { hall: 'PARADE GROUND', barracks: 'BARRACKS', library: 'WAR ROOM', alchemy: 'FIELD HOSPITAL', crypt: 'HALL OF THE FALLEN', throne: "MARSHAL'S HALL" },
     wallHeight: 3.8,
     themeMix: 0.22,
@@ -142,10 +142,10 @@ const FloorLooks = [
   {
     id: 'library',
     layout: {
-      minRoomW: 11, maxRoomW: 16, minRoomH: 10, maxRoomH: 13, pillars: 'shelves',
+      minRoomW: 10, maxRoomW: 14, minRoomH: 9, maxRoomH: 12, pillars: 'shelves',
       pools: { chance: 0.75, count: [1, 2], radius: [1.5, 2.6], margin: 2 }
     },
-    mapScale: 1.18,
+    mapScale: 1.08,
     rooms: { hall: 'FLOODED ATRIUM', barracks: "SCRIBES' DORMITORY", library: 'SUNKEN STACKS', alchemy: 'INK DISTILLERY', crypt: 'DROWNED ARCHIVE', throne: 'GRAND READING ROOM' },
     wallHeight: 3.8,
     themeMix: 0.12,
@@ -166,7 +166,7 @@ const FloorLooks = [
   {
     id: 'forges',
     layout: { minRoomW: 11, maxRoomW: 16, minRoomH: 9, maxRoomH: 12, river: { width: [2, 2], meander: 0.45 } },
-    mapScale: 1.12,
+    mapScale: 1.08,
     rooms: { hall: 'FOUNDRY GATE', barracks: "SMITHS' QUARTERS", library: 'PATTERN ROOM', alchemy: 'QUENCHING VATS', crypt: 'SLAG HEAP', throne: 'GREAT FORGE' },
     wallHeight: 3.6,
     themeMix: 0.12,
@@ -192,7 +192,7 @@ const FloorLooks = [
       minRoomW: 11, maxRoomW: 14, minRoomH: 11, maxRoomH: 14, pillars: 'none',
       pools: { kind: 'center', size: 0.36, chance: 0.9, margin: 2, throne: true }
     },
-    mapScale: 1.24,
+    mapScale: 1.14,
     rooms: { hall: 'HOLDING PENS', barracks: 'GLADIATOR CELLS', library: "BOOKMAKERS' HALL", alchemy: "BUTCHER'S ROOM", crypt: 'CORPSE PIT', throne: 'GRAND ARENA' },
     wallHeight: 3.4,
     themeMix: 0.12,

@@ -187,8 +187,12 @@ export class DungeonGenerator {
       rooms.push({ x: Math.floor((cols - startW) / 2), y: rows - startH - 3, w: startW, h: startH });
     } else {
       rooms.push({
-        x: Math.floor((cols - startW) / 2) + randInt(-4, 4),
-        y: Math.floor((rows - startH) / 2) + randInt(-3, 3),
+        x: cols >= startW + this.minRoomW + this.maxRoomW + 2 * (this.roomGap + 2)
+          ? Math.floor((cols - startW) / 2) + randInt(-4, 4)
+          : (Math.random() < 0.5 ? randInt(2, 5) : randInt(cols - startW - 5, cols - startW - 2)),
+        y: rows >= startH + this.minRoomH + this.maxRoomH + 2 * (this.roomGap + 2)
+          ? Math.floor((rows - startH) / 2) + randInt(-3, 3)
+          : (Math.random() < 0.5 ? randInt(2, 4) : randInt(rows - startH - 4, rows - startH - 2)),
         w: startW,
         h: startH
       });

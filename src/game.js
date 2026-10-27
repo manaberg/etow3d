@@ -141,12 +141,13 @@ export class Game {
       const look = floorLook(this.depth);
       const scale = look.mapScale || 1;
       options = {
-        cols: Math.round((34 + plan.rooms * 4) * scale),
-        rows: Math.round((22 + plan.rooms * 3) * scale),
+        cols: Math.round((24 + plan.rooms * 4.5) * scale),
+        rows: Math.round((16 + plan.rooms * 3.2) * scale),
         roomCount: plan.rooms,
         look,
         // the mobile descent's tunnels size their own map
-        tunnel: this.mobile
+        tunnel: this.mobile,
+        tunnelGap: this.depth <= 4 ? [2, 4] : (this.depth <= 9 ? [2, 5] : [3, 6])
       };
     }
     this.world = new World(options, () => this.navFrame);
