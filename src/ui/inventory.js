@@ -33,7 +33,7 @@ function icon(type) {
     const b = hex(look.band);
     switch (look.style) {
       case 'crown':
-        body = `<path d="M8 30 L8 16 L14 22 L20 10 L26 22 L32 16 L32 30 Z" fill="${c}"/><rect x="8" y="27" width="24" height="4" fill="${b}"/><circle cx="20" cy="24" r="2.2" fill="${hex(look.glow)}"/>`;
+        body = `<path d="M8 30 L8 16 L14 22 L20 10 L26 22 L32 16 L32 30 Z" fill="${c}"/><rect x="8" y="27" width="24" height="4" fill="${b}"/><circle cx="20" cy="24" r="2.2" fill="${hex(look.glow || 0xffffff)}"/>`;
         break;
       case 'hood':
         body = `<path d="M8 32 Q8 8 22 8 Q34 10 32 32 Z" fill="${c}"/><path d="M13 32 Q13 16 21 16 Q28 17 27 32 Z" fill="#000" opacity="0.55"/><path d="M13 32 Q13 16 21 16" stroke="${b}" stroke-width="1.5" fill="none"/>`;
