@@ -472,7 +472,9 @@ export class Dragon extends Enemy {
     const loot = this.spec.loot;
     // a hoard: scrolls, potions and a ring for the older ones
     for (let i = 0; i < Math.ceil(loot / 2); i++) {
-      game.dropScroll(this, Math.random() < 0.5 + loot * 0.1 ? 1 : 0, i * 20);
+      if (Math.random() < 0.5) {
+        game.dropScroll(this, i * 20);
+      }
     }
     for (let i = 0; i < loot; i++) {
       const p = game.dropPotion(this);

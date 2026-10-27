@@ -60,11 +60,6 @@ export const WizardLevels = {
   }
 };
 
-// Spell circles: a scroll (or a trial's spoils) only teaches spells of the
-// circles its floor has reached, so the deep magic turns up deep. Circle by
-// floor.
-export const CircleFloors = { 1: 1, 2: 3, 3: 6, 4: 9 };
-
 // Spell ranks I to III. A scroll for a spell its reader already knows ranks
 // the spell up. Magic missile's ranks are its darts (spells.js MissileTiers)
 // and six spells have their own rank II (the tier 2 upgrades, `tierFlags`).

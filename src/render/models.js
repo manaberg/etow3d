@@ -827,18 +827,18 @@ export function buildDragon(hue, old) {
 
 // ---------------------------------------------------------------- items
 
-export function buildScroll(tier) {
+export function buildScroll() {
   const g = new THREE.Group();
-  const paper = mat(tier ? 0xf8e8a0 : 0xe8dcc0, { emissive: tier ? 0x403000 : 0x000000 });
+  const paper = mat(0xe8dcc0);
   const roll = mesh(geo('scroll.roll', () => new THREE.CylinderGeometry(0.18, 0.18, 0.9, 10)), paper);
   roll.rotation.z = Math.PI / 2;
-  const ribbon = mesh(geo('scroll.ribbon', () => new THREE.CylinderGeometry(0.19, 0.19, 0.12, 10)), mat(tier ? 0x3060ff : 0xb02020));
+  const ribbon = mesh(geo('scroll.ribbon', () => new THREE.CylinderGeometry(0.19, 0.19, 0.12, 10)), mat(0xb02020));
   ribbon.rotation.z = Math.PI / 2;
   const caps = geo('scroll.cap', () => new THREE.CylinderGeometry(0.08, 0.08, 1.05, 6));
   const cap = mesh(caps, mat(0x6a4a2a));
   cap.rotation.z = Math.PI / 2;
   g.add(roll, ribbon, cap);
-  const glow = glowSprite(tier ? 0xffd040 : 0xfff0c0, tier ? 2.2 : 1.5, tier ? 0.8 : 0.45);
+  const glow = glowSprite(0xfff0c0, 1.5, 0.45);
   g.add(glow);
   return g;
 }

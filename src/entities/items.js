@@ -3,7 +3,7 @@ import { UNIT } from '../core/constants.js';
 import { buildScroll, buildPotion, buildStairs } from '../render/models.js';
 import { buildGearLoot } from '../render/gearModels.js';
 import { SpellBook, SpellById } from './mage.js';
-import { BarSlots, CircleFloors, RankRules, ROMAN, rankOf } from './spellbar.js';
+import { BarSlots, RankRules, ROMAN, rankOf } from './spellbar.js';
 import { actionKeyLabel } from '../core/bindings.js';
 import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 
@@ -89,22 +89,16 @@ export class Item extends Entity {
   }
 }
 
-// A survival scroll teaches a spell of the circles its floor has reached
-// (spellbar.js CircleFloors), or ranks up one its reader already knows; now
-// and then it adds a magic missile dart instead, until the third. A gold
-// (tier 1) scroll ranks up a spell on the reader's bar, so it goes to a spell
-// in use. What a scroll gives is decided when it is read.
-const MISSILE_SCROLL_CHANCE = 0.15;
-// while the floor's circles hold spells the reader does not know, a scroll
-// teaches one of those this often (and may still draw one by chance after)
-const NEW_SPELL_CHANCE = 2 / 3;
-
+// A survival scroll teaches a spell or ranks up one its reader already knows
+// (whether on the bar or in the spellbook), or adds a magic missile dart,
+// up to Rank III. Any spell can drop on any floor. What a scroll gives is
+// decided when it is read.
 function pick(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export function scrollPool(depth) {
-  return SpellBook.filter((s) => s.flag && CircleFloors[s.circle] <= depth).map((s) => s.id);
+export function scrollPool() {
+  return SpellBook.filter((s) => s.flag).map((s) => s.id);
 }
 
 // Learns a spell, ranks up one already known, or (`id` 'missile') adds a
@@ -125,53 +119,30 @@ export function studySpell(player, id) {
 export class Scroll extends Item {
   defaults() {
     super.defaults();
-    this.tier = 0;
     this.isLoot = true;
     this.autoPickup = true;
   }
 
   init() {
-    this.view = buildScroll(this.tier);
+    this.view = buildScroll();
     this.game.gfx.add(this.view);
   }
 
   // The spell id it gives `player` ('missile' for a dart), or null when
-  // there is nothing left to learn from the circles open so far.
+  // every spell is already at maximum rank.
   choose(player) {
     const rankable = (id) => rankOf(player, id) < RankRules.max;
-    if (this.tier) {
-      const onBar = player.bar.filter((id, i) => id && i < player.slotLimit && rankable(id));
-      if (rankable('missile')) {
-        onBar.push('missile');
-      }
-      if (onBar.length) {
-        return pick(onBar);
-      }
-    }
-    const pool = scrollPool(this.game.depth);
     const useful = (id) => id === 'missile' ? rankable(id) : (!player.knowsSpell(id) || rankable(id));
-    const fresh = pool.filter((s) => !player.knowsSpell(s));
-    let id;
-    if (rankable('missile') && Math.random() < MISSILE_SCROLL_CHANCE) {
-      id = 'missile';
-    } else if (fresh.length && Math.random() < NEW_SPELL_CHANCE) {
-      id = pick(fresh);
-    } else {
-      id = pick(pool);
-    }
-    if (useful(id)) {
-      return id;
-    }
-    const left = [...pool, 'missile'].filter(useful);
+    const left = [...scrollPool(), 'missile'].filter(useful);
     return left.length ? pick(left) : null;
   }
 
   label() {
-    return this.tier ? 'GOLD SCROLL' : 'SCROLL';
+    return 'SCROLL';
   }
 
   labelColor() {
-    return this.tier ? '#ffd040' : '#f3e6c4';
+    return '#f3e6c4';
   }
 
   pickUp(player) {
@@ -184,8 +155,8 @@ export class Scroll extends Item {
       message = studySpell(player, id);
     }
     this.game.stats.scrollcount++;
-    this.game.pickupFx(this, this.tier ? 0xffd040 : 0xfff0c0);
-    this.game.hud.toast(message, this.tier ? '#ffd040' : '#f3e6c4');
+    this.game.pickupFx(this, 0xfff0c0);
+    this.game.hud.toast(message, '#f3e6c4');
     this.kill();
   }
 }

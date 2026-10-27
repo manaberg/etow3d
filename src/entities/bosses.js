@@ -101,7 +101,9 @@ export class Clericorc extends Enemy {
     const game = this.game;
     game.stats.killcount++;
     game.stats.bosscount++;
-    game.dropScroll(this, 1);
+    if (Math.random() < 0.5) {
+      game.dropScroll(this);
+    }
     game.dropRing(this);
     game.onEnemySlain(this);
     this.dropGear();
@@ -194,7 +196,9 @@ export class Mageorc extends Enemy {
     const game = this.game;
     game.stats.killcount++;
     game.stats.bosscount++;
-    game.dropScroll(this, 1);
+    if (Math.random() < 0.5) {
+      game.dropScroll(this);
+    }
     game.dropRing(this);
     game.onEnemySlain(this);
     this.dropGear();

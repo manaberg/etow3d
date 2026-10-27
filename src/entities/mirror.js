@@ -1,22 +1,22 @@
 import { DuelWizard } from './duelWizard.js';
 import { SpellById } from './mage.js';
-import { DuelSpells, playerSpellId } from './duelLoot.js';
+import { DuelSpells } from './duelLoot.js';
 import { scrollPool } from './items.js';
 import { MAX_MISSILE_TIER } from './spells.js';
-import { CircleFloors, RankRules, ROMAN, rankOf } from './spellbar.js';
+import { RankRules, ROMAN, rankOf } from './spellbar.js';
 import { Trials } from '../world/levels.js';
 import { randInt } from '../core/constants.js';
 
 // The reflection the trials are fought against (levels.js Trials): a wizard
 // of the player's level with the player's health, manergy, regeneration,
 // speed, armour and magic missile darts, and as many spells as the player has
-// on the bar, but its own: drawn at random from the circles the depth has
-// reached, at the ranks of the player's spells. It keeps the Red Order's
-// crimson kit so the two wizards can be told apart.
+// on the bar, but its own: drawn at random from the spell pool, at the ranks
+// of the player's spells. It keeps the Red Order's crimson kit so the two
+// wizards can be told apart.
 export function spawnReflection(game, x, y, player) {
   const rival = game.spawn(DuelWizard, x, y, { difficulty: Trials.difficulty(game.depth), label: 'REFLECTION' });
   const ranks = player.bar.slice(0, player.slotLimit).filter(Boolean).map((id) => rankOf(player, id));
-  const pool = DuelSpells.filter((entry) => CircleFloors[SpellById[playerSpellId(entry)].circle] <= game.depth);
+  const pool = DuelSpells.slice();
   rival.known = new Set();
   rival.ranks = {};
   while (rival.known.size < ranks.length && pool.length) {
@@ -34,12 +34,12 @@ export function spawnReflection(game, x, y, player) {
   return rival;
 }
 
-// After a won trial the wizard takes one of `count` spoils: a spell it lacks
-// (of the circles reached), another magic missile dart or a rank for a spell
-// it knows, one of them a rank whenever there is one to take. Spoils are
-// spell ids ('missile' for the dart), read like a scroll (items.js studySpell).
-export function rollSpoils(player, depth, count = 3) {
-  const learn = scrollPool(depth).filter((id) => !player.knowsSpell(id));
+// After a won trial the wizard takes one of `count` spoils: a spell it lacks,
+// another magic missile dart or a rank for a spell it knows, one of them a
+// rank whenever there is one to take. Spoils are spell ids ('missile' for the
+// dart), read like a scroll (items.js studySpell).
+export function rollSpoils(player, _depth, count = 3) {
+  const learn = scrollPool().filter((id) => !player.knowsSpell(id));
   if (player.missileTier < MAX_MISSILE_TIER) {
     learn.push('missile');
   }

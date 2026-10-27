@@ -232,11 +232,11 @@ export class Orc extends Enemy {
     stats.killcount++;
     if (this.isHealer) {
       stats.shamancount++;
-      const roll = Math.floor(Math.random() * 100) + 1;
-      if (roll === 95) {
+      const roll = Math.random();
+      if (roll < 0.01) {
         game.dropPotion(this, { isSpecial: true });
-      } else if (roll > 95) {
-        game.dropScroll(this, 0);
+      } else if (roll < 0.035) {
+        game.dropScroll(this);
       }
     } else if (this.hasCharge) {
       stats.knightcount++;

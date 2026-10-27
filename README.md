@@ -156,8 +156,8 @@ stretch of the tunnel around the wizard. Duels are fought as in the descent.
 
 **Trials.** Your reflection (`src/entities/mirror.js`) is a wizard of your level with your
 health, manergy, regeneration, speed, armour and magic missile darts, and as many spells as
-you have on your bar, but its own: drawn at random from the circles your depth has reached
-(table below), at the ranks of your spells. It wears the Red Order's crimson kit, so the two of
+you have on your bar, but its own: drawn at random from the spellbook (table below), at the
+ranks of your spells. It wears the Red Order's crimson kit, so the two of
 you can be told apart. Trials follow the duel rules: duel damage between the wizards and the
 global cooldown. Both wizards start whole, on the duel scale
 (your health times seven, `Trials.hpScale`, so a level 1 wizard has a duellist's 700), and the
@@ -313,14 +313,11 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   10 and 12, and 5 at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
   spell waiting in the book. Trials give no experience.
-- **Circles.** A scroll (or a trial's spoils, or a reflection's spells) only comes from the
-  circles its floor has reached: circle I from floor 1, II from floor 3, III from floor 6 and
-  IV from floor 9 (table below).
-  While those circles hold spells you do not know, two scrolls in three teach one of them
-  (the rest may still), so ranks come once the new spells run out.
-- **Ranks.** A scroll for a spell you know raises its rank, to III; a gold scroll raises a spell
-  on your bar. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot, blink,
-  blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
+- **Scrolls and ranks.** Any spell (or magic missile) can drop on any floor. A scroll draws
+  uniformly from all spells that are not yet at Rank III: if you do not know the spell yet, you
+  learn it (Rank I); if you already know it (whether it is on your bar or in your spellbook), its
+  rank goes up, to III. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot,
+  blink, blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
   other spell's rank II adds 30% to its main number (damage, duration, reach or healing), or,
   for chain root, mirror image and telekinesis, cuts its cooldown by a quarter. Rank III cuts
   every spell's cooldown by a quarter (`RankRules`).
@@ -356,9 +353,9 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
 little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
-game's single missile (51, plus gear); between wizards a dart deals 36. Scrolls are magic
-missile scrolls 15% of the time until the third dart, and a trial's spoils may offer one; your
-reflection has as many darts as you.
+game's single missile (51, plus gear); between wizards a dart deals 36. Magic missile is
+in the scroll pool alongside every other spell until the third dart, and a trial's spoils may
+offer one; your reflection has as many darts as you.
 
 **Global cooldown.** Every spell but magic missile holds back all the others (magic missile
 aside) for one second, on every floor and in every trial and for every wizard, on top of its

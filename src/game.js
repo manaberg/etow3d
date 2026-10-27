@@ -459,7 +459,7 @@ export class Game {
     // loot waiting on the floor; it stays until picked up
     for (let s = 0; s < plan.scrolls; s++) {
       const spot = world.getRoomSpawnPoint(rooms[this.pickLairRoom(all, 'library')], 2);
-      this.spawn(Scroll, spot.x, spot.y, { persistent: true, tier: Math.random() < plan.tier2 ? 1 : 0 });
+      this.spawn(Scroll, spot.x, spot.y, { persistent: true });
     }
     for (let p = 0; p < plan.potions; p++) {
       const spot = world.getRoomSpawnPoint(rooms[this.pickLairRoom(all, 'alchemy')], 2);
@@ -493,14 +493,13 @@ export class Game {
     if (this.duelMode) {
       return;
     }
-    const plan = DungeonLevels.getPlan(this.depth);
     const potionChance = orc.isChampion ? 0.35 : 0.02 + this.depth * 0.005;
-    const scrollChance = orc.isChampion ? 0.5 : 0.015 + this.depth * 0.007;
+    const scrollChance = orc.isChampion ? 0.25 : 0.0075 + this.depth * 0.0035;
     if (Math.random() < potionChance) {
       this.dropPotion(orc);
     }
     if (Math.random() < scrollChance) {
-      this.dropScroll(orc, Math.random() < plan.tier2 ? 1 : 0, 24);
+      this.dropScroll(orc, 24);
     }
     // now and then a piece of gear (whatever it wore drops as well, orc.js);
     // the mage's magic find makes gear a little more common and finer
@@ -523,8 +522,8 @@ export class Game {
     return this.spawn(Potion, from.pos.x + from.size.x / 2 - 24, from.pos.y + from.size.y / 2 - 24, settings);
   }
 
-  dropScroll(from, tier, offset = 0) {
-    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset, { tier });
+  dropScroll(from, offset = 0) {
+    return this.spawn(Scroll, from.pos.x + from.size.x / 2 - 24 + offset, from.pos.y + from.size.y / 2 - 24 + offset);
   }
 
   dropRing(from) {
