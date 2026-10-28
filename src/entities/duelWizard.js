@@ -1,12 +1,13 @@
 import { Enemy } from './enemy.js';
 import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier } from './spells.js';
 import { DuelRules } from './duelRules.js';
-import { Arcana, ArcanaCast, Meteor, arcanaZoneDamage } from './arcana.js';
+import { Arcana, ArcanaCast, FlamingSphere, Meteor, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
+import { arcanaFx } from './enemy.js';
 import { syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
-import { GLOBAL_COOLDOWN, rankCooldown } from './spellbar.js';
+import { GLOBAL_COOLDOWN, rankCooldown, rankPower } from './spellbar.js';
 
 // The rival wizard: the player's reflection in the trials (mirror.js). It
 // reads every bolt in flight, scores sixteen escape directions a short horizon
@@ -54,7 +55,17 @@ export class DuelWizard extends Enemy {
       heal: { cd: 600, cost: 40, need: 40 },
       polymorph: { cd: 500, cost: 40, need: 40 },
       disintegrate: { cd: 360, cost: 50, need: 50 },
-      weapon: { cd: 900, cost: 50, need: 50 }
+      weapon: { cd: 900, cost: 50, need: 50 },
+      sleep: { cd: 600, cost: 30, need: 30 },
+      agathys: { cd: 900, cost: 40, need: 40 },
+      curse: { cd: 500, cost: 30, need: 30 },
+      sphere: { cd: 800, cost: 40, need: 40 },
+      counter: { cd: 600, cost: 30, need: 30 },
+      swap: { cd: 500, cost: 30, need: 30 },
+      phantasm: { cd: 600, cost: 45, need: 45 },
+      confusion: { cd: 700, cost: 45, need: 45 },
+      maelstrom: { cd: 800, cost: 55, need: 55 },
+      gravity: { cd: 900, cost: 70, need: 70 }
     };
     this.shieldDuration = 125;
     this.hasteDuration = 250;
@@ -299,21 +310,49 @@ export class DuelWizard extends Enemy {
 
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
-      this.hp -= (zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k;
-    } else if ((zone.kind === 'guardians' || zone.kind === 'cloud') && zone.timeOwner) {
-      const dmg = arcanaZoneDamage(zone, k);
-      this.hp -= dmg;
-      this.onDuelDamage(dmg);
+      this.zoneHurt((zone.tier ? DuelRules.blizzard2Damage : DuelRules.blizzardDamage) * k, false);
+    } else if ((zone.kind === 'guardians' || zone.kind === 'cloud' || zone.kind === 'maelstrom') && zone.timeOwner) {
+      this.zoneHurt(arcanaZoneDamage(zone, k), true);
+      if (zone.kind === 'maelstrom' && !this.lift) {
+        pullToward(this, zone, DuelRules.arcana.maelstrom.pull, k);
+      }
     } else if (zone.kind === 'fire') {
       // battles: the ground the player's dragons set burning, as for the mage
-      this.hp -= 10;
-      this.onDuelDamage(10);
+      this.zoneHurt(10, true);
       zone.kill();
     } else if (zone.kind === 'cloud' || zone.kind === 'acid' || zone.kind === 'meteors') {
-      const dmg = (zone.kind === 'acid' ? 0.35 : zone.kind === 'meteors' ? 0.3 : 0.25) * k;
-      this.hp -= dmg;
+      this.zoneHurt((zone.kind === 'acid' ? 0.35 : zone.kind === 'meteors' ? 0.3 : 0.25) * k, true);
+    }
+  }
+
+  // Ground damage on the duel scale, after a curse and a ward of frost.
+  zoneHurt(dmg, counted) {
+    if (this.curseFrames > 0) {
+      dmg *= this.curseMult;
+    }
+    this.hp -= this.soak(dmg);
+    if (counted) {
       this.onDuelDamage(dmg);
     }
+  }
+
+  // Confusion: it reels about for a moment and its aim goes wild.
+  confuse(frames) {
+    this.confusedFrames = Math.max(this.confusedFrames, frames);
+    this.fearFor(frames);
+  }
+
+  // Counterspell: every spell but magic missile waits, and a word being
+  // spoken is lost.
+  silence(frames) {
+    this.gcd = Math.max(this.gcd, frames);
+    this.rayFrames = 0;
+    if (this.channel) {
+      this.channel = null;
+      this.cdLeft.pwkill = Math.max(this.cdLeft.pwkill, 60);
+    }
+    const c = this.center();
+    this.game.fx.burst(c.x, c.y, 2.8, { color: [0x9ac8ff, 0xffffff], count: 16, speed: 2, life: 0.6, size: 0.6 });
   }
 
   // a sheep for a moment: it still runs, but casts nothing
@@ -426,8 +465,8 @@ export class DuelWizard extends Enemy {
     }
     this.planRoute();
     this.decideMovement(player);
-    // a sheep can only run
-    if (this.sheepFrames > 0) {
+    // a sheep can only run; asleep or in the air it can do nothing at all
+    if (this.sheepFrames > 0 || this.sleepFrames > 0 || this.lift) {
       return false;
     }
     this.decideDefense(player);
@@ -461,6 +500,12 @@ export class DuelWizard extends Enemy {
         const mc = e.center();
         const r = Arcana.meteor.blast;
         this.zones.push({ x: mc.x - r, y: mc.y - r, w: r * 2, h: r * 2 });
+        continue;
+      }
+      if (e instanceof FlamingSphere && e.team === 'player') {
+        const sc = e.center();
+        const r = Arcana.sphere.radius + 20;
+        this.zones.push({ x: sc.x - r, y: sc.y - r, w: r * 2, h: r * 2 });
         continue;
       }
       const kind = this.hostileKind(e);
@@ -536,7 +581,7 @@ export class DuelWizard extends Enemy {
     const hpRatio = this.hp / this.maxHp;
     const playerRatio = player.hp / player.maxHp;
     const t = this.target;
-    if (player.isStunned && t.real && t.visible) {
+    if ((player.isStunned || player.helpless) && t.real && t.visible) {
       this.tactic = 'punish';
     } else if (!t.visible) {
       this.tactic = 'hunt';
@@ -612,6 +657,14 @@ export class DuelWizard extends Enemy {
       ArcanaCast.cone(this, at(near));
       this.spend('cone', true);
       return true;
+    }
+    // the ground spells into the thickest ranks
+    for (const [id, cost, radius] of [['maelstrom', 55, 150], ['gravity', 70, 130], ['confusion', 45, 120], ['sleep', 30, 120]]) {
+      if (this.ready(id) && this.manergy >= cost && best.d < 560 && crowd(best, radius) >= 4) {
+        ArcanaCast[id](this, best);
+        this.spend(id, true);
+        return true;
+      }
     }
     if (this.ready('missile') && near.d < 480) {
       this.fireBolt('missile', at(near), near.unit);
@@ -863,6 +916,12 @@ export class DuelWizard extends Enemy {
 
   // ----------------------------------------------------------------- defense
   decideDefense(player) {
+    // counterspell a word of death being spoken close by
+    if (player.channel && this.ready('counter') && this.distanceTo(player) < Arcana.counter.radius * rankPower(this, 'counter')) {
+      ArcanaCast.counter(this);
+      this.spend('counter', false);
+      return;
+    }
     const hit = this.bestMove ? this.bestMove.hit : null;
     if (!hit || hit.dmg <= 0 || hit.frame > 14) {
       return;
@@ -871,6 +930,12 @@ export class DuelWizard extends Enemy {
     // a shield is the best answer: it blocks and sends the spell back
     if (!this.shielded && this.ready('shield') && (dangerous || hit.dmg >= 40)) {
       this.castShield();
+      return;
+    }
+    // else unmake what is coming
+    if (!this.shielded && this.ready('counter') && (dangerous || hit.dmg >= 40)) {
+      ArcanaCast.counter(this);
+      this.spend('counter', false);
       return;
     }
     if (!this.shielded && dangerous && this.ready('blink')) {
@@ -954,7 +1019,8 @@ export class DuelWizard extends Enemy {
     const real = t.real && t.visible;
     const rooted = real && player.isStunned;
     const feared = real && player.isFeared;
-    const helpless = rooted || feared;
+    // asleep or hanging in the air: the next blow lands for certain
+    const helpless = rooted || feared || (real && player.helpless);
     // keep enough manergy to answer the next big spell with a shield or blink
     let reserve = ((this.knows('shield') && this.cdLeft.shield < 30) || (this.knows('blink') && this.cdLeft.blink < 30)) ? 40 : 0;
     if (rooted || this.tactic === 'pressure') {
@@ -969,12 +1035,25 @@ export class DuelWizard extends Enemy {
       this.spend('heal', false);
       return;
     }
+    // armor of agathys whenever the fight is on and the frost is gone
+    if (this.ready('agathys') && this.wardHp <= 0 && t.visible && dist < 600 && spare >= 40) {
+      ArcanaCast.agathys(this);
+      this.spend('agathys', false);
+      return;
+    }
     const wizardShot = this.canSee(t.x, t.y) && t.visible && dist < 520;
     if (game.battle && this.fightArmy(player, wizardShot)) {
       return;
     }
     // nothing to shoot at through a wall
     if (!this.canSee(t.x, t.y)) {
+      return;
+    }
+    // trade places with the player to get out of the player's ground spells
+    // (and leave the player in its own)
+    const inPlayerZone = this.zones.some((zn) => me.x > zn.x && me.x < zn.x + zn.w && me.y > zn.y && me.y < zn.y + zn.h);
+    if (real && this.ready('swap') && spare >= 30 && (this.inSlowZone || inPlayerZone) && ArcanaCast.swap(this, player)) {
+      this.spend('swap', false);
       return;
     }
     // while invisible, hold fire unless an opening appears
@@ -1001,6 +1080,11 @@ export class DuelWizard extends Enemy {
       game.onTimestop();
       return;
     }
+    // a curse first, while there is manergy left for what follows
+    if (real && this.ready('curse') && spare >= 70 && player.curseFrames <= 0 && ArcanaCast.curse(this, player)) {
+      this.spend('curse', true);
+      return;
+    }
     // engage: blink into root range when the combo is ready
     if (this.ai.advanced && this.tactic === 'engage' && real && dist > 360 && this.ready('blink') && this.manergy >= 110) {
       const spot = this.findBlinkSpot(player, 'engage');
@@ -1021,6 +1105,23 @@ export class DuelWizard extends Enemy {
       this.spend('polymorph', true);
       return;
     }
+    // sleep, confusion and a nightmare take the player out of the fight for
+    // a moment (a blow ends the sleep, so it sets up the biggest one)
+    const ahead = (k) => this.clampToArena({ x: t.x + t.vx * k, y: t.y + t.vy * k }, 60);
+    if (real && !helpless && !player.shielded && dist < 520 && this.ready('sleep') && spare >= 30) {
+      ArcanaCast.sleep(this, ahead(0.3));
+      this.spend('sleep', true);
+      return;
+    }
+    if (real && !helpless && dist < 560 && this.ready('confusion') && spare >= 45) {
+      ArcanaCast.confusion(this, ahead(0.3));
+      this.spend('confusion', true);
+      return;
+    }
+    if (real && !helpless && !player.nightmare && this.ready('phantasm') && spare >= 45 && ArcanaCast.phantasm(this, player)) {
+      this.spend('phantasm', true);
+      return;
+    }
     // root: sets up everything else
     if (real && !player.isStunned && dist < 290 && this.ready('root') && spare >= 30 && this.clearOfShield(player, 'root', dist)) {
       this.fireBolt('root', this.aimAngle('root', t, true));
@@ -1030,8 +1131,7 @@ export class DuelWizard extends Enemy {
     }
     // disintegrate is instant: only the aim can miss, and a shield soaks it
     if (real && dist < Arcana.disintegrate.range - 40 && this.ready('disintegrate') && spare >= 50 && !player.shielded) {
-      const noise = (Math.random() - 0.5) * 2 * this.ai.aimNoise;
-      ArcanaCast.disintegrate(this, Math.atan2(dy, dx) + noise);
+      ArcanaCast.disintegrate(this, Math.atan2(dy, dx) + this.aimError());
       this.spend('disintegrate', true);
       return;
     }
@@ -1097,6 +1197,18 @@ export class DuelWizard extends Enemy {
       this.spend('meteor', true);
       return;
     }
+    // reverse gravity: everything the player has, it hangs in the air
+    if (real && !player.shielded && this.ready('gravity') && this.manergy >= 90 && dist < 560) {
+      ArcanaCast.gravity(this, ahead(helpless ? 0 : 0.2));
+      this.spend('gravity', true);
+      return;
+    }
+    // maelstrom: drag the player into the eye, away from cover
+    if (this.ready('maelstrom') && spare >= 55 && dist < 600 && t.visible) {
+      ArcanaCast.maelstrom(this, ahead(0.5));
+      this.spend('maelstrom', true);
+      return;
+    }
     // cloudkill: roll a cloud over the player
     if (this.ready('cloud') && spare >= 50 && dist < 600 && t.visible) {
       ArcanaCast.cloud(this, this.clampToArena({ x: t.x + t.vx * 0.4, y: t.y + t.vy * 0.4 }, 60));
@@ -1112,6 +1224,12 @@ export class DuelWizard extends Enemy {
     if (this.ready('weapon') && spare >= 50 && real && dist < Arcana.weapon.reach) {
       ArcanaCast.weapon(this);
       this.spend('weapon', false);
+      return;
+    }
+    // a flaming sphere rolls after the player (FlamingSphere.goal)
+    if (this.ready('sphere') && spare >= 40 && real && dist < 520) {
+      ArcanaCast.sphere(this);
+      this.spend('sphere', false);
       return;
     }
     // fear: scramble the player before the next combo, or push them off when they crowd us
@@ -1233,8 +1351,12 @@ export class DuelWizard extends Enemy {
     if (record && t.real && t.visible) {
       this.recordShot(t, speed);
     }
-    const noise = (Math.random() - 0.5) * 2 * this.ai.aimNoise;
-    return Math.atan2(p.y - me.y, p.x - me.x) + noise;
+    return Math.atan2(p.y - me.y, p.x - me.x) + this.aimError();
+  }
+
+  // Radians off its aim: its difficulty's, and wild while confused.
+  aimError() {
+    return (Math.random() - 0.5) * 2 * (this.ai.aimNoise + (this.confusedFrames > 0 ? 0.7 : 0));
   }
 
   // remember every lead's prediction and check it when the shot would have arrived
@@ -1281,7 +1403,7 @@ export class DuelWizard extends Enemy {
 
   syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+    this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const player = this.game.player;
     let facing = null;
     if (player) {
@@ -1295,9 +1417,10 @@ export class DuelWizard extends Enemy {
       const a = Math.random() * Math.PI * 2;
       fx.emit(c.x + Math.cos(a) * 34, c.y + Math.sin(a) * 34, 0.4 + Math.random() * 2.2, { color: 0xff7070, life: 0.3, size: 0.6 });
     }
-    if (this.isStunned && Math.random() < 0.2) {
+    if (this.isStunned && !this.sleepFrames && !this.lift && Math.random() < 0.2) {
       fx.column(c.x, c.y, 20, { color: 0x40ff60, count: 1, rise: 0.6, life: 0.6, size: 0.5 });
     }
+    arcanaFx(this, time, 2.6);
     if (this.isFeared && Math.random() < 0.3) {
       fx.emit(c.x, c.y, 3.2, { color: 0xc040ff, life: 0.5, size: 0.6, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2 });
     }

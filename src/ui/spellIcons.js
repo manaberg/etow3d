@@ -196,6 +196,75 @@ const ICONS = {
       <path d="M12 28 L6 34" stroke="#8a5a2a" stroke-width="3.4" stroke-linecap="round"/>
       <circle cx="5" cy="35" r="2.4" fill="#ffd060"/>
       <circle cx="26" cy="14" r="10" fill="#bfe0ff" opacity="0.12"/>`
+  },
+  sleep: {
+    bg: '#3a3a8a',
+    svg: `<path d="M24 6 A13 13 0 1 0 34 26 A10 10 0 1 1 24 6 Z" fill="#e8e0ff"/>
+      <path d="M6 8 H13 L6 16 H13" stroke="#c8c0ff" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M11 22 H16 L11 28 H16" stroke="#c8c0ff" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+      <circle cx="31" cy="9" r="1.2" fill="#fff"/><circle cx="35" cy="15" r="0.9" fill="#fff"/>`
+  },
+  agathys: {
+    bg: '#1a5a8a',
+    svg: `<path d="M20 4 L32 9 V19 Q32 30 20 36 Q8 30 8 19 V9 Z" fill="#bfe8ff" opacity="0.3" stroke="#e8f8ff" stroke-width="1.6"/>
+      <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"><path d="M20 10 V30 M12 15 L28 25 M12 25 L28 15"/></g>
+      <g stroke="#9ad8ff" stroke-width="1.4" stroke-linecap="round" fill="none"><path d="M17 12 L20 15 L23 12 M17 28 L20 25 L23 28"/></g>
+      <circle cx="20" cy="20" r="2.4" fill="#e8f8ff"/>`
+  },
+  curse: {
+    bg: '#4a1060',
+    svg: `<circle cx="20" cy="20" r="14" fill="none" stroke="#9a30d0" stroke-width="1.4" stroke-dasharray="2 2"/>
+      <path d="M20 7 L23 17 L33 17 L25 23 L28 33 L20 27 L12 33 L15 23 L7 17 L17 17 Z" fill="none" stroke="#e0a0ff" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="20" cy="21" r="4" fill="#2a0638"/><circle cx="20" cy="21" r="1.8" fill="#ff60c0"/>`
+  },
+  sphere: {
+    bg: '#a83a0a',
+    svg: `<path d="M4 34 Q12 30 16 32" stroke="#ff9a2a" stroke-width="2" fill="none" opacity="0.6"/>
+      <path d="M3 28 Q10 25 14 27" stroke="#ff9a2a" stroke-width="1.6" fill="none" opacity="0.4"/>
+      <circle cx="24" cy="23" r="11" fill="#ff7a10"/>
+      <circle cx="24" cy="23" r="8" fill="#ffb02a"/>
+      <path d="M17 19 Q24 12 31 19" stroke="#fff0b0" stroke-width="1.6" fill="none"/>
+      <path d="M24 8 Q22 4 25 2 Q24 6 28 6 Q26 9 24 8 Z M33 11 Q35 7 38 8 Q35 10 36 13 Z" fill="#ffc23a"/>
+      <circle cx="26" cy="21" r="3" fill="#fff4c0"/>`
+  },
+  counter: {
+    bg: '#2a4a7a',
+    svg: `<circle cx="20" cy="20" r="14" fill="none" stroke="#cfe4ff" stroke-width="2.4"/>
+      <path d="M10 30 L30 10" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M14 13 l2 4 l4 1 l-3 3 l1 4 l-4 -2 l-4 2 l1 -4 l-3 -3 l4 -1 Z" fill="#9ac8ff" opacity="0.8"/>
+      <circle cx="27" cy="27" r="1.6" fill="#fff"/><circle cx="31" cy="23" r="1" fill="#fff"/><circle cx="23" cy="31" r="1" fill="#fff"/>`
+  },
+  swap: {
+    bg: '#5a3a9a',
+    svg: `<path d="M8 14 H28 L24 9 M28 14 L24 19" stroke="#e0d0ff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M32 26 H12 L16 21 M12 26 L16 31" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="7" cy="14" r="3.4" fill="#c0a0ff"/><circle cx="33" cy="26" r="3.4" fill="#ff9090"/>`
+  },
+  phantasm: {
+    bg: '#2a0a3a',
+    svg: `<path d="M8 36 Q6 18 14 10 Q20 4 26 10 Q34 18 32 36 L28 32 L24 36 L20 31 L16 36 L12 32 Z" fill="#6a20a0" opacity="0.85"/>
+      <path d="M13 19 L18 22 L13 24 Z M27 19 L22 22 L27 24 Z" fill="#ff4080"/>
+      <path d="M15 29 Q20 26 25 29" stroke="#ff80c0" stroke-width="1.4" fill="none"/>
+      <path d="M4 6 Q8 9 6 13 M36 6 Q32 9 34 13" stroke="#b060ff" stroke-width="1.4" fill="none" stroke-linecap="round"/>`
+  },
+  confusion: {
+    bg: '#7a2a6a',
+    svg: `<path d="M20 20 m0 -2 a2 2 0 1 1 -2 2 a4 4 0 1 1 4 4 a6 6 0 1 1 -6 -6 a8 8 0 1 1 8 8 a10 10 0 1 1 -10 -10 a12 12 0 1 1 12 12" stroke="#ffd0f0" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <circle cx="9" cy="8" r="2" fill="#80ffe0"/><circle cx="33" cy="9" r="1.6" fill="#ffe060"/><circle cx="31" cy="34" r="1.8" fill="#ff80e0"/>`
+  },
+  maelstrom: {
+    bg: '#0a4a8a',
+    svg: `<path d="M20 20 Q24 16 20 13 Q13 11 12 19 Q12 29 22 29 Q33 28 32 17 Q30 5 18 5 Q4 7 5 21" stroke="#bfe4ff" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <path d="M6 30 Q12 36 20 35 M30 33 Q35 30 36 25" stroke="#3a9aff" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <circle cx="20" cy="19" r="2.4" fill="#ffffff"/>`
+  },
+  gravity: {
+    bg: '#3a1a7a',
+    svg: `<path d="M5 36 H35" stroke="#a080ff" stroke-width="1.6" opacity="0.6"/>
+      <g stroke="#c8b0ff" stroke-width="2" stroke-linecap="round" fill="none"><path d="M10 32 V20 M7 23 L10 20 L13 23 M30 32 V20 M27 23 L30 20 L33 23"/></g>
+      <rect x="15" y="6" width="10" height="9" rx="2" fill="#e8e0ff" transform="rotate(-18 20 10)"/>
+      <circle cx="11" cy="10" r="2.4" fill="#d0c0ff"/><circle cx="29" cy="12" r="2" fill="#d0c0ff"/>
+      <path d="M17 32 V24 M23 32 V26" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2"/>`
   }
 };
 

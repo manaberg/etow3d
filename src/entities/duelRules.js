@@ -46,7 +46,19 @@ export const DuelRules = {
     heal: { amount: 110 },
     polymorph: { frames: 120 },
     disintegrate: { damage: 170 },
-    weapon: { damage: 22 }
+    weapon: { damage: 22 },
+    // a dozing wizard wakes at the first blow; a cursed one takes `mult`
+    // times the damage; a silenced one waits out a long global cooldown; a
+    // confused one reels and casts wild; a lifted one hangs, then falls
+    sleep: { frames: 150 },
+    agathys: { ward: 90 },
+    curse: { frames: 300, mult: 1.25 },
+    sphere: { damage: 10 },
+    counter: { silence: 120 },
+    phantasm: { frames: 150, dps: 18 },
+    confusion: { frames: 90 },
+    maelstrom: { dps: 12, pull: 60 },
+    gravity: { frames: 60, damage: 70 }
   },
   // Schools of magic, shown beside each spell (casts are paced by the global
   // cooldown, spellbar.js GLOBAL_COOLDOWN, not by school).
@@ -62,13 +74,15 @@ export const DuelRules = {
   // every spell's school, by the player's spell id and the rival's (root)
   spellSchools: {
     missile: 'evocation', fireball: 'evocation', lightning: 'evocation', scorch: 'evocation',
-    cone: 'evocation', thunder: 'evocation', meteor: 'evocation',
+    cone: 'evocation', thunder: 'evocation', meteor: 'evocation', maelstrom: 'evocation',
     ironshot: 'conjuration', blink: 'conjuration', blizzard: 'conjuration', cloud: 'conjuration', weapon: 'conjuration',
-    shield: 'abjuration', guardians: 'abjuration', heal: 'abjuration',
+    sphere: 'conjuration', swap: 'conjuration',
+    shield: 'abjuration', guardians: 'abjuration', heal: 'abjuration', agathys: 'abjuration', counter: 'abjuration',
     haste: 'transmutation', timestop: 'transmutation', polymorph: 'transmutation', disintegrate: 'transmutation', tele: 'transmutation',
-    stun: 'enchantment', root: 'enchantment', fear: 'enchantment',
-    image: 'illusion', invis: 'illusion',
-    ray: 'necromancy', pwkill: 'necromancy'
+    gravity: 'transmutation',
+    stun: 'enchantment', root: 'enchantment', fear: 'enchantment', sleep: 'enchantment', confusion: 'enchantment',
+    image: 'illusion', invis: 'illusion', phantasm: 'illusion',
+    ray: 'necromancy', pwkill: 'necromancy', curse: 'necromancy'
   },
 
   schoolOf(spell) {

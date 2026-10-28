@@ -16,6 +16,8 @@ export class Clericorc extends Enemy {
     this.attackMax = 50;
     this.stoneCooldown = 0;
     this.healCooldown = 0;
+    // counterspell holds back its stones and its healing
+    this.spellTimers = ['stoneCooldown', 'healCooldown'];
     this.spellpool = 50;
     this.spawnFrames = 300;
     this.pwkillDamage = 250;
@@ -84,10 +86,10 @@ export class Clericorc extends Enemy {
       this.vel.y = 0;
     }
 
-    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0) {
+    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
-      if (!player.takeMelee(this.meleeDmg * 4 + Math.floor(Math.random() * 20) + 50)) {
+      if (!player.takeMelee(this.meleeDmg * 4 + Math.floor(Math.random() * 20) + 50, 0, this)) {
         this.hurt(this.meleeDmg + Math.floor(Math.random() * 10) + 1);
       }
     }
@@ -123,6 +125,7 @@ export class Mageorc extends Enemy {
     this.attackMax = 100;
     this.missileCooldown = 0;
     this.fireballCooldown = 0;
+    this.spellTimers = ['missileCooldown', 'fireballCooldown'];
     this.spawnFrames = 300;
     this.pwkillDamage = 250;
     this.label = 'ORC MAGE';
@@ -179,10 +182,10 @@ export class Mageorc extends Enemy {
       this.vel.y = 0;
     }
 
-    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0) {
+    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
-      if (!player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 20) + 25)) {
+      if (!player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 20) + 25, 0, this)) {
         this.hurt(this.meleeDmg + Math.floor(Math.random() * 10) + 1);
       }
     }
@@ -225,6 +228,9 @@ export class Boss extends Enemy {
     this.msCooldown = 0;
     this.hkCooldown = 0;
     this.frCooldown = 0;
+    // counterspell holds back his shadow bolt, meteors and hook (not the
+    // fire he trails)
+    this.spellTimers = ['sbCooldown', 'msCooldown', 'hkCooldown'];
     this.sightRange = 650;
     this.spawnFrames = 120;
     this.pwkillDamage = 500;
@@ -260,10 +266,10 @@ export class Boss extends Enemy {
     const aggro = game.updateAggro(this, player, hasSight);
     const distance = this.distanceTo(player);
 
-    if (this.touches(player) && this.attackCooldown <= 0) {
+    if (this.touches(player) && this.attackCooldown <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
-      player.takeMelee(this.meleeDmg * 5);
+      player.takeMelee(this.meleeDmg * 5, 0, this);
       game.gfx.addShake(0.4);
     }
 

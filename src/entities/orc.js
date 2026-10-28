@@ -24,6 +24,10 @@ export class Orc extends Enemy {
     this.quiver = 0;
     this.canBeFeared = true;
     this.canPolymorph = true;
+    // confusion turns it on its own side (brawl); counterspell holds back
+    // its bolts and its healing
+    this.canBrawl = true;
+    this.spellTimers = ['castCooldown', 'healCooldown'];
     this.spawnFrames = 120;
   }
 
@@ -139,8 +143,8 @@ export class Orc extends Enemy {
       this.desiredVel = 150;
       this.maxSpeed = 150;
     }
-    // shamans patch up badly hurt allies
-    if (this.isHealer && this.healCooldown <= 0) {
+    // shamans patch up badly hurt allies (not in their sleep, nor in the air)
+    if (this.isHealer && this.healCooldown <= 0 && this.sleepFrames <= 0 && !this.lift) {
       for (const other of game.orcs()) {
         if (other.alive && other.distanceTo(this) < 400 && other.hp < 50) {
           other.hp += 100;
@@ -160,6 +164,8 @@ export class Orc extends Enemy {
       this.vel.y = 0;
     } else if (this.isFeared) {
       this.stumble(k);
+    } else if (this.confusedFrames > 0) {
+      this.brawl(k);
     } else if (image && hasImageSight) {
       game.navigateEntityToward(this, image, this.desiredVel, 14);
     } else if (!aggro) {
@@ -206,19 +212,40 @@ export class Orc extends Enemy {
     }
   }
 
+  // Confused: it goes for the nearest body of its own side and strikes it.
+  brawl(k) {
+    const foe = this.brawlTarget();
+    if (!foe) {
+      this.stumble(k);
+      return;
+    }
+    if (this.touches(foe)) {
+      this.vel.x = 0;
+      this.vel.y = 0;
+      if (this.attackCooldown <= 0) {
+        this.attackCooldown = this.attackMax;
+        this.rig.swing();
+        foe.hurt(this.meleeDmg + Math.floor(Math.random() * 10) + 10, 'physical');
+      }
+    } else if (!this.game.navigateEntityToward(this, foe, this.desiredVel, 14)) {
+      this.stumble(k);
+    }
+  }
+
   melee(player) {
-    if (!this.touches(player) || this.attackCooldown > 0 || this.spawnFrames > 0) {
+    // asleep, in the air or out of its wits it strikes no one
+    if (!this.touches(player) || this.attackCooldown > 0 || this.spawnFrames > 0 || this.sleepFrames > 0 || this.lift || this.confusedFrames > 0) {
       return;
     }
     this.attackCooldown = this.attackMax;
     this.rig.swing();
     let landed;
     if (this.hasCharge) {
-      landed = player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 10) + 15);
+      landed = player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 10) + 15, 0, this);
     } else if (this.isHealer) {
-      landed = player.takeMelee(this.meleeDmg, this.meleeDmg * 2 + Math.floor(Math.random() * 10) + 25);
+      landed = player.takeMelee(this.meleeDmg, this.meleeDmg * 2 + Math.floor(Math.random() * 10) + 25, this);
     } else {
-      landed = player.takeMelee(this.meleeDmg + Math.floor(Math.random() * 10) + 10);
+      landed = player.takeMelee(this.meleeDmg + Math.floor(Math.random() * 10) + 10, 0, this);
     }
     if (!landed) {
       // the shield bites back

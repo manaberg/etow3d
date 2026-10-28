@@ -364,6 +364,9 @@ export class Hud {
       line('tip-school', school.name + (spell.circle ? ' :: ' + circleName(spell.circle) : '')).style.color = school.color;
     }
     line('tip-text', spell.text);
+    if (spell.lore) {
+      line('tip-lore', spell.lore);
+    }
     line('tip-foot', footer);
   }
 
@@ -521,7 +524,8 @@ export class Hud {
     // bars: the 2D game drew 1px per point; here they fill against a cap
     const hpCap = Math.max(player.maxHp || 100, 100, player.hp);
     this.hpBar.fill.style.width = Math.max(0, player.hp / hpCap * 100) + '%';
-    setText(this.hpBar.text, Math.max(0, Math.round(player.hp)) + '');
+    // armor of agathys shows as a ward on top of the health
+    setText(this.hpBar.text, Math.max(0, Math.round(player.hp)) + (player.wardHp > 0 ? ' +' + Math.ceil(player.wardHp) + ' WARD' : ''));
     this.myBar.fill.style.width = Math.max(0, Math.min(1, player.manergy / player.maxManergy) * 100) + '%';
     setText(this.myBar.text, Math.max(0, Math.round(player.manergy)) + ' / ' + player.maxManergy);
     const ch = player.channel;
@@ -621,10 +625,11 @@ export class Hud {
     const base = id === 'missile' ? missileTier(player).cd : player.cooldownOf(spell.cd * rankCooldown(player, id));
     const full = left > base ? Math.max(left, player.cdFull[id] || 0) : base;
     let frac = full > 0 ? 1 - left / full : 1;
-    // every spell but magic missile waits out the global cooldown
+    // every spell but magic missile waits out the global cooldown (longer
+    // when a counterspell silenced the wizard)
     if (id !== 'missile' && player.gcd > left) {
       left = player.gcd;
-      frac = Math.min(frac, 1 - player.gcd / GLOBAL_COOLDOWN);
+      frac = Math.min(frac, 1 - player.gcd / Math.max(GLOBAL_COOLDOWN, player.gcdSpan || 0));
     }
     const sweep = left > 0 ? Math.max(0, Math.min(360, frac * 360)).toFixed(0) + 'deg' : '';
     if (sweep !== r.sweepShown) {

@@ -1063,6 +1063,12 @@ body.spell-dragging .action-btn:not(.locked):not(.missile) {
   color: var(--dim);
 }
 
+.tip-lore {
+  margin-top: 4px;
+  color: #b8a888;
+  font-style: italic;
+}
+
 .tip-foot {
   margin-top: 5px;
   font-size: 8px;
@@ -1714,6 +1720,12 @@ button.controls-key.capturing {
 .sb-details .inv-text {
   color: #ffd100;
   font-style: normal;
+}
+
+.sb-lore {
+  margin: 4px 0 2px;
+  color: #b8a888;
+  font-style: italic;
 }
 
 .sb-rank-line {

@@ -1,5 +1,6 @@
-import { Enemy } from './enemy.js';
+import { Enemy, arcanaFx } from './enemy.js';
 import { Projectile } from './spells.js';
+import { liftHeight } from './arcana.js';
 import { OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc, buildSheep } from '../render/models.js';
 import { UNIT } from '../core/constants.js';
@@ -49,6 +50,8 @@ export class Soldier extends Enemy {
     this.isCaster = this.orcClass === 'warlock';
     this.isSlinger = this.orcClass === 'slinger';
     this.range = this.isCaster ? 420 : (this.isSlinger ? 380 : 0);
+    // counterspell holds back its casters' bolts and its healers' healing
+    this.spellTimers = this.isCaster ? ['shotCooldown', 'healCooldown'] : ['healCooldown'];
     if (this.orcClass === 'berserker') {
       this.desiredVel = 150;
       this.meleeDmg += 8;
@@ -126,7 +129,7 @@ export class Soldier extends Enemy {
       this.sees = this.target ? game.hasRoomLineOfSight(this, this.target) : false;
       this.retarget = 18 + Math.random() * 12;
     }
-    if (this.isHealer && this.healCooldown <= 0 && battle.fighting) {
+    if (this.isHealer && this.healCooldown <= 0 && battle.fighting && this.sleepFrames <= 0 && !this.lift) {
       // nobody to heal: look again in a moment
       this.healCooldown = 15;
       for (const ally of battle.near(this, 300, this.side)) {
@@ -292,7 +295,7 @@ export class Soldier extends Enemy {
       if (target.shielded) {
         this.hurt(dmg);
       } else if (target.takeMelee) {
-        target.takeMelee(dmg);
+        target.takeMelee(dmg, 0, this);
       } else {
         target.hurt(dmg);
       }
@@ -356,18 +359,19 @@ export class Soldier extends Enemy {
         this.sheep.rotation.y = facing;
       }
     }
+    const lifted = this.lift ? liftHeight(this.lift, time) : 0;
     if (this.instance) {
       if (sheep) {
         this.game.army.hide(this);
       } else {
-        this.game.army.write(this, c.x, c.y);
+        this.game.army.write(this, c.x, c.y, lifted);
       }
     } else {
       this.view.visible = !sheep;
-      this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+      this.view.position.set(c.x * UNIT, lifted, c.y * UNIT);
     }
     const fx = this.game.fx;
-    if (this.isStunned && Math.random() < 0.1) {
+    if (this.isStunned && !this.sleepFrames && !this.lift && Math.random() < 0.1) {
       fx.column(c.x, c.y, 20, { color: 0x40ff60, count: 1, rise: 0.6, life: 0.6, size: 0.5 });
     }
     if (this.isFeared && Math.random() < 0.15) {
@@ -376,5 +380,6 @@ export class Soldier extends Enemy {
     if (this.chillFrames > 0 && Math.random() < 0.15) {
       fx.emit(c.x, c.y, Math.random() * this.rig.height, { color: 0xbfe8ff, life: 0.5, size: 0.4, vy: -0.5 });
     }
+    arcanaFx(this, time, this.rig.height);
   }
 }

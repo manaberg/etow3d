@@ -295,7 +295,8 @@ export class ArmyRenderer {
   // matrices are written out by hand: thousands of units pose every frame.
   // Each part is the body (at the feet, turned to face, bobbing, scaled)
   // times the part's pivot and its swing about x.
-  write(unit, x, y) {
+  // `h`: how high it hangs (world units; reverse gravity, arcana.js).
+  write(unit, x, y, h = 0) {
     const X = x * UNIT;
     const Z = y * UNIT;
     const v = this.view;
@@ -336,7 +337,7 @@ export class ArmyRenderer {
           e[o + 4] = s * sn * sa; e[o + 5] = s * ca; e[o + 6] = s * c * sa; e[o + 7] = 0;
           e[o + 8] = s * sn * ca; e[o + 9] = -s * sa; e[o + 10] = s * c * ca; e[o + 11] = 0;
           e[o + 12] = X + s * (c * p.x + sn * p.z);
-          e[o + 13] = a.bob + s * p.y;
+          e[o + 13] = a.bob + h + s * p.y;
           e[o + 14] = Z + s * (-sn * p.x + c * p.z);
           e[o + 15] = 1;
           const ic = mesh.instanceColor.array;
@@ -359,7 +360,7 @@ export class ArmyRenderer {
       e[o] = s * c; e[o + 1] = 0; e[o + 2] = -s * sn; e[o + 3] = 0;
       e[o + 4] = 0; e[o + 5] = s; e[o + 6] = 0; e[o + 7] = 0;
       e[o + 8] = s * sn; e[o + 9] = 0; e[o + 10] = s * c; e[o + 11] = 0;
-      e[o + 12] = X; e[o + 13] = a.bob; e[o + 14] = Z; e[o + 15] = 1;
+      e[o + 12] = X; e[o + 13] = a.bob + h; e[o + 14] = Z; e[o + 15] = 1;
       const ic = batch.lod.instanceColor.array;
       ic[index * 3] = flash.r;
       ic[index * 3 + 1] = flash.g;

@@ -4,7 +4,8 @@ import { UNIT } from '../core/constants.js';
 import { buildMage, buildSheep, glowMap } from '../render/models.js';
 import { Projectile, Zone, MirrorImage, castMissiles, missileTier } from './spells.js';
 import { DuelRules } from './duelRules.js';
-import { castArcana, arcanaZoneDamage } from './arcana.js';
+import { Arcana, castArcana, arcanaHit, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
+import { arcanaFx } from './enemy.js';
 import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
 import { dressRig } from '../render/gearModels.js';
 import { BarSlots, GLOBAL_COOLDOWN, WizardLevels, RankRules, placementOrder, rankOf, rankPower, rankCooldown } from './spellbar.js';
@@ -12,38 +13,50 @@ import { BarSlots, GLOBAL_COOLDOWN, WizardLevels, RankRules, placementOrder, ran
 // The spell book. `cd` is the cooldown in frames, `need` the manergy that
 // must be exceeded and `cost` what a cast spends; `flag` is the spellbook
 // entry a scroll unlocks and `tier` the flag its rank II sets (the 2D game's
-// tier 2). `circle` is how deep its scrolls start to turn up (spellbar.js
-// CircleFloors), `grows` what rank II adds 30% to (spellbar.js RankRules)
-// and `text` what the spellbook says about it. Spells are cast from the bar's
-// slots (spellbar.js BarSlots); magic missile has its own key.
+// tier 2). `circle` is the spell's circle as the spellbook names it (any
+// spell can drop on any floor), `grows` what rank II adds 30% to (spellbar.js
+// RankRules), `text` what the spellbook says it does and `lore` a line of
+// flavour under it. Spells are cast from the bar's slots (spellbar.js
+// BarSlots); magic missile has its own key.
 export const SpellBook = [
-  { id: 'missile', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null, circle: 0, rank2: 'TWO DARTS', rank3: 'THREE DARTS', text: 'Darts that curve in on the foe nearest the cursor and shoot down simple bolts. Hold to keep casting.' },
-  { id: 'fireball', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2', circle: 1, rank2: 'A SECOND ORB BESIDE THE FIRST', text: 'An orb that bursts on the first foe and scorches those around it.' },
-  { id: 'lightning', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2', circle: 2, rank2: 'EVERY JUMP HITS AS HARD AS THE FIRST', text: 'Locks on to the nearest foe and jumps from it to every foe close by.' },
-  { id: 'ironshot', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2', circle: 1, rank2: 'TWO CHARGES', text: 'A heavy bolt that pierces through every foe in its line.' },
-  { id: 'blink', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2', circle: 1, rank2: 'COOLDOWN HALVED', text: 'Teleports you to the cursor, onto open floor only.' },
-  { id: 'timestop', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop', circle: 4, grows: 'DURATION', text: 'Slows the world around you to a crawl; you and your spells keep full speed.' },
-  { id: 'haste', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste', circle: 2, grows: 'DURATION', text: 'You run two and a half times as fast for a while.' },
-  { id: 'image', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage', circle: 2, text: 'A copy of you that draws the foes\' attention.' },
-  { id: 'stun', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun', circle: 2, text: 'Roots the nearest foe to the spot, and every foe close to it.' },
-  { id: 'shield', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield', circle: 1, grows: 'DURATION', text: 'A bubble that turns blows and sends bolts back at their caster.' },
-  { id: 'blizzard', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2', circle: 3, rank2: 'TWICE THE RADIUS', text: 'A storm of ice at the cursor that hurts and slows everything in it.' },
-  { id: 'ray', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay', circle: 2, grows: 'DAMAGE', text: 'Hold for a red ray that drains your foe\'s life into yours.' },
-  { id: 'invis', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis', circle: 3, grows: 'DURATION', text: 'Foes lose sight of you until it wears off.' },
-  { id: 'fear', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear', circle: 2, grows: 'REACH', text: 'Foes around you flee in a panic.' },
-  { id: 'pwkill', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2', circle: 4, rank2: 'A WIDER, DEEPER SPLASH', text: 'Hover a foe: a word that kills it, and wounds those around it.' },
-  { id: 'tele', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele', circle: 2, text: 'Hover loot to pull it to you from afar.' },
+  { id: 'missile', name: 'MAGIC MISSILE', cd: 24, need: 0, cost: 0, flag: null, circle: 0, rank2: 'TWO DARTS', rank3: 'THREE DARTS', text: 'Darts that curve in on the foe nearest the cursor and shoot down simple bolts. Hold to keep casting.', lore: 'The first spell every apprentice learns, and the last one many of them cast.' },
+  { id: 'fireball', name: 'FIREBALL', cd: 48, need: 20, cost: 20, flag: 'hasFireball', tier: 'hasFb2', circle: 1, rank2: 'A SECOND ORB BESIDE THE FIRST', text: 'An orb that bursts on the first foe and scorches those around it.', lore: 'Orc warbands have a word for a wizard with a fireball. None of them is polite.' },
+  { id: 'lightning', name: 'CHAIN LIGHTNING', cd: 200, need: 30, cost: 30, flag: 'hasLightning', tier: 'hasLg2', circle: 2, rank2: 'EVERY JUMP HITS AS HARD AS THE FIRST', text: 'Locks on to the nearest foe and jumps from it to every foe close by.', lore: 'It never strikes only once; that is the whole point of it.' },
+  { id: 'ironshot', name: 'IRON SHOT', cd: 300, need: 40, cost: 40, flag: 'hasIronshot', tier: 'hasIs2', circle: 1, rank2: 'TWO CHARGES', text: 'A heavy bolt that pierces through every foe in its line.', lore: 'Conjured iron, heavier than anything poured in the Iron Forges, and just as unwilling to stop.' },
+  { id: 'blink', name: 'BLINK', cd: 400, need: 40, cost: 40, flag: 'hasBlink', tier: 'hasBk2', circle: 1, rank2: 'COOLDOWN HALVED', text: 'Teleports you to the cursor, onto open floor only.', lore: 'Between here and there lies a place no one should linger. Blink does not.' },
+  { id: 'timestop', name: 'TIME STOP', cd: 1000, need: 50, cost: 70, flag: 'hasTimestop', circle: 4, grows: 'DURATION', text: 'Slows the world around you to a crawl; you and your spells keep full speed.', lore: 'The world holds its breath. The wizard does not.' },
+  { id: 'haste', name: 'HASTE', cd: 1000, need: 70, cost: 70, flag: 'hasHaste', circle: 2, grows: 'DURATION', text: 'You run two and a half times as fast for a while.', lore: 'Running is the oldest spell of all, and still the one that has saved the most wizards.' },
+  { id: 'image', name: 'MIRROR IMAGE', cd: 1000, need: 50, cost: 50, flag: 'hasImage', circle: 2, text: 'A copy of you that draws the foes\' attention.', lore: 'Orcs swear the wizard of the halls has a twin. They are half right.' },
+  { id: 'stun', name: 'CHAIN ROOT', cd: 400, need: 30, cost: 30, flag: 'hasStun', circle: 2, text: 'Roots the nearest foe to the spot, and every foe close to it.', lore: 'Roots older than the Warrens wake at the word and hold whatever stands on them.' },
+  { id: 'shield', name: 'SHIELD', cd: 200, need: 40, cost: 40, flag: 'hasShield', circle: 1, grows: 'DURATION', text: 'A bubble that turns blows and sends bolts back at their caster.', lore: 'Not a wall but a mirror: whatever is thrown at it goes home.' },
+  { id: 'blizzard', name: 'BLIZZARD', cd: 600, need: 40, cost: 40, flag: 'hasBlizzard', tier: 'hasBz2', circle: 3, rank2: 'TWICE THE RADIUS', text: 'A storm of ice at the cursor that hurts and slows everything in it.', lore: 'A winter folded small, carried down the stairs and let out all at once.' },
+  { id: 'ray', name: 'LIFESTEAL', cd: 0, need: 10, cost: 10, flag: 'hasRay', circle: 2, grows: 'DAMAGE', text: 'Hold for a red ray that drains your foe\'s life into yours.', lore: 'Blood remembers whose it was, and flows home along the red thread.' },
+  { id: 'invis', name: 'INVISIBILITY', cd: 1000, need: 70, cost: 70, flag: 'hasInvis', circle: 3, grows: 'DURATION', text: 'Foes lose sight of you until it wears off.', lore: 'The trick is not to vanish. The trick is to make them forget where to look.' },
+  { id: 'fear', name: 'FEAR', cd: 400, need: 50, cost: 50, flag: 'hasFear', circle: 2, grows: 'REACH', text: 'Foes around you flee in a panic.', lore: 'Every creature is born with a terror. This only reminds it.' },
+  { id: 'pwkill', name: 'POWER WORD KILL', cd: 300, need: 50, cost: 30, flag: 'hasPwkill', tier: 'hasPwk2', circle: 4, rank2: 'A WIDER, DEEPER SPLASH', text: 'Hover a foe: a word that kills it, and wounds those around it.', lore: 'Some words should never be spoken. This was the first of them.' },
+  { id: 'tele', name: 'TELEKINESIS', cd: 1000, need: 20, cost: 20, flag: 'hasTele', circle: 2, text: 'Hover loot to pull it to you from afar.', lore: 'A good wizard never fetches anything. A good wizard asks it to come.' },
   // D&D spells new to the 3D game (see arcana.js)
-  { id: 'scorch', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch', circle: 1, grows: 'DAMAGE', text: 'Three fire bolts fanned around your aim.' },
-  { id: 'cone', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone', circle: 2, grows: 'DAMAGE', text: 'Damages and chills every foe in front of you.' },
-  { id: 'thunder', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder', circle: 1, grows: 'DAMAGE', text: 'Blasts the foes around you away.' },
-  { id: 'meteor', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor', circle: 4, grows: 'DAMAGE', text: 'Rocks rain down around the cursor.' },
-  { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians', circle: 3, grows: 'DAMAGE', text: 'A damaging, slowing aura that follows you.' },
-  { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud', circle: 3, grows: 'DAMAGE', text: 'A poison cloud at the cursor that rolls away from you.' },
-  { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal', circle: 1, grows: 'HEALING', text: 'Heals you at once.' },
-  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph', circle: 3, grows: 'DURATION', text: 'Hover a foe to turn it into a sheep for a while (a wizard only briefly).' },
-  { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate', circle: 3, grows: 'DAMAGE', text: 'A ray into the first foe in line.' },
-  { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon', circle: 3, grows: 'DAMAGE', text: 'A spectral sword that fights beside you.' }
+  { id: 'scorch', name: 'SCORCHING RAY', cd: 90, need: 25, cost: 25, flag: 'hasScorch', circle: 1, grows: 'DAMAGE', text: 'Three fire bolts fanned around your aim.', lore: 'Three threads of fire spun from a single breath: an apprentice\'s first real power.' },
+  { id: 'cone', name: 'CONE OF COLD', cd: 240, need: 35, cost: 35, flag: 'hasCone', circle: 2, grows: 'DAMAGE', text: 'Damages and chills every foe in front of you.', lore: 'The Frozen Cisterns breathe like this. The wizard only borrows their breath.' },
+  { id: 'thunder', name: 'THUNDERWAVE', cd: 300, need: 30, cost: 30, flag: 'hasThunder', circle: 1, grows: 'DAMAGE', text: 'Blasts the foes around you away.', lore: 'First the sound arrives. Then the orcs arrive somewhere else entirely.' },
+  { id: 'meteor', name: 'METEOR SWARM', cd: 900, need: 70, cost: 70, flag: 'hasMeteor', circle: 4, grows: 'DAMAGE', text: 'Rocks rain down around the cursor.', lore: 'The sky is twenty floors of rock away. The stars come down anyway.' },
+  { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians', circle: 3, grows: 'DAMAGE', text: 'A damaging, slowing aura that follows you.', lore: 'The spirits of wizards who fell on the way down, still keeping watch over those who did not.' },
+  { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud', circle: 3, grows: 'DAMAGE', text: 'A poison cloud at the cursor that rolls away from you.', lore: 'Bottled in the Venom Mires. Uncork it upwind.' },
+  { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal', circle: 1, grows: 'HEALING', text: 'Heals you at once.', lore: 'One word, softly spoken, and the wound forgets it was ever there.' },
+  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph', circle: 3, grows: 'DURATION', text: 'Hover a foe to turn it into a sheep for a while (a wizard only briefly).', lore: 'Orcs have no word for sheep. They have learnt to fear the bleating.' },
+  { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate', circle: 3, grows: 'DAMAGE', text: 'A ray into the first foe in line.', lore: 'It leaves nothing to bury, which the Bone Crypts consider very rude.' },
+  { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon', circle: 3, grows: 'DAMAGE', text: 'A spectral sword that fights beside you.', lore: 'It needs no hand to hold it and never tires of the work.' },
+  // ten more, each working in a way no other spell does (arcana.js)
+  { id: 'sleep', name: 'SLEEP', cd: 600, need: 30, cost: 30, flag: 'hasSleep', circle: 1, grows: 'HEALTH IT CAN LULL', text: 'The weakest foes around the cursor fall asleep, as many as its pool of health covers; a blow wakes them. Bosses and dragons shrug it off, and a wizard only dozes.', lore: 'Even orcs dream, mostly of other orcs losing.' },
+  { id: 'agathys', name: 'ARMOR OF AGATHYS', cd: 900, need: 40, cost: 40, flag: 'hasAgathys', circle: 1, grows: 'WARD', text: 'A coat of frost that takes the next blows for you; whoever strikes you through it is bitten by the cold and chilled.', lore: 'Named for a wizard of the Frozen Cisterns whom nobody ever struck twice.' },
+  { id: 'curse', name: 'BESTOW CURSE', cd: 500, need: 30, cost: 30, flag: 'hasCurse', circle: 2, grows: 'DURATION', text: 'Hover a foe: it takes half again as much damage from everything for ten seconds (a wizard a quarter more, for five).', lore: 'The old words cling like soot, and every blow finds the mark they leave.' },
+  { id: 'sphere', name: 'FLAMING SPHERE', cd: 800, need: 40, cost: 40, flag: 'hasSphere', circle: 2, grows: 'DAMAGE', text: 'A ball of fire that rolls after your cursor and burns whatever it touches.', lore: 'It rolls where you look, and it is always hungry.' },
+  { id: 'counter', name: 'COUNTERSPELL', cd: 600, need: 30, cost: 30, flag: 'hasCounter', circle: 2, grows: 'REACH', text: 'Unmakes the hostile bolts, meteors and spheres around you and silences the casters near you for a while.', lore: 'The rarest art: a spell that unmakes another. The Red Order teaches it last.' },
+  { id: 'swap', name: 'TRANSPOSITION', cd: 500, need: 30, cost: 30, flag: 'hasSwap', circle: 2, text: 'Hover a foe in sight: you trade places with it.', lore: 'The safest place in a fight is sometimes exactly where your foe is standing.' },
+  { id: 'phantasm', name: 'PHANTASMAL KILLER', cd: 600, need: 45, cost: 45, flag: 'hasPhantasm', circle: 3, grows: 'DAMAGE', text: 'Hover a foe: its worst nightmare hunts it for five seconds; it flees in terror, and the terror eats at it.', lore: 'The killer is not real. The fear is, and fear is enough.' },
+  { id: 'confusion', name: 'CONFUSION', cd: 700, need: 45, cost: 45, flag: 'hasConfusion', circle: 3, grows: 'DURATION', text: 'Foes around the cursor lose their wits and fall on each other; a wizard only reels, and its spells fly wild.', lore: 'For a few heartbeats every face looks like a foe\'s. Orcs never could tell each other apart.' },
+  { id: 'maelstrom', name: 'MAELSTROM', cd: 800, need: 55, cost: 55, flag: 'hasMaelstrom', circle: 3, grows: 'DAMAGE', text: 'A whirlpool at the cursor that drags foes toward its eye and batters them.', lore: 'Called up from the drowned stacks of the Sunken Library, where the water still turns the pages.' },
+  { id: 'gravity', name: 'REVERSE GRAVITY', cd: 900, need: 70, cost: 70, flag: 'hasGravity', circle: 4, grows: 'DAMAGE', text: 'Foes around the cursor fall upward, hang helpless, then crash back down. Dragons are too vast to lift.', lore: 'For a moment the floor is the ceiling. Then, all at once, it is the floor again.' }
 ];
 
 export const SpellById = {};
@@ -124,6 +137,21 @@ export class Mage extends Entity {
     this.chillFrames = 0;
     this.knock = null;
     this.sheepFrames = 0;
+    // and the newer ones (arcana.js, as on monsters in enemy.js): sleep (a
+    // blow wakes it), a curse, a nightmare, confusion (stumbling, wild aim),
+    // reverse gravity and silence (a long global cooldown, `gcdSpan` long);
+    // armor of agathys is its own ward
+    this.sleepFrames = 0;
+    this.sleepHp = 0;
+    this.curseFrames = 0;
+    this.curseMult = 1;
+    this.nightmare = null;
+    this.confusedFrames = 0;
+    this.lift = null;
+    this.gcdSpan = 0;
+    this.wardHp = 0;
+    this.wardMax = 0;
+    this.wardFrames = 0;
     // spellbook
     for (const spell of SpellBook) {
       if (spell.flag) {
@@ -178,6 +206,15 @@ export class Mage extends Entity {
     this.rootMark.position.y = 0.06;
     this.rootMark.visible = false;
     this.view.add(this.rootMark);
+    // armor of agathys: a lattice of frost around the wizard
+    this.frostShell = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.25, 1),
+      new THREE.MeshBasicMaterial({ color: 0xbfe8ff, wireframe: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    this.frostShell.userData.keepOpacity = true;
+    this.frostShell.position.y = 1.3;
+    this.frostShell.visible = false;
+    this.view.add(this.frostShell);
   }
 
   get shielded() {
@@ -229,8 +266,18 @@ export class Mage extends Entity {
   spend(id, extraCost) {
     const spell = SpellById[id];
     this.cd[id] = this.cooldownOf(spell.cd * rankCooldown(this, id));
-    this.manergy -= (spell.cost + (extraCost || 0)) * (1 - this.bonus('costCut'));
+    this.manergy -= this.costOf(spell.cost + (extraCost || 0));
     this.gcd = GLOBAL_COOLDOWN;
+  }
+
+  // Manergy a cast spends, after gear that makes spells cheaper.
+  costOf(cost) {
+    return cost * (1 - this.bonus('costCut'));
+  }
+
+  // Asleep or hanging in the air: it can neither move nor cast.
+  get helpless() {
+    return this.sleepFrames > 0 || !!this.lift;
   }
 
   canCast(id) {
@@ -414,7 +461,7 @@ export class Mage extends Entity {
     if (this.sheepFrames > 0) {
       speed *= SHEEP_SLOW;
     }
-    if (this.isStunned || standing) {
+    if (this.isStunned || standing || this.helpless) {
       this.vel.x = 0;
       this.vel.y = 0;
     } else if (this.isFeared) {
@@ -465,12 +512,12 @@ export class Mage extends Entity {
 
     if (this.channel) {
       this.speakWord(k);
-    } else if (!standing && this.sheepFrames <= 0) {
+    } else if (!standing && this.sheepFrames <= 0 && !this.helpless) {
       this.castSpells();
     }
     this.move(k);
     this.reachLoot(k);
-    if (this.knock) {
+    if (this.knock && !this.lift) {
       const res = game.world.trace(this.pos.x, this.pos.y, this.size.x, this.size.y, this.knock.x * k, this.knock.y * k);
       this.pos.x = res.x;
       this.pos.y = res.y;
@@ -550,6 +597,7 @@ export class Mage extends Entity {
     this.hasteFrames = Math.max(0, this.hasteFrames - k);
     this.invisFrames = Math.max(0, this.invisFrames - k);
     this.timestopFrames = Math.max(0, this.timestopFrames - k);
+    this.tickArcana(k, steady);
     if (this.isStunned) {
       this.stunFrames += k * steady;
       if (this.stunFrames >= this.stunDuration) {
@@ -566,6 +614,47 @@ export class Mage extends Entity {
     }
   }
 
+  // The newer spells' effects, one step; gear that steadies the wizard
+  // (`steady`) wears sleep and confusion off faster too.
+  tickArcana(k, steady) {
+    if (this.gcd <= 0) {
+      this.gcdSpan = 0;
+    }
+    this.curseFrames = Math.max(0, this.curseFrames - k);
+    this.confusedFrames = Math.max(0, this.confusedFrames - k * steady);
+    if (this.wardHp > 0) {
+      this.wardFrames -= k;
+      if (this.wardFrames <= 0) {
+        this.wardHp = 0;
+      }
+    }
+    const n = this.nightmare;
+    if (n) {
+      n.frames -= k;
+      this.hurt(n.dps / 60 * k, true);
+      if (n.frames <= 0) {
+        this.nightmare = null;
+      }
+    }
+    if (this.sleepFrames > 0) {
+      this.sleepFrames = Math.max(0, this.sleepFrames - k * steady);
+      if (this.hp < this.sleepHp - 0.5) {
+        this.sleepFrames = 0;
+      }
+      this.sleepHp = Math.max(this.sleepHp, this.hp);
+    }
+    if (this.lift) {
+      this.lift.frames -= k;
+      if (this.lift.frames <= 0) {
+        const caster = this.lift.caster;
+        this.lift = null;
+        arcanaHit(caster, this, 'gravity', Arcana.gravity.damage);
+        const c = this.center();
+        this.game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a6a, 0xc0b0a0], count: 24, speed: 4, life: 0.6, size: 1.2, flat: true });
+      }
+    }
+  }
+
   castSpells() {
     const game = this.game;
     const input = game.input;
@@ -573,6 +662,10 @@ export class Mage extends Entity {
     const c = this.center();
     const mouse = input.ground;
     this.aim = Math.atan2(mouse.y - c.y, mouse.x - c.x);
+    if (this.confusedFrames > 0) {
+      // confused: the spells fly wild
+      this.aim += (Math.random() - 0.5) * 1.4;
+    }
     const aim = this.aim;
     const fire = (kind, angle, x = c.x, y = c.y) => game.spawn(Projectile, x, y, { kind, angle, team: 'player', timeOwner: this });
 
@@ -598,10 +691,10 @@ export class Mage extends Entity {
       this.spend('fireball', extra);
       this.rig.swing();
     }
-    if (this.wants('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.ready('ironshot') && this.manergy > 40) {
+    if (this.wants('ironshot') && this.hasIronshot && this.is2Charges > 0 && this.ready('ironshot') && this.manergy > SpellById.ironshot.need) {
       fire('ironshot', aim);
       stats.iscount++;
-      this.manergy -= 40;
+      this.manergy -= this.costOf(SpellById.ironshot.cost);
       this.gcd = GLOBAL_COOLDOWN;
       if (this.is2Charges === 1) {
         this.cd.ironshot = this.cooldownOf(SpellById.ironshot.cd * rankCooldown(this, 'ironshot'));
@@ -612,14 +705,14 @@ export class Mage extends Entity {
     }
     // the lifesteal ray is held: starting it waits for and starts the global
     // cooldown, keeping it going does not
-    if (this.wants('ray', true) && this.hasRay && this.cd.ray <= 0 && this.manergy > 10 && (this.rayOn || this.gcd <= 0)) {
+    if (this.wants('ray', true) && this.hasRay && this.cd.ray <= 0 && this.manergy > SpellById.ray.need && (this.rayOn || this.gcd <= 0)) {
       if (!this.rayOn) {
         this.gcd = GLOBAL_COOLDOWN;
       }
       this.rayOn = true;
       fire('ray', aim + (Math.random() - 0.5) * 0.05);
       stats.lscount++;
-      this.manergy -= 10;
+      this.manergy -= this.costOf(SpellById.ray.cost);
     } else {
       this.rayOn = false;
     }
@@ -657,20 +750,23 @@ export class Mage extends Entity {
     }
     if (this.wants('blink') && this.canCast('blink')) {
       const fx = game.fx;
-      fx.burst(c.x, c.y, 1.2, { color: 0xb070ff, count: 30, speed: 5, life: 0.5, size: 0.9 });
-      // only blink onto open floor, never into walls or pillars
+      // only blink onto open floor, never into walls or pillars; a blink
+      // with nowhere to land fizzles and costs nothing
       const nx = mouse.x - this.size.x / 2;
       const ny = mouse.y - this.size.y / 2;
       if (game.world.canStandAt(nx, ny, this.size.x, this.size.y)) {
+        fx.burst(c.x, c.y, 1.2, { color: 0xb070ff, count: 30, speed: 5, life: 0.5, size: 0.9 });
         this.pos.x = nx;
         this.pos.y = ny;
         fx.burst(mouse.x, mouse.y, 1.2, { color: 0xd0a0ff, count: 30, speed: 5, life: 0.5, size: 0.9 });
         fx.ring(mouse.x, mouse.y, { color: 0xb070ff, radius: 60, life: 0.4 });
-      }
-      stats.bkcount++;
-      this.spend('blink');
-      if (this.hasBk2) {
-        this.cd.blink = this.cooldownOf(200 * rankCooldown(this, 'blink'));
+        stats.bkcount++;
+        this.spend('blink');
+        if (this.hasBk2) {
+          this.cd.blink = this.cooldownOf(200 * rankCooldown(this, 'blink'));
+        }
+      } else {
+        fx.burst(mouse.x, mouse.y, 1.2, { color: 0x806090, count: 8, speed: 2, life: 0.3, size: 0.6 });
       }
     }
     if (this.wants('shield') && this.canCast('shield')) {
@@ -734,7 +830,7 @@ export class Mage extends Entity {
   speakWord(k) {
     const game = this.game;
     const ch = this.channel;
-    if (this.isStunned || this.isFeared || this.sheepFrames > 0 || this.dead) {
+    if (this.isStunned || this.isFeared || this.sheepFrames > 0 || this.helpless || this.dead) {
       this.channel = null;
       game.hud.toast('POWER WORD KILL :: BROKEN OFF', '#c090ff');
       return;
@@ -797,13 +893,29 @@ export class Mage extends Entity {
       this.hurt(0.35 * k, true);
     } else if (zone.kind === 'gloom') {
       this.manergy = Math.max(0, this.manergy - 0.5 * k);
+    } else if (zone.kind === 'maelstrom' && zone.timeOwner) {
+      // the rival's whirlpool
+      this.hurt(arcanaZoneDamage(zone, k), true);
+      if (!this.lift) {
+        pullToward(this, zone, DuelRules.arcana.maelstrom.pull, k);
+      }
     }
   }
 
-  // Melee from an enemy. Returns false when the shield turned the blow.
-  takeMelee(dmg, manergyDrain) {
+  // Melee from an enemy (`attacker`, when known). Returns false when the
+  // shield turned the blow. Through armor of agathys the cold bites back.
+  takeMelee(dmg, manergyDrain, attacker) {
     if (this.shielded) {
       return false;
+    }
+    if (this.wardHp > 0 && attacker && !attacker.killed && attacker.hurt) {
+      const spec = Arcana.agathys;
+      attacker.hurt(spec.cold * rankPower(this, 'agathys'), 'cold');
+      if (attacker.chill) {
+        attacker.chill(spec.chill);
+      }
+      const ac = attacker.center();
+      this.game.fx.burst(ac.x, ac.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff], count: 14, speed: 4, life: 0.4, size: 0.7 });
     }
     this.hurt(dmg);
     if (manergyDrain) {
@@ -813,8 +925,21 @@ export class Mage extends Entity {
   }
 
   hurt(dmg, quiet) {
-    // armour from gear takes a share off every hit
+    // armour from gear takes a share off every hit, a curse adds to it, and
+    // armor of agathys takes what it can before the wizard does
     dmg *= 1 - this.bonus('armor');
+    if (this.curseFrames > 0) {
+      dmg *= this.curseMult;
+    }
+    if (this.wardHp > 0 && dmg > 0) {
+      const soaked = Math.min(this.wardHp, dmg);
+      this.wardHp -= soaked;
+      dmg -= soaked;
+      if (this.wardHp <= 0) {
+        const c = this.center();
+        this.game.fx.burst(c.x, c.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff], count: 24, speed: 5, life: 0.5, size: 0.7, gravity: 6 });
+      }
+    }
     this.hp -= dmg;
     if (!quiet) {
       this.rig.hit();
@@ -855,9 +980,58 @@ export class Mage extends Entity {
     this.sheepFrames = Math.max(this.sheepFrames, frames);
   }
 
+  // The rival's newer spells (arcana.js) on the wizard.
+  sleep(frames) {
+    this.sleepFrames = Math.max(this.sleepFrames, frames);
+    this.sleepHp = this.hp;
+    this.game.hud.toast('YOU DOZE OFF :: A BLOW WILL WAKE YOU', '#c8c0ff');
+  }
+
+  curse(frames, mult) {
+    this.curseFrames = Math.max(this.curseFrames, frames);
+    this.curseMult = mult;
+    this.game.hud.toast('CURSED :: EVERY BLOW HITS HARDER', '#c070ff');
+  }
+
+  // a nightmare: the wizard flees in a panic while it hurts
+  haunt(frames, dps) {
+    this.nightmare = { frames, dps };
+    this.isFeared = true;
+    this.fearFrames = 0;
+    this.fearDuration = frames;
+    this.fearVel = { x: 0, y: 0 };
+  }
+
+  // confused: it stumbles about and its spells fly wild
+  confuse(frames) {
+    this.confusedFrames = Math.max(this.confusedFrames, frames);
+    this.isFeared = true;
+    this.fearFrames = 0;
+    this.fearDuration = frames;
+    this.fearVel = { x: 0, y: 0 };
+  }
+
+  liftUp(frames, caster) {
+    this.lift = { frames, total: frames, caster };
+    this.knock = null;
+    return true;
+  }
+
+  // counterspell: every spell but magic missile waits `frames`, and a word
+  // being spoken is lost
+  silence(frames) {
+    this.gcd = Math.max(this.gcd, frames);
+    this.gcdSpan = this.gcd;
+    this.rayOn = false;
+    if (this.channel) {
+      this.channel = null;
+    }
+    this.game.hud.toast('SILENCED', '#9ac8ff');
+  }
+
   syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+    this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const moving = Math.hypot(this.vel.x, this.vel.y) > 1;
     this.rig.animate(dt, moving ? Math.min(1.4, Math.hypot(this.vel.x, this.vel.y) / 100) : 0, Math.atan2(Math.cos(this.aim), Math.sin(this.aim)));
     this.rig.setAlpha(this.invis ? 0.35 : 1);
@@ -867,6 +1041,12 @@ export class Mage extends Entity {
       this.shieldBubble.rotation.y = time;
     }
     this.rootMark.visible = this.isStunned;
+    this.frostShell.visible = this.wardHp > 0;
+    if (this.wardHp > 0) {
+      this.frostShell.material.opacity = 0.15 + 0.3 * Math.min(1, this.wardHp / (this.wardMax || 1));
+      this.frostShell.rotation.y = -time * 0.4;
+    }
+    arcanaFx(this, time, 2.6);
     const fx = this.game.fx;
     if (this.hasted && moving) {
       fx.emit(c.x, c.y, 0.3 + Math.random(), { color: 0xffe070, life: 0.4, size: 0.6 });
