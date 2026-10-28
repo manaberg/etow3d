@@ -190,7 +190,7 @@ export class BattleDragon extends Dragon {
         return false;
       }
       if (foe.takeMelee) {
-        foe.takeMelee(dmg);
+        foe.takeMelee(dmg, 0, this);
       } else {
         foe.hurt(dmg);
         if (foe.onDuelDamage) {

@@ -34,7 +34,17 @@ export const DuelSpells = [
   { id: 'heal', flag: 'hasHeal' },
   { id: 'polymorph', flag: 'hasPolymorph' },
   { id: 'disintegrate', flag: 'hasDisintegrate' },
-  { id: 'weapon', flag: 'hasWeapon' }
+  { id: 'weapon', flag: 'hasWeapon' },
+  { id: 'sleep', flag: 'hasSleep' },
+  { id: 'agathys', flag: 'hasAgathys' },
+  { id: 'curse', flag: 'hasCurse' },
+  { id: 'sphere', flag: 'hasSphere' },
+  { id: 'counter', flag: 'hasCounter' },
+  { id: 'swap', flag: 'hasSwap' },
+  { id: 'phantasm', flag: 'hasPhantasm' },
+  { id: 'confusion', flag: 'hasConfusion' },
+  { id: 'maelstrom', flag: 'hasMaelstrom' },
+  { id: 'gravity', flag: 'hasGravity' }
 ];
 
 // The player's id for a duel spell (the rival calls chain root 'root').

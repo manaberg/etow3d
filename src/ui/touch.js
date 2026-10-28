@@ -54,8 +54,15 @@ const AIM = {
   blizzard: { kind: 'point', range: 440, radius: (p) => (p.hasBz2 ? 192 : 96) },
   meteor: { kind: 'point', range: 440, radius: Arcana.meteor.scatter },
   cloud: { kind: 'point', range: 440, radius: Arcana.cloud.radius },
+  sleep: { kind: 'point', range: 440, radius: Arcana.sleep.radius },
+  confusion: { kind: 'point', range: 440, radius: Arcana.confusion.radius },
+  maelstrom: { kind: 'point', range: 440, radius: Arcana.maelstrom.radius },
+  gravity: { kind: 'point', range: 440, radius: Arcana.gravity.radius },
   pwkill: { kind: 'unit', range: 560, radius: 40 },
   polymorph: { kind: 'unit', range: Arcana.polymorph.range, radius: 40 },
+  curse: { kind: 'unit', range: Arcana.curse.range, radius: 40 },
+  phantasm: { kind: 'unit', range: Arcana.phantasm.range, radius: 40 },
+  swap: { kind: 'unit', range: Arcana.swap.range, radius: 40 },
   tele: { kind: 'item', range: 600, radius: 36 }
 };
 

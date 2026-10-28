@@ -260,8 +260,8 @@ start (the throne room, which every floor names its own way) and unseal once 40%
 enemies are slain. Spells are learnt from scrolls into the
 spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
 maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
-Besides the 2D game's spells, scrolls teach ten D&D spells new to the 3D game (scorching ray
-to spiritual weapon in the table below). Reflections use them too.
+Besides the 2D game's spells, scrolls teach twenty D&D spells new to the 3D game (scorching ray
+to reverse gravity in the table below). Reflections use them too.
 
 **The floors.** Each floor has a look (`src/world/looks.js`): the shape of its rooms and
 corridors, what its floors, walls and pillars are made of, its water, lava or chasms, its light,
@@ -335,8 +335,8 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   learn it (Rank I); if you already know it (whether it is on your bar or in your spellbook), its
   rank goes up, to III. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot,
   blink, blizzard and power word kill have their own rank II (the 2D game's tier 2 upgrades); every
-  other spell's rank II adds 30% to its main number (damage, duration, reach or healing), or,
-  for chain root, mirror image and telekinesis, cuts its cooldown by a quarter. Rank III cuts
+  other spell's rank II adds 30% to its main number (damage, duration, reach, healing or ward), or,
+  for chain root, mirror image, telekinesis and transposition, cuts its cooldown by a quarter. Rank III cuts
   every spell's cooldown by a quarter (`RankRules`).
 
 | Spell | Circle | Rank II |
@@ -348,6 +348,8 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | scorching ray (three fire bolts) | I | +30% damage |
 | thunderwave (blasts nearby enemies away) | I | +30% damage |
 | healing word | I | +30% healing |
+| sleep at the cursor (the weakest foes first, as many as 320 health covers; a blow wakes them) | I | +30% health it can lull |
+| armor of agathys (a 50-point ward of frost; whoever strikes through it is chilled and hurt) | I | +30% ward |
 | chain lightning (locks on to the nearest enemy) | II | every jump hits as hard as the first |
 | chain root | II | cooldown -25% |
 | haste | II | +30% duration |
@@ -356,6 +358,10 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | cone of cold (damages and chills in front of you) | II | +30% damage |
 | fear | II | +30% reach |
 | telekinesis (hover loot) | II | cooldown -25% |
+| bestow curse (hover an enemy: +50% damage taken from everything) | II | +30% duration |
+| flaming sphere (a ball of fire that rolls after the cursor) | II | +30% damage |
+| counterspell (unmakes hostile bolts around you, silences casters) | II | +30% reach |
+| transposition (hover an enemy: trade places with it) | II | cooldown -25% |
 | blizzard at the cursor | III | twice the radius |
 | invisibility | III | +30% duration |
 | polymorph (turns an orc under the cursor into a sheep; a wizard only briefly, and a sheep cannot cast) | III | +30% duration |
@@ -363,9 +369,48 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | spirit guardians (a damaging, slowing aura that follows you) | III | +30% damage |
 | spiritual weapon (a spectral sword that fights beside you) | III | +30% damage |
 | disintegrate (a ray into the first enemy in line) | III | +30% damage |
+| phantasmal killer (hover an enemy: it flees in terror and takes psychic damage) | III | +30% damage |
+| confusion at the cursor (orcs fall on each other; others only reel) | III | +30% duration |
+| maelstrom at the cursor (a whirlpool that drags enemies to its eye) | III | +30% damage |
 | time stop | IV | +30% duration |
 | meteor swarm at the cursor | IV | +30% damage |
+| reverse gravity at the cursor (enemies fall upward, hang, then crash down) | IV | +30% damage |
 | power word kill (hover an enemy; a one-second cast standing still, which a root, fear or polymorph breaks off) | IV | a wider, deeper splash |
+
+**The last ten spells** each do something no other spell does (`src/entities/arcana.js`):
+
+- **Sleep** spends a pool of health on the weakest enemies in the burst first; a sleeper stands
+  helpless until it wears off (12 s) or it loses any health, so the next blow both lands and
+  wakes it. Bosses and dragons shrug it off.
+- **Armor of agathys** is a ward that takes blows before your health does (the HUD shows it
+  beside your health) for 10 s; whoever strikes you through it in melee is chilled and
+  takes cold damage.
+- **Bestow curse** makes one enemy take half again as much damage from every source for 10 s.
+- **Flaming sphere** rolls after the cursor (up to 520 px from you) for 10 s, burning whatever
+  it touches; a new one snuffs the old.
+- **Counterspell** unmakes every hostile bolt, falling meteor and flaming sphere within reach,
+  and holds back the spells of the casters there (warlocks, shamans, the orc clerics and
+  mages, the warlord, dragons and your reflection) for 4 s; it breaks off a word of death
+  being spoken.
+- **Transposition** swaps you with an enemy in sight, if both of you fit; dragons are too
+  vast to move.
+- **Phantasmal killer** sends one enemy fleeing for 5 s while the terror deals psychic damage
+  (bosses and dragons only take the damage).
+- **Confusion** turns orcs on each other: for 8 s they hunt and strike the nearest of their own
+  side instead of you. Others only reel.
+- **Maelstrom** drags everything in it toward its eye for 6 s while it batters them; bosses and
+  dragons barely budge.
+- **Reverse gravity** throws everything in the circle into the air, where it hangs helpless,
+  then crashes down for 150 damage. Dragons are too vast to lift.
+
+Between wizards these hit on the duel scale: a wizard only dozes (2.5 s) or reels (1.5 s, with
+its spells flying wild), a curse adds a quarter for 5 s, a silence lasts 2 s (magic missile
+still flies) and a shield keeps its wizard on the ground. Your reflection casts them all: it
+counterspells a word of death spoken near it, swaps places to get out of your blizzards and
+clouds, and sleeps, confuses or lifts you to set up its heaviest spells.
+
+Every spell also carries a line of lore, shown in italics under its description in the
+spellbook and in the action bar's tooltip.
 
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
@@ -383,13 +428,13 @@ Every spell belongs to a school of magic, shown beside it in the spellbook:
 
 | School | Spells |
 | --- | --- |
-| Evocation | magic missile, fireball, chain lightning, scorching ray, cone of cold, thunderwave, meteor swarm |
-| Conjuration | iron shot, blink, blizzard, cloudkill, spiritual weapon |
-| Abjuration | shield, spirit guardians, healing word |
-| Transmutation | haste, time stop, polymorph, disintegrate, telekinesis |
-| Enchantment | chain root, fear |
-| Illusion | mirror image, invisibility |
-| Necromancy | lifesteal, power word kill |
+| Evocation | magic missile, fireball, chain lightning, scorching ray, cone of cold, thunderwave, meteor swarm, maelstrom |
+| Conjuration | iron shot, blink, blizzard, cloudkill, spiritual weapon, flaming sphere, transposition |
+| Abjuration | shield, spirit guardians, healing word, armor of agathys, counterspell |
+| Transmutation | haste, time stop, polymorph, disintegrate, telekinesis, reverse gravity |
+| Enchantment | chain root, fear, sleep, confusion |
+| Illusion | mirror image, invisibility, phantasmal killer |
+| Necromancy | lifesteal, power word kill, bestow curse |
 
 **Gear.** Wizards wear a hat, a robe, a staff and two rings, and what is worn shows on the
 model. Loot is rolled as in Diablo (`src/entities/gear.js`):

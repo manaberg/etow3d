@@ -1,7 +1,7 @@
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { Projectile } from './spells.js';
-import { Arcana } from './arcana.js';
+import { Arcana, arcanaHit, liftHeight, pullToward } from './arcana.js';
 import { buildSheep } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
 import { applyGearPools, elementBonus, gearStat, statOf } from './gear.js';
@@ -22,7 +22,7 @@ const CHILL_SLOW = 0.4;
 // their kind resist nothing; dragons (dragon.js) do.
 export const Elements = {
   force: 'FORCE', fire: 'FIRE', cold: 'COLD', lightning: 'LIGHTNING', thunder: 'THUNDER', poison: 'POISON',
-  necrotic: 'NECROTIC', radiant: 'RADIANT', physical: 'IRON'
+  necrotic: 'NECROTIC', radiant: 'RADIANT', physical: 'IRON', psychic: 'PSYCHIC'
 };
 export class Enemy extends Entity {
   defaults() {
@@ -55,6 +55,24 @@ export class Enemy extends Entity {
     this.canPolymorph = false;
     this.sheepFrames = 0;
     this.resist = null;
+    // the newer spells (arcana.js): sleep (any lost health wakes it), a
+    // curse (more damage taken), a nightmare (phantasmal killer: { frames,
+    // dps }), confusion (regular foes, `canBrawl`, fight their own side),
+    // reverse gravity (`lift`: { frames, total, caster }; `canLift` is false
+    // for dragons), a ward of frost (armor of agathys) and silence
+    // (counterspell holds back the cooldowns named in `spellTimers`)
+    this.sleepFrames = 0;
+    this.sleepHp = 0;
+    this.curseFrames = 0;
+    this.curseMult = 1;
+    this.nightmare = null;
+    this.confusedFrames = 0;
+    this.canBrawl = false;
+    this.lift = null;
+    this.canLift = true;
+    this.wardHp = 0;
+    this.wardFrames = 0;
+    this.spellTimers = [];
   }
 
   get alive() {
@@ -227,6 +245,11 @@ export class Enemy extends Entity {
       this.hp -= this.resisted(1.2 * k, 'poison');
     } else if (zone.kind === 'meteors') {
       this.hp -= this.resisted(0.8 * k, 'fire');
+    } else if (zone.kind === 'maelstrom') {
+      this.hp -= this.resisted(Arcana.maelstrom.dps / 60 * k * rankPower(zone.timeOwner, 'maelstrom') * this.gearBoost('physical'), 'physical');
+      if (!this.lift) {
+        pullToward(this, zone, Arcana.maelstrom.pull, k);
+      }
     }
   }
 
@@ -241,10 +264,25 @@ export class Enemy extends Entity {
     return 1 + elementBonus(game.player, element);
   }
 
-  // Damage after this monster's resistance to the element.
+  // Damage after this monster's resistance to the element, and its curse.
   resisted(dmg, element) {
     const mult = this.resist && element ? this.resist[element] : undefined;
-    return mult === undefined ? dmg : dmg * mult;
+    const cursed = this.curseFrames > 0 ? this.curseMult : 1;
+    return (mult === undefined ? dmg : dmg * mult) * cursed;
+  }
+
+  // What is left of a blow once a ward of frost (armor of agathys) took its share.
+  soak(dmg) {
+    if (this.wardHp <= 0 || dmg <= 0) {
+      return dmg;
+    }
+    const taken = Math.min(this.wardHp, dmg);
+    this.wardHp -= taken;
+    if (this.wardHp <= 0) {
+      const c = this.center();
+      this.game.fx.burst(c.x, c.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff], count: 24, speed: 5, life: 0.5, size: 0.7, gravity: 6 });
+    }
+    return dmg - taken;
   }
 
   slowIn(zone) {
@@ -253,10 +291,10 @@ export class Enemy extends Entity {
 
   hurt(dmg, element) {
     // the mage's gear for the element, gear armour, then the element's
-    // resistance
+    // resistance (and a curse), then a ward of frost
     dmg *= this.gearBoost(element) * (1 - gearStat(this, 'armor'));
     const taken = this.resisted(dmg, element);
-    this.hp -= taken;
+    this.hp -= this.soak(taken);
     if (taken < dmg * 0.75 || taken > dmg * 1.25) {
       this.onResist(element, taken / dmg);
     }
@@ -308,6 +346,115 @@ export class Enemy extends Entity {
     this.vel.y = Math.floor(Math.random() * 201) - 100;
   }
 
+  // Feared for at least `frames` more, without cutting a longer fear short.
+  fearFor(frames) {
+    if (!this.isFeared) {
+      this.fear();
+    }
+    this.fearFrames = Math.min(this.fearFrames, Math.max(0, this.fearDuration - frames));
+  }
+
+  // Asleep: it stands as if rooted until the sleep wears off or it loses
+  // any health.
+  sleep(frames) {
+    this.sleepFrames = Math.max(this.sleepFrames, frames);
+    this.sleepHp = this.hp;
+    this.isStunned = true;
+    this.stunFrames = 0;
+    this.isFeared = false;
+  }
+
+  wake() {
+    this.sleepFrames = 0;
+    if (!this.lift) {
+      this.isStunned = false;
+      this.stunFrames = 0;
+    }
+  }
+
+  curse(frames, mult) {
+    this.curseFrames = Math.max(this.curseFrames, frames);
+    this.curseMult = mult;
+  }
+
+  // Phantasmal killer: it flees in terror if it can, and the fear hurts.
+  haunt(frames, dps) {
+    this.nightmare = { frames, dps };
+    if (this.canBeFeared) {
+      this.fearFor(frames);
+    }
+  }
+
+  // Regular foes turn on their own side (Orc.brawl); others that can be
+  // frightened only reel; the rest shrug it off.
+  confuse(frames) {
+    if (this.canBrawl) {
+      this.confusedFrames = Math.max(this.confusedFrames, frames);
+      this.isFeared = false;
+      this.aggro = true;
+    } else if (this.canBeFeared) {
+      this.fearFor(frames);
+    } else {
+      const c = this.center();
+      this.game.fx.burst(c.x, c.y, 1.6, { color: 0xb0b0b0, count: 6, speed: 2, life: 0.4, size: 0.6 });
+    }
+  }
+
+  // Reverse gravity: it falls upward and hangs helpless, then lands hard
+  // (tickDebuffs). Returns false for what is too vast to lift.
+  liftUp(frames, caster) {
+    if (!this.canLift) {
+      return false;
+    }
+    this.lift = { frames, total: frames, caster };
+    this.isStunned = true;
+    this.stunFrames = 0;
+    this.knock = null;
+    return true;
+  }
+
+  land() {
+    const caster = this.lift.caster;
+    this.lift = null;
+    if (this.sleepFrames <= 0) {
+      this.isStunned = false;
+      this.stunFrames = 0;
+    }
+    arcanaHit(caster, this, 'gravity', Arcana.gravity.damage);
+    const c = this.center();
+    this.game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a6a, 0xc0b0a0], count: 24, speed: 4, life: 0.6, size: 1.2, flat: true });
+    this.game.fx.ring(c.x, c.y, { color: 0xa060ff, radius: 50, life: 0.3 });
+    this.game.gfx.addShake(0.15);
+  }
+
+  // Counterspell: its spells wait at least `frames` more.
+  silence(frames) {
+    for (const key of this.spellTimers) {
+      this[key] = Math.max(this[key] || 0, frames);
+    }
+    if (this.spellTimers.length) {
+      const c = this.center();
+      this.game.fx.burst(c.x, c.y, (this.rig ? this.rig.height : 2) + 0.4, { color: [0x9ac8ff, 0xffffff], count: 12, speed: 2, life: 0.6, size: 0.6 });
+    }
+  }
+
+  // A confused monster's brawl: the nearest body of its own side, if any.
+  brawlTarget(range = 420) {
+    let best = null;
+    let bestD = range;
+    for (const e of this.game.hostilesOf('player')) {
+      if (e === this || e.killed || e.isWizard || !(e instanceof Enemy) || e.hp <= 0) {
+        continue;
+      }
+      const d = this.distanceTo(e);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
   tickDebuffs(k) {
     this.chillFrames = Math.max(0, this.chillFrames - k);
     if (this.sheepFrames > 0) {
@@ -329,6 +476,53 @@ export class Enemy extends Entity {
       if (this.fearFrames >= this.fearDuration) {
         this.isFeared = false;
         this.fearFrames = 0;
+      }
+    }
+    this.tickArcana(k);
+  }
+
+  // The newer spells' effects, one step (see defaults).
+  tickArcana(k) {
+    this.curseFrames = Math.max(0, this.curseFrames - k);
+    this.confusedFrames = Math.max(0, this.confusedFrames - k);
+    if (this.wardHp > 0) {
+      this.wardFrames -= k;
+      if (this.wardFrames <= 0) {
+        this.wardHp = 0;
+      }
+    }
+    const n = this.nightmare;
+    if (n) {
+      n.frames -= k;
+      const dmg = this.resisted(n.dps / 60 * k * this.gearBoost('psychic'), 'psychic');
+      this.hp -= dmg;
+      if (this.onDuelDamage) {
+        this.onDuelDamage(dmg, 'phantasm');
+      }
+      // the terror holds as long as the nightmare does
+      if (this.canBeFeared && !this.isFeared && n.frames > 0 && this.sheepFrames <= 0) {
+        this.fearFor(n.frames);
+      }
+      if (n.frames <= 0) {
+        this.nightmare = null;
+      }
+    }
+    if (this.sleepFrames > 0) {
+      this.sleepFrames = Math.max(0, this.sleepFrames - k);
+      if (this.sleepFrames === 0 || this.hp < this.sleepHp - 0.5) {
+        this.wake();
+      } else {
+        this.sleepHp = Math.max(this.sleepHp, this.hp);
+        this.isStunned = true;
+        this.stunFrames = 0;
+      }
+    }
+    if (this.lift) {
+      this.lift.frames -= k;
+      this.isStunned = true;
+      this.stunFrames = 0;
+      if (this.lift.frames <= 0) {
+        this.land();
       }
     }
   }
@@ -381,7 +575,7 @@ export class Enemy extends Entity {
 
   syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+    this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const speed = Math.hypot(this.vel.x, this.vel.y);
     const player = this.game.player;
     let facing = null;
@@ -396,12 +590,13 @@ export class Enemy extends Entity {
       // rising out of the ground while waking up
       this.view.position.y = -Math.min(1, this.spawnFrames / 120) * this.rig.height * 0.6;
     }
-    if (this.isStunned && Math.random() < 0.2) {
+    if (this.isStunned && !this.sleepFrames && !this.lift && Math.random() < 0.2) {
       this.game.fx.column(c.x, c.y, 20, { color: 0x40ff60, count: 1, rise: 0.6, life: 0.6, size: 0.5 });
     }
     if (this.isFeared && Math.random() < 0.3) {
       this.game.fx.emit(c.x, c.y, this.rig.height + 0.3, { color: 0xc040ff, life: 0.5, size: 0.6, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2 });
     }
+    arcanaFx(this, time, this.rig.height);
     if (this.rig.aura) {
       this.rig.aura.rotation.z = time;
     }
@@ -423,5 +618,39 @@ export class Enemy extends Entity {
         this.sheep.position.y = Math.abs(Math.sin(time * 8)) * 0.08 * Math.min(1, speed / 20);
       }
     }
+  }
+}
+
+// The newer spells' marks on any body (monsters, wizards): motes of sleep
+// drifting up, a curse's dark halo, a nightmare's shadows, confusion's
+// colours, a ward's frost and the dust under a lifted body. `height` is the
+// body's, in world units.
+export function arcanaFx(body, time, height) {
+  const fx = body.game.fx;
+  const c = body.center();
+  const lifted = body.lift ? liftHeight(body.lift, time) : 0;
+  const top = height + lifted;
+  if (body.sleepFrames > 0 && Math.random() < 0.08) {
+    fx.emit(c.x + 6, c.y, top + 0.2, { color: 0xd8d0ff, life: 1.4, size: 0.5, vy: 0.7, vx: 0.3 });
+  }
+  if (body.curseFrames > 0 && Math.random() < 0.35) {
+    const a = time * 4 + Math.random() * 0.5;
+    fx.emit(c.x + Math.cos(a) * 16, c.y + Math.sin(a) * 16, top + 0.3, { color: Math.random() < 0.5 ? 0x9a30d0 : 0xd080ff, life: 0.5, size: 0.45, vy: -0.3 });
+  }
+  if (body.nightmare && Math.random() < 0.5) {
+    const a = Math.random() * Math.PI * 2;
+    fx.emit(c.x + Math.cos(a) * 26, c.y + Math.sin(a) * 26, lifted + Math.random() * height, { color: Math.random() < 0.6 ? 0x6a20a0 : 0xff4080, life: 0.5, size: 0.8, vx: -Math.cos(a) * 1.5, vz: -Math.sin(a) * 1.5 });
+  }
+  if (body.confusedFrames > 0 && Math.random() < 0.4) {
+    const a = time * 6;
+    const colors = [0xff80e0, 0x80ffe0, 0xffe060];
+    fx.emit(c.x + Math.cos(a) * 14, c.y + Math.sin(a) * 14, top + 0.4, { color: colors[Math.floor(time * 6) % 3], life: 0.4, size: 0.5 });
+  }
+  if (body.wardHp > 0 && Math.random() < 0.4) {
+    const a = Math.random() * Math.PI * 2;
+    fx.emit(c.x + Math.cos(a) * 30, c.y + Math.sin(a) * 30, lifted + Math.random() * height, { color: Math.random() < 0.5 ? 0xe8f8ff : 0x9ad8ff, life: 0.45, size: 0.45, vy: -0.4 });
+  }
+  if (body.lift && Math.random() < 0.4) {
+    fx.emit(c.x + (Math.random() - 0.5) * 30, c.y + (Math.random() - 0.5) * 30, 0.1, { color: 0xa070ff, life: 0.8, size: 0.6, vy: 3 });
   }
 }

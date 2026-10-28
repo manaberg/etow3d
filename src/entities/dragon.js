@@ -82,6 +82,9 @@ export class Dragon extends Enemy {
     this.maxSpeed = age.speed * 1.8;
     this.resist = hue.resist;
     this.knockResist = age.knock;
+    // too vast for reverse gravity; counterspell holds back its spell
+    this.canLift = false;
+    this.spellTimers = ['spellCd'];
     this.pwkillDamage = age.pwkill;
     this.fireSplash = age.size * 1.2;
     this.blizzardSlow = [0.7, 0.8];
@@ -266,7 +269,7 @@ export class Dragon extends Enemy {
     this.biteCd = 70;
     this.rig.swing();
     const dmg = this.spec.bite + Math.floor(Math.random() * this.spec.bite * 0.5);
-    if (!player.takeMelee(dmg)) {
+    if (!player.takeMelee(dmg, 0, this)) {
       // teeth on the shield
       this.hurt(dmg, 'force');
     }
@@ -345,7 +348,7 @@ export class Dragon extends Enemy {
     this.rig.sweep();
     const c = this.center();
     game.fx.burst(c.x, c.y, 0.5, { color: 0x6a5a48, count: 20, speed: 5, life: 0.5, size: 1.2, flat: true, drag: 3 });
-    if (player.takeMelee(Math.round(this.spec.bite * 1.3))) {
+    if (player.takeMelee(Math.round(this.spec.bite * 1.3), 0, this)) {
       pushPlayer(game, player, this.angleTo(player), 110);
     }
   }
@@ -360,7 +363,7 @@ export class Dragon extends Enemy {
     game.fx.ring(c.x, c.y, { color: 0xd8d0c0, radius, life: 0.45 });
     game.fx.burst(c.x, c.y, 0.4, { color: [0xc8b8a0, 0x8a7a68], count: 40, speed: 9, life: 0.5, size: 1.3, flat: true, drag: 2 });
     game.gfx.addShake(0.5);
-    if (this.distanceTo(player) < radius && player.takeMelee(Math.round(this.spec.bite * 0.7))) {
+    if (this.distanceTo(player) < radius && player.takeMelee(Math.round(this.spec.bite * 0.7), 0, this)) {
       pushPlayer(game, player, this.angleTo(player), 170);
     }
   }
@@ -456,7 +459,7 @@ export class Dragon extends Enemy {
     game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a68, 0xb8a890], count: 40, speed: 8, life: 0.7, size: 1.6, flat: true, drag: 2 });
     game.gfx.addShake(0.5);
     if (this.distanceTo(player) < this.size.x * 1.3) {
-      player.takeMelee(Math.round(this.spec.bite * 0.5));
+      player.takeMelee(Math.round(this.spec.bite * 0.5), 0, this);
     }
     // breathe soon after landing
     this.breathCd = Math.min(this.breathCd, 40);

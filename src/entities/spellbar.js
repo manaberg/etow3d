@@ -64,7 +64,7 @@ export const WizardLevels = {
 // the spell up. Magic missile's ranks are its darts (spells.js MissileTiers)
 // and six spells have their own rank II (the tier 2 upgrades, `tierFlags`).
 // Every other spell's rank II adds `power` to its main number (damage,
-// duration, radius or healing), except those in `quickAtTwo`, which have no
+// duration, radius, healing or ward), except those in `quickAtTwo`, which have no
 // number to grow and cast faster instead. Rank III cuts every spell's
 // cooldown by `cooldownCut`.
 export const RankRules = {
@@ -73,7 +73,7 @@ export const RankRules = {
   cooldownCut: 0.25,
   tierFlags: { fireball: 'hasFb2', lightning: 'hasLg2', ironshot: 'hasIs2', blink: 'hasBk2', blizzard: 'hasBz2', pwkill: 'hasPwk2' },
   // the rival names chain root 'root'
-  quickAtTwo: ['stun', 'root', 'image', 'tele']
+  quickAtTwo: ['stun', 'root', 'image', 'tele', 'swap']
 };
 
 export const ROMAN = ['', 'I', 'II', 'III'];

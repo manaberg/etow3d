@@ -272,7 +272,8 @@ export class Projectile extends Entity {
 
 // Ground areas: blizzards (player or duel rival), the warlord's meteor
 // swarm and the fire he leaves behind, and the mage's spirit guardians (which
-// follow `follow`) and cloudkill (which drifts by `drift` px/s). `radius` in px.
+// follow `follow`), cloudkill (which drifts by `drift` px/s) and maelstrom
+// (which drags foes to its eye, arcana.js pullToward). `radius` in px.
 export class Zone extends Entity {
   defaults() {
     this.kind = 'blizzard';
@@ -289,7 +290,7 @@ export class Zone extends Entity {
     this.size = { x: this.radius * 2, y: this.radius * 2 };
     this.pos.x -= this.radius;
     this.pos.y -= this.radius;
-    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20, guardians: 0xffe080, cloud: 0x70d040, acid: 0x90ff30, gloom: 0xd8b040 }[this.kind];
+    const color = { blizzard: 0x6ac8ff, meteors: 0xff4a20, fire: 0xff7a20, guardians: 0xffe080, cloud: 0x70d040, acid: 0x90ff30, gloom: 0xd8b040, maelstrom: 0x2a7ad8 }[this.kind];
     this.color = color;
     this.view = buildZone(color, this.radius * UNIT, this.kind === 'fire' ? 0.5 : 0.28);
     if (this.kind === 'fire' || this.kind === 'cloud' || this.kind === 'acid') {
@@ -353,7 +354,7 @@ export class Zone extends Entity {
     const fade = Math.min(1, this.life / 30, (this.maxLife - this.life + 1) / 10);
     this.view.scale.setScalar(Math.max(0.05, fade));
     if (this.view.userData.rune) {
-      this.view.userData.rune.rotation.z = time * (this.kind === 'blizzard' ? 0.6 : -0.9);
+      this.view.userData.rune.rotation.z = time * (this.kind === 'blizzard' ? 0.6 : this.kind === 'maelstrom' ? -3 : -0.9);
     }
     const fx = this.game.fx;
     if (this.kind === 'blizzard') {
@@ -401,6 +402,18 @@ export class Zone extends Entity {
       if (Math.random() < 0.5) {
         fx.column(c.x, c.y, this.radius * 0.8, { color: [0x90ff30, 0x406010], count: 1, rise: 0.6, life: 0.7, size: 0.6 });
       }
+    } else if (this.kind === 'maelstrom') {
+      // spray wheeling in toward the eye
+      for (let i = 0; i < 4; i++) {
+        const a = time * 3 + Math.random() * Math.PI * 2;
+        const r = (0.3 + Math.random() * 0.7) * this.radius;
+        const t = a + Math.PI / 2;
+        fx.emit(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r, 0.2 + Math.random() * 0.8, {
+          color: Math.random() < 0.4 ? 0xe8f8ff : 0x3a9aff, life: 0.6, size: 0.6,
+          vx: (Math.cos(t) * 2.4 - Math.cos(a) * 1.2) * r / this.radius, vz: (Math.sin(t) * 2.4 - Math.sin(a) * 1.2) * r / this.radius, vy: 0.4
+        });
+      }
+      this.game.gfx.requestLight(c.x, c.y, 2, 0x3080ff, 8);
     } else if (this.kind === 'gloom') {
       // the golden wyrm's weakening breath, lingering
       for (let i = 0; i < 2; i++) {
@@ -423,6 +436,8 @@ export class MirrorImage extends Entity {
     this.hp = 100;
     this.life = 300;
     this.source = null;
+    // a polymorph, like any other spell on it, dispels it
+    this.canPolymorph = true;
     this.desiredVel = 100;
     // no colours: the decoy looks like the player's wizard
     this.robe = undefined;
@@ -479,13 +494,38 @@ export class MirrorImage extends Entity {
     this.pop();
   }
 
+  // it has no mind to sleep, curse, haunt, confuse or lift: the spell
+  // shows it up for the illusion it is
   polymorph() {
     this.pop();
+  }
+
+  sleep() {
+    this.pop();
+  }
+
+  curse() {
+    this.pop();
+  }
+
+  haunt() {
+    this.pop();
+  }
+
+  confuse() {
+    this.pop();
+  }
+
+  liftUp() {
+    this.pop();
+    return true;
   }
 
   chill() {}
 
   shove() {}
+
+  silence() {}
 
   inZone(zone, k) {
     this.hp -= 0.5 * k;

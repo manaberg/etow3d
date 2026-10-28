@@ -500,6 +500,9 @@ export class SpellbookPanel {
     el('div', 'dim', title, (school ? school.name + ' :: ' : '') + (spell.circle ? circleName(spell.circle) + ' :: ' : '') +
       'COOLDOWN ' + (cd ? seconds(cd) : 'NONE') + ' :: COST ' + spell.cost);
     el('div', 'inv-text', box, spell.text);
+    if (spell.lore) {
+      el('div', 'sb-lore', box, spell.lore);
+    }
     const ranks = el('div', 'inv-lines', box);
     const rank = rankOf(player, spell.id);
     for (let r = 1; r <= RankRules.max; r++) {
