@@ -25,7 +25,16 @@
     <div class="card menu-card">
       <h1>END OF THE WORLDS <span>3D</span></h1>
       <p class="tagline">A wizard's descent through twenty floors of orcs and dragons, and past their own reflection on the way down.</p>
-      <div class="menu-modes">
+      <div class="menu-main" id="menu-main">
+        <button type="button" id="menu-continue" class="menu-button hidden">
+          <span>Continue</span>
+          <span class="menu-button-info" id="menu-continue-info"></span>
+        </button>
+        <button type="button" id="menu-new" class="menu-button">New game</button>
+        <button type="button" id="menu-load" class="menu-button secondary">Load game</button>
+        <button type="button" id="open-controls" class="menu-button secondary">Controls</button>
+      </div>
+      <div class="menu-modes menu-panel hidden" id="menu-new-panel">
         <div class="mode">
           <h3>The descent</h3>
           <p>Twenty dungeon floors, from The Upper Halls to the great golden wyrm. Every two or three floors the stairs lead to a trial instead: your reflection, a wizard of your level with as many spells as you but its own, fought in a duel or in a great battle between two armies. Your spells, bar, level and gear go with you all the way down.</p>
@@ -39,6 +48,17 @@
             <button type="button" id="descend-mobile" class="secondary">Mobile descent</button>
           </div>
           <p class="mode-note"><strong>Mobile descent</strong> is made for touch screens: the same twenty floors, each laid out as one long tunnel from where you start to the stairs, with rubble, pillars, pools and rivers in the way, and only duels between them, no battles.</p>
+        </div>
+        <div class="buttons">
+          <button type="button" class="secondary menu-back">Back</button>
+        </div>
+      </div>
+      <div class="menu-saves menu-panel hidden" id="menu-load-panel">
+        <h3>Load game</h3>
+        <p class="dim">The game saves itself at the top of every stairs and when you quit; Save game on the pause screen keeps a save of its own. A floor cannot be saved halfway: loading a save made on one starts that depth on a newly laid out floor, with your wizard as it was saved, and a save made in a trial starts the trial over.</p>
+        <div class="save-list" id="save-list"></div>
+        <div class="buttons">
+          <button type="button" class="secondary menu-back">Back</button>
         </div>
       </div>
       <details class="mode-guide">
@@ -64,9 +84,6 @@
         </section>
       </details>
       <div class="controls" id="menu-controls"></div>
-      <div class="buttons menu-controls-buttons">
-        <button type="button" id="open-controls" class="secondary">Controls</button>
-      </div>
       <p class="dim">A 3D remake of <em>eotw</em> :: pre-alpha</p>
     </div>
   </div>

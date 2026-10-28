@@ -32,20 +32,21 @@ npm run build
 npm start          # http://localhost:8080 (PORT and SESSION_SECRET are read from the environment)
 ```
 
-The game also runs from any static host (`dist/` after `npm run build`); runs are then just
-not saved. It is published that way on Firebase Hosting, at https://etow3d.web.app; see
+The game also runs from any static host (`dist/` after `npm run build`); runs' scores are then
+just not recorded (saved games are kept in the browser either way; see **Saved games**). It is published that way on Firebase Hosting, at https://etow3d.web.app; see
 **Deploying** below.
 
-URLs work like the 2D game: `/?mode=survival` starts the descent, `/?mode=mobile` the mobile
-descent (see **The game**) and `/` shows the main menu.
+URLs work like the 2D game: `/?mode=survival` starts a new descent, `/?mode=mobile` a new mobile
+descent (see **The game**) and `/` shows the main menu. Games started from the menu keep its
+address, so reloading the page goes back to the menu, where **Continue** picks the run up again.
 
 ## Deploying
 
 The game is published as a static site on Firebase Hosting, at https://etow3d.web.app: the
 `etow3d` site of the `flubber-8ae55` Firebase project, which also hosts the flubber
 generator (https://flubber-8ae55.web.app) and the naval game (https://battlesea.web.app).
-Only the built game goes up (`dist/`); the score backend is not deployed there, so runs are
-not saved online. `firebase.json` names the site, the folder and the cache headers (no-cache,
+Only the built game goes up (`dist/`); the score backend is not deployed there, so scores are
+not recorded online (saved games live in the player's browser). `firebase.json` names the site, the folder and the cache headers (no-cache,
 except the hashed files in `/assets`), `.firebaserc` the project. Deploy from `main`:
 
 ```sh
@@ -74,7 +75,7 @@ instead (click the key under a slot, then press the new one). Two sliders on the
 keys, from 10% to 200%. Bindings and speeds are saved in the browser. For playtesting, **God mode** on
 the same screen (under PLAYTESTING) puts a **Retry** button on the death screen: the floor, duel or
 battle you fell on starts over, with the wizard as it came to it (spells, bar, level, gear and
-health). Runs played with it are not saved, and the unit frame reads YOU :: GOD MODE while it is on. `Esc` always pauses and the arrow keys always move.
+health). Runs played with it record no score, a fall keeps the run's autosave, and the unit frame reads YOU :: GOD MODE while it is on. `Esc` always pauses and the arrow keys always move.
 
 | Key | Action |
 | --- | --- |
@@ -140,6 +141,22 @@ one comes every two or three floors, six to nine in all, half duels and half bat
 third of the duels are fought in the open arena. A trial keeps the depth of the floor above it.
 Your spells, bar, ranks, level, gear and stats go down with you through every floor and every
 trial. The main menu explains it all under **How the descent works**.
+
+**Saved games.** The main menu offers **Continue** (the newest save, named on the button),
+**New game** (the descent or the mobile descent), **Load game** (every save, newest first, each
+with its depth, level, descent, time played and when it was made; delete takes a second press)
+and **Controls**. Saves are kept in the browser's localStorage (`src/core/saves.js`), one key
+each, with an index for the menu. Every run has one **autosave**, rewritten at the start of each
+stage, on **Save and quit** from the pause screen, and when the page is hidden or closed; only
+the five runs played last keep theirs. **Save game** on the pause screen makes a save of its own
+that later play never overwrites. A save holds the run's rolled order of floors and trials, the
+stage it is on, the stats, and the wizard: spells, bar, ranks, darts, level, experience, health,
+manergy, and the worn and carried gear (fixed gear by id, rolled gear by what it rolled;
+`Inventory.toSave`). A stage cannot be saved part way through, so loading starts it afresh
+(`Game.saveRun`): a save made on a dungeon floor keeps the wizard as it was then, and the floor
+is laid out anew; a save made in a trial keeps the wizard as it came to the trial, which starts
+over. A fall ends the run and deletes its autosave (god mode keeps it); saves made with Save game
+stay. Saves from a build whose format changed (`SAVE_VERSION`) are listed but cannot be loaded.
 
 **The mobile descent.** A second way down, made for touch screens and offered first on one: the
 same twenty floors, foes, spells and loot, but every floor is one long tunnel, and the trials are

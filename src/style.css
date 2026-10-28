@@ -171,8 +171,154 @@ button.danger {
   margin: 0 auto 18px;
 }
 
+/* the main menu's buttons (main.js): continue, new game, load game, controls */
+.menu-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, 100%);
+  margin: 0 auto 18px;
+}
+
+.menu-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 15px;
+}
+
+.menu-button-info {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
 .menu-modes {
   margin-bottom: 18px;
+}
+
+.menu-panel > .buttons {
+  margin-top: 12px;
+}
+
+/* the saves on the load panel */
+.menu-saves {
+  max-width: 760px;
+  margin: 0 auto 18px;
+}
+
+.menu-saves h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.menu-saves > p {
+  max-width: 640px;
+  margin: 0 auto 12px;
+  font-size: 11px;
+}
+
+.save-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.save-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-title {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.save-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  color: #1a1206;
+  background: var(--gold);
+  vertical-align: 1px;
+}
+
+.save-meta {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.save-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.save-actions button {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.save-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  filter: none;
+  transform: none;
+}
+
+.save-status {
+  margin: 0;
+  color: #ff8060;
+  text-align: center;
+}
+
+.save-empty {
+  margin: 6px 0;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .save-row {
+    flex-wrap: wrap;
+  }
+
+  .save-actions {
+    width: 100%;
+  }
+
+  .save-actions button {
+    flex: 1;
+  }
+}
+
+/* the pause screen's word on saving (hud.js) */
+.pause-save {
+  max-width: 420px;
+  margin: 12px auto 0;
+  font-size: 11px;
+}
+
+.pause-save.saved {
+  color: #8fe08a;
+}
+
+.pause-save.failed {
+  color: #ff8060;
 }
 
 .mode {
@@ -1113,10 +1259,6 @@ button.controls-key {
 button.controls-key.capturing {
   color: #1a1206;
   background: var(--accent);
-}
-
-.menu-controls-buttons {
-  margin: 0 0 10px;
 }
 
 @media (max-width: 640px) {
