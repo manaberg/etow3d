@@ -251,10 +251,29 @@ export class Hud {
     const pauseButtons = el('div', 'buttons', pauseCard);
     const resume = el('button', null, pauseButtons, 'Resume');
     resume.onclick = () => game.setPaused(false);
+    const save = el('button', 'secondary', pauseButtons, 'Save game');
+    save.onclick = () => {
+      const kept = game.saveRun(false);
+      setText(this.pauseSave, kept ? 'GAME SAVED :: ' + game.stageName() : 'NOT SAVED :: browser storage is full or blocked.');
+      this.pauseSave.classList.toggle('saved', kept);
+      this.pauseSave.classList.toggle('failed', !kept);
+    };
     const controls = el('button', 'secondary', pauseButtons, 'Controls');
     controls.onclick = () => openControls();
-    const menu = el('button', 'secondary', pauseButtons, 'Main menu');
-    menu.onclick = () => game.onExit && game.onExit('menu');
+    // leaving rewrites the run's autosave, which the main menu continues;
+    // when it cannot be kept, a second press leaves without it
+    this.quitButton = el('button', 'secondary', pauseButtons, '');
+    this.quitButton.onclick = () => {
+      if (game.saveRun(true) || this.quitUnsaved) {
+        game.onExit && game.onExit('menu');
+        return;
+      }
+      this.quitUnsaved = true;
+      setText(this.quitButton, 'Quit without saving');
+      setText(this.pauseSave, 'NOT SAVED :: browser storage is full or blocked.');
+      this.pauseSave.classList.add('failed');
+    };
+    this.pauseSave = el('p', 'dim pause-save', pauseCard, '');
 
     this.inventoryScreen = new InventoryScreen(root, game);
     this.endScreen = el('div', 'screen hidden', root);
@@ -431,10 +450,17 @@ export class Hud {
   showPause(paused) {
     this.pauseScreen.classList.toggle('hidden', !paused);
     this.pauseHint.textContent = isTouch() ? 'The game waits.' : 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
+    // what a save keeps (Game.saveRun)
+    this.quitUnsaved = false;
+    setText(this.quitButton, 'Save and quit');
+    this.pauseSave.classList.remove('saved', 'failed');
+    setText(this.pauseSave, this.game.trial
+      ? 'A save keeps your wizard as it came to this trial: loading it starts the trial over.'
+      : 'A save keeps your wizard as it is now: loading it starts this depth on a newly laid out floor.');
   }
 
   // The run is over. `onRetry` (god mode) offers to start the stage over;
-  // `unsaved` says why the run was not saved.
+  // `unsaved` says why the run's score was not recorded.
   showEnd({ title, text, stats, saved, unsaved, time, win, onRetry }) {
     const screen = this.endScreen;
     screen.innerHTML = '';
@@ -460,7 +486,7 @@ export class Hud {
       el('span', 'stat-label', grid, label);
       el('span', 'stat-value', grid, String(value));
     }
-    el('p', 'dim', card, unsaved || (saved ? 'Game data saved :: ' + saved.replace(/^Saved\s*/, '') : 'Game data not saved (no backend running).'));
+    el('p', 'dim', card, unsaved || (saved ? 'Score recorded :: ' + saved.replace(/^Saved\s*/, '') : 'Score not recorded (no score server running).'));
     const buttons = el('div', 'buttons', card);
     if (onRetry) {
       const game = this.game;

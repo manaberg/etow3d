@@ -6,7 +6,7 @@ import { DungeonLevels, Trials } from './world/levels.js';
 import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage } from './entities/mage.js';
+import { Mage, SpellById } from './entities/mage.js';
 import { BarSlots, WizardLevels } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
@@ -15,11 +15,12 @@ import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage, Projectile } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs, studySpell } from './entities/items.js';
-import { Kits, outfit, rollGear } from './entities/gear.js';
+import { Kits, Inventory, outfit, rollGear, applyGearPools } from './entities/gear.js';
 import { DuelLoot } from './entities/duelLoot.js';
 import { spawnReflection, rollSpoils, spoilName } from './entities/mirror.js';
 import { actionKeyLabel } from './core/bindings.js';
 import { setting } from './core/settings.js';
+import { autosaveId, deleteSave, newRunId, newSaveId, writeSave } from './core/saves.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
@@ -54,6 +55,26 @@ function copyCarry(carry) {
   };
 }
 
+// What the wizard carries, as a save keeps it (core/saves.js), and back
+// again. Gear whose properties changed since the save was made counts as it
+// is now, and spells no longer in the game leave the bar.
+function carryToSave(carry) {
+  return { ...carry, inventory: carry.inventory.toSave() };
+}
+
+function carryFromSave(saved) {
+  if (!saved) {
+    return null;
+  }
+  const carry = { ...saved, inventory: Inventory.fromSave(saved.inventory) };
+  carry.bar = carry.bar.map((id) => (id && SpellById[id] ? id : null));
+  carry.learnOrder = carry.learnOrder.filter((id) => SpellById[id]);
+  applyGearPools(carry);
+  return carry;
+}
+
+const AUTOSAVE_FAILED = 'AUTOSAVE FAILED :: BROWSER STORAGE IS FULL OR BLOCKED';
+
 const STAT_KEYS = [
   'wincount', 'killcount', 'bosscount', 'micount', 'fbcount', 'lgcount', 'iscount', 'bzcount', 'bkcount',
   'hscount', 'tscount', 'shcount', 'lscount', 'imcount', 'fecount', 'incount', 'crcount', 'tlcount', 'pwkcount',
@@ -63,13 +84,15 @@ const STAT_KEYS = [
 export class Game {
   // `mobile`: the mobile descent, made for touch screens: every floor a
   // tunnel from the start to the stairs (dungeon.js planTunnel), and duels
-  // for trials, no battles.
-  constructor({ container, hudRoot, onExit, mobile = false }) {
-    this.mobile = mobile;
+  // for trials, no battles. `save`: a saved game (core/saves.js) to carry
+  // on, at the stage it was saved on.
+  constructor({ container, hudRoot, onExit, mobile = false, save = null }) {
+    this.mobile = save ? !!save.mobile : mobile;
     // the descent: twenty dungeon floors with trials against the wizard's
     // reflection between them (levels.js Trials), and the stage the run is on
-    this.run = Trials.schedule({ battles: !mobile });
-    this.stage = 0;
+    this.runId = save ? save.runId : newRunId();
+    this.run = save ? save.run : Trials.schedule({ battles: !this.mobile });
+    this.stage = save ? save.stage : 0;
     // the current trial (a stage of the run), or null on a dungeon floor.
     // Trials are fought by the duel rules (duel damage and health); a battle
     // is a duel with armies.
@@ -89,7 +112,7 @@ export class Game {
     this.hud = new Hud(hudRoot, this);
     this.stats = {};
     for (const key of STAT_KEYS) {
-      this.stats[key] = 0;
+      this.stats[key] = save && Number.isFinite(save.stats[key]) ? save.stats[key] : 0;
     }
     this.entities = [];
     this.player = null;
@@ -114,8 +137,12 @@ export class Game {
     this.cursor = buildCursor();
     this.gfx.add(this.cursor);
 
-    this.startStage(null);
+    this.startStage(save ? carryFromSave(save.carry) : null);
     this.hud.build();
+    // the first stage was saved before there was a HUD to say it failed
+    if (this.autosaveFailed) {
+      this.hud.toast(AUTOSAVE_FAILED, '#ff8060');
+    }
     // the on-screen controls of a touch screen (core/device.js picks them)
     this.touch = new TouchControls(this);
 
@@ -159,8 +186,10 @@ export class Game {
   // `carry` is what the wizard brings down the stairs (null at the start).
   startStage(carry) {
     const stage = this.run[this.stage];
-    // the wizard as it came to this stage, for god mode's retry
+    // the wizard as it came to this stage, for god mode's retry and for
+    // saving in a trial
     this.stageCarry = carry ? copyCarry(carry) : null;
+    this.stageStats = { ...this.stats };
     this.depth = stage.depth;
     this.trial = stage.kind === 'dungeon' ? null : stage;
     this.duelMode = !!this.trial;
@@ -199,6 +228,12 @@ export class Game {
       this.startFloor(carry);
     }
     this.hud.onFloorChanged();
+    // the run's autosave; when the browser will not keep it, the player is
+    // told once
+    if (!this.saveRun(true) && !this.autosaveFailed) {
+      this.autosaveFailed = true;
+      this.hud.toast(AUTOSAVE_FAILED, '#ff8060');
+    }
   }
 
   // The wizard, with everything carried down the stairs (spells, bar, ranks,
@@ -304,6 +339,46 @@ export class Game {
     carry.ranks = { ...player.ranks };
     carry.learnOrder = player.learnOrder.slice();
     return carry;
+  }
+
+  // A save of the run (core/saves.js): the stages, the one it is on, the
+  // wizard and the stats. A stage cannot be saved part way through, so
+  // loading starts it afresh: a dungeon floor is laid out anew, the wizard as
+  // it is now; a trial starts over, the wizard as it came to it. `auto`
+  // rewrites the run's autosave; otherwise it is a save of its own. Returns
+  // whether it was kept.
+  saveRun(auto) {
+    if (this.state !== 'playing') {
+      return false;
+    }
+    const onFloor = !this.trial && this.player && !this.player.dead;
+    const carry = onFloor ? this.snapshotPlayer(this.player) : this.stageCarry;
+    const stage = this.run[this.stage];
+    const summary = {
+      auto: !!auto,
+      runId: this.runId,
+      mobile: this.mobile,
+      depth: this.depth,
+      kind: stage.kind,
+      name: this.stageName(),
+      level: carry ? carry.level : 1,
+      timePlayed: carry ? carry.timePlayed : 0
+    };
+    const data = {
+      runId: this.runId,
+      mobile: this.mobile,
+      run: this.run,
+      stage: this.stage,
+      stats: onFloor ? this.stats : this.stageStats,
+      carry: carry ? carryToSave(carry) : null
+    };
+    return writeSave(auto ? autosaveId(this.runId) : newSaveId(), summary, data);
+  }
+
+  // The run is over: its autosave goes (the saves made from the pause screen
+  // stay).
+  dropAutosave() {
+    deleteSave(autosaveId(this.runId));
   }
 
   requestDescend() {
@@ -970,15 +1045,19 @@ export class Game {
     this.state = 'over';
     this.fx.burst(c.x, c.y, 1.4, { color: 0x6aa8ff, count: 60, speed: 6, life: 1.2, size: 1.2 });
     const where = (this.trial ? 'Slain by your reflection below depth ' : 'Fell on depth ') + this.depth + ' of ' + DungeonLevels.count + ' :: ' + this.stageName();
-    // god mode (playtesting) offers to retry the stage, and saves nothing
+    // god mode (playtesting) offers to retry the stage, keeps the autosave
+    // and records no score
     const god = setting('godMode');
-    (god ? Promise.resolve(null) : this.saveGame(player)).then((msg) => {
+    if (!god) {
+      this.dropAutosave();
+    }
+    (god ? Promise.resolve(null) : this.postScore(player)).then((msg) => {
       this.hud.showEnd({
         title: 'YOU DIED',
         text: where,
         stats: this.stats,
         saved: msg,
-        unsaved: god ? 'God mode :: this run is not saved.' : null,
+        unsaved: god ? 'God mode :: this run\'s score is not recorded.' : null,
         time: player.timePlayed,
         onRetry: god ? () => this.retryStage() : null
       });
@@ -991,14 +1070,15 @@ export class Game {
     }
     this.state = 'over';
     this.stats.wincount++;
+    this.dropAutosave();
     const god = setting('godMode');
-    (god ? Promise.resolve(null) : this.saveGame(this.player)).then((msg) => {
+    (god ? Promise.resolve(null) : this.postScore(this.player)).then((msg) => {
       this.hud.showEnd({
         title: 'VICTORY',
         text: 'You slew the great golden wyrm and escaped the end of the world.',
         stats: this.stats,
         saved: msg,
-        unsaved: god ? 'God mode :: this run is not saved.' : null,
+        unsaved: god ? 'God mode :: this run\'s score is not recorded.' : null,
         time: this.player.timePlayed,
         win: true
       });
@@ -1053,8 +1133,9 @@ export class Game {
     });
   }
 
-  // Posts the run to the backend like the 2D game did; works without one.
-  async saveGame(player) {
+  // Posts the run's score to the backend like the 2D game did; works
+  // without one.
+  async postScore(player) {
     const body = new URLSearchParams();
     for (const key of STAT_KEYS) {
       body.set(key, String(this.stats[key]));

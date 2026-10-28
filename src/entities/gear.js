@@ -648,6 +648,38 @@ export class Inventory {
     return out;
   }
 
+  // The bag and worn items as a save keeps them (core/saves.js): fixed gear
+  // by its id, rolled gear by what it rolled.
+  toSave() {
+    const save = (item) => item && (Gear[item.type.id] === item.type ? { gear: item.type.id } : { type: item.type });
+    const equipped = {};
+    for (const slot of Slots) {
+      equipped[slot.id] = save(this.equipped[slot.id]);
+    }
+    return { size: this.size, bag: this.bag.map(save), equipped };
+  }
+
+  // An inventory from a save, its items new ones; fixed gear that is no
+  // longer in the game is left out.
+  static fromSave(data, owner = null) {
+    const load = (saved) => {
+      if (saved && saved.gear) {
+        return makeItem(saved.gear);
+      }
+      return saved && saved.type && Slots.some((s) => s.kind === saved.type.slot) ? { uid: nextUid++, type: saved.type } : null;
+    };
+    const out = new Inventory(owner, (data && data.size) || BAG_SIZE);
+    if (!data) {
+      return out;
+    }
+    out.bag = (data.bag || []).map(load).filter(Boolean).slice(0, out.size);
+    for (const slot of Slots) {
+      const item = load(data.equipped && data.equipped[slot.id]);
+      out.equipped[slot.id] = item && slotFits(slot.id, item.type) ? item : null;
+    }
+    return out;
+  }
+
   worn() {
     return Slots.map((s) => this.equipped[s.id]).filter(Boolean);
   }
