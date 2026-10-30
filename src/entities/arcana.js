@@ -10,8 +10,9 @@ import { rankPower } from './spellbar.js';
 // (scorching ray to spiritual weapon) and ten more (sleep to reverse
 // gravity) that each work in a way no other spell does. Either wizard can
 // cast them: the player from the keys, the rival (duels, battles) from its
-// brain. Against orcs they deal the dungeon numbers below; between wizards
-// they use DuelRules.arcana.
+// brain, and an orc cleric or mage the one it knows (bosses.js OrcArcana).
+// Against orcs they deal the dungeon numbers below; on a wizard they use
+// DuelRules.arcana.
 // Numbers are in the game's units: pixels (24 to a tile) and 60 frames a second.
 export const Arcana = {
   scorch: { damage: 60, spread: 0.16 },
@@ -24,9 +25,9 @@ export const Arcana = {
   polymorph: { frames: 360, range: 560 },
   disintegrate: { damage: 320, range: 640 },
   weapon: { life: 600, damage: 45, every: 45, reach: 420 },
-  // the weakest foes in the burst sleep, as many as `pool` health covers;
-  // any lost health wakes a sleeper
-  sleep: { radius: 120, pool: 320, frames: 720 },
+  // the weakest foes in the burst sleep, as many as `pool` health covers,
+  // and the rest doze for `doze`; any lost health wakes a sleeper
+  sleep: { radius: 120, pool: 320, frames: 720, doze: 300 },
   // `ward` health soaked before the wizard's own, for `frames`; a foe that
   // strikes through it takes `cold` and is chilled
   agathys: { ward: 50, frames: 600, cold: 30, chill: 120 },
@@ -39,7 +40,7 @@ export const Arcana = {
   swap: { range: 560 },
   // the haunted foe flees (if it can) and takes `dps` psychic damage
   phantasm: { frames: 300, dps: 40, range: 560 },
-  // regular foes fight each other; the rest only reel
+  // regular foes fight each other; the rest reel
   confusion: { radius: 120, frames: 480 },
   // a whirlpool that drags foes `pull` px/s toward its eye
   maelstrom: { radius: 150, life: 360, pull: 80, dps: 30 },
@@ -47,9 +48,10 @@ export const Arcana = {
   gravity: { radius: 130, frames: 110, damage: 150 }
 };
 
-// The side whose spells a caster throws ('player' or 'enemy').
+// The side whose spells a caster throws ('player' or 'enemy'): the player's
+// wizard, or the rival and the monsters.
 export function teamOf(caster) {
-  return caster.isDuelWizard ? 'enemy' : 'player';
+  return caster.isWizard && !caster.isDuelWizard ? 'player' : 'enemy';
 }
 
 // One of these spells lands on `target`: wizards take the duel number, and
@@ -258,23 +260,16 @@ export const ArcanaCast = {
     return true;
   },
 
-  // turns an orc (or a wizard, briefly) into a sheep; needs sight and range
+  // turns a foe into a sheep (a boss or a dragon not for long, a wizard
+  // briefly); needs sight and range
   polymorph(caster, target) {
     const game = caster.game;
-    const fx = game.fx;
     if (!target || caster.distanceTo(target) > Arcana.polymorph.range || !game.hasRoomLineOfSight(caster, target)) {
       return false;
     }
     const tc = target.center();
-    if (target.canPolymorph || target.isWizard) {
-      target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph'));
-      fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
-    } else {
-      if (caster === game.player) {
-        game.hud.toast('IT RESISTS THE POLYMORPH', '#ff80e0');
-      }
-      fx.burst(tc.x, tc.y, 1.6, { color: 0xff80e0, count: 12, speed: 3, life: 0.4, size: 0.7 });
-    }
+    target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph'));
+    game.fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
     caster.rig.swing();
     return true;
   },
@@ -328,7 +323,7 @@ export const ArcanaCast = {
   },
 
   // the weakest foes in the burst fall asleep first, while the pool of
-  // health lasts; bosses and dragons shrug it off, and a wizard only dozes
+  // health lasts, and the rest only doze; a wizard only dozes
   sleep(caster, point) {
     const game = caster.game;
     const fx = game.fx;
@@ -340,12 +335,11 @@ export const ArcanaCast = {
         if (!e.shielded) {
           e.sleep(DuelRules.arcana.sleep.frames);
         }
-      } else if (e.canPolymorph && e.hp <= pool) {
+      } else if (e.hp <= pool) {
         pool -= Math.max(0, e.hp);
         e.sleep(spec.frames);
       } else {
-        const c = e.center();
-        fx.burst(c.x, c.y, 1.6, { color: 0xb0b0b0, count: 6, speed: 2, life: 0.4, size: 0.6 });
+        e.sleep(spec.doze);
       }
     }
     fx.column(point.x, point.y, spec.radius, { color: [0xd8d0ff, 0x9a90e0, 0xffffff], count: 50, h: 3, rise: -0.6, life: 1.4, size: 0.8 });
@@ -432,7 +426,8 @@ export const ArcanaCast = {
     return true;
   },
 
-  // trade places with a foe in sight; there must be room for both bodies
+  // trade places with a foe in sight, however big; there must be room for
+  // both bodies
   swap(caster, target) {
     const game = caster.game;
     if (!inReach(caster, target, Arcana.swap.range)) {
@@ -441,14 +436,6 @@ export const ArcanaCast = {
     const a = caster.center();
     const b = target.center();
     const fx = game.fx;
-    if (target.size.x > 64 || target.canLift === false) {
-      if (caster === game.player) {
-        game.hud.toast('IT IS TOO VAST TO MOVE', '#c0a0ff');
-      }
-      fx.burst(b.x, b.y, 1.6, { color: 0xc0a0ff, count: 12, speed: 3, life: 0.4, size: 0.7 });
-      caster.rig.swing();
-      return true;
-    }
     const mine = { x: b.x - caster.size.x / 2, y: b.y - caster.size.y / 2 };
     const theirs = { x: a.x - target.size.x / 2, y: a.y - target.size.y / 2 };
     if (!game.world.canStandAt(mine.x, mine.y, caster.size.x, caster.size.y) || !game.world.canStandAt(theirs.x, theirs.y, target.size.x, target.size.y)) {
@@ -471,7 +458,7 @@ export const ArcanaCast = {
     return true;
   },
 
-  // a nightmare hunts one foe: it flees if it can, and the terror hurts
+  // a nightmare hunts one foe: it flees, and the terror hurts
   phantasm(caster, target) {
     if (!inReach(caster, target, Arcana.phantasm.range)) {
       return false;
@@ -486,7 +473,7 @@ export const ArcanaCast = {
     return true;
   },
 
-  // regular foes in the burst turn on each other; the rest only reel
+  // regular foes in the burst turn on each other; the rest reel
   confusion(caster, point) {
     const spec = Arcana.confusion;
     const frames = spec.frames * rankPower(caster, 'confusion');
@@ -509,7 +496,7 @@ export const ArcanaCast = {
   },
 
   // foes in the circle fall upward, hang, and crash down; a shield holds a
-  // wizard to the ground, and dragons are too vast to lift
+  // wizard to the ground
   gravity(caster, point) {
     const game = caster.game;
     const fx = game.fx;

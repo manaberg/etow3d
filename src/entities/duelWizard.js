@@ -25,7 +25,6 @@ export class DuelWizard extends Enemy {
     this.manergyRegen = 0.5;
     this.desiredVel = 120;
     this.isDuelWizard = true;
-    this.canBeFeared = true;
     this.blizzardSlow = [0.5, 0.5];
     this.difficulty = 'hard';
     // cooldowns and costs mirror the player's duel loadout (all tier 2 spells and rings)

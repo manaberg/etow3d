@@ -1,23 +1,68 @@
 import { Enemy } from './enemy.js';
 import { Projectile, Zone } from './spells.js';
+import { ArcanaCast } from './arcana.js';
 import { buildOrc } from '../render/models.js';
 import { DungeonLevels } from '../world/levels.js';
 import { outfit, rollGear } from './gear.js';
 
-// Orc cleric: a tanky healer that pelts the player with stones and keeps the
-// orcs around it on their feet.
+// Besides its own stones or bolts, an orc cleric knows one spell from the
+// cleric's list and an orc mage one evocation from the arcana (arcana.js),
+// drawn when it spawns and cast at the player it can see: `cd` frames
+// between casts, `range` how near the player must be. They hit the wizard
+// as the rival's do (DuelRules.arcana).
+export const OrcArcana = {
+  cleric: ['guardians', 'weapon', 'curse'],
+  mage: ['scorch', 'cone', 'thunder', 'meteor', 'maelstrom'],
+  pace: {
+    guardians: { cd: 900, range: 140 },
+    weapon: { cd: 900, range: 400 },
+    curse: { cd: 600, range: 520 },
+    scorch: { cd: 200, range: 420 },
+    cone: { cd: 300, range: 250 },
+    thunder: { cd: 360, range: 140 },
+    meteor: { cd: 900, range: 520 },
+    maelstrom: { cd: 800, range: 460 }
+  },
+
+  pick(kind) {
+    const list = this[kind];
+    return list[Math.floor(Math.random() * list.length)];
+  }
+};
+
+// Its arcana spell at the player, once it is ready and they are in reach
+// (the caller checks that it sees them and is free to cast).
+function castOrcArcana(orc, player, distance) {
+  const id = orc.arcanaSpell;
+  const pace = OrcArcana.pace[id];
+  if (orc.arcanaCd > 0 || player.invis || distance > pace.range || (id === 'curse' && player.curseFrames > 0)) {
+    return;
+  }
+  const aim = orc.angleTo(player) + (Math.random() - 0.5) * 0.1;
+  const at = player.center();
+  const arg = { scorch: aim, cone: aim, meteor: at, maelstrom: at, curse: player }[id];
+  if (ArcanaCast[id](orc, arg)) {
+    orc.arcanaCd = pace.cd;
+  }
+}
+
+// Orc cleric: a tanky healer that pelts the player with stones, keeps the
+// orcs around it on their feet and knows one cleric's spell.
 export class Clericorc extends Enemy {
   defaults() {
     super.defaults();
     this.knockResist = 0.5;
+    this.holdScale = 0.5;
     this.hp = this.maxHp = 8000;
     this.desiredVel = 100;
     this.attackCooldown = 0;
     this.attackMax = 50;
     this.stoneCooldown = 0;
     this.healCooldown = 0;
-    // counterspell holds back its stones and its healing
-    this.spellTimers = ['stoneCooldown', 'healCooldown'];
+    this.arcanaSpell = OrcArcana.pick('cleric');
+    this.arcanaCd = 120;
+    // counterspell holds back its stones, its healing and its spell
+    this.spellTimers = ['stoneCooldown', 'healCooldown', 'arcanaCd'];
     this.spellpool = 50;
     this.spawnFrames = 300;
     this.pwkillDamage = 250;
@@ -27,6 +72,7 @@ export class Clericorc extends Enemy {
 
   init() {
     this.meleeDmg = Math.floor(Math.random() * 10) + 40;
+    this.resist = DungeonLevels.rollResist(this.game.depth);
     this.rig = buildOrc('cleric');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -45,11 +91,19 @@ export class Clericorc extends Enemy {
     this.attackCooldown = Math.max(0, this.attackCooldown - k);
     this.stoneCooldown = Math.max(0, this.stoneCooldown - k);
     this.healCooldown = Math.max(0, this.healCooldown - k);
+    this.arcanaCd = Math.max(0, this.arcanaCd - k);
+    if (this.amble(k)) {
+      if (this.hp < 0) {
+        this.die();
+      }
+      return;
+    }
     const hasRoomSight = game.hasRoomLineOfSight(this, player);
     const aggro = game.updateAggro(this, player, hasRoomSight);
     const distance = this.distanceTo(player);
 
-    if (this.healCooldown <= 0) {
+    // it heals its kin (not in its sleep, nor in the air)
+    if (this.healCooldown <= 0 && this.sleepFrames <= 0 && !this.lift) {
       for (const orc of game.orcs()) {
         if (orc.alive && orc.distanceTo(this) < 400 && orc.hp < 100) {
           orc.hp += 150;
@@ -60,6 +114,9 @@ export class Clericorc extends Enemy {
         }
       }
     }
+    if (this.freeToCast() && aggro && hasRoomSight) {
+      castOrcArcana(this, player, distance);
+    }
 
     if (this.spawnFrames > 0) {
       this.spawnFrames -= k;
@@ -68,6 +125,8 @@ export class Clericorc extends Enemy {
     } else if (this.isStunned) {
       this.vel.x = 0;
       this.vel.y = 0;
+    } else if (this.isFeared) {
+      this.stumble(k);
     } else if (aggro && this.spellpool > 0 && hasRoomSight && distance < 500 && this.stoneCooldown <= 0 && !player.invis) {
       this.vel.x = 0;
       this.vel.y = 0;
@@ -86,7 +145,7 @@ export class Clericorc extends Enemy {
       this.vel.y = 0;
     }
 
-    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && !this.lift) {
+    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
       if (!player.takeMelee(this.meleeDmg * 4 + Math.floor(Math.random() * 20) + 50, 0, this)) {
@@ -114,18 +173,22 @@ export class Clericorc extends Enemy {
   }
 }
 
-// Orc mage: casts poison bolts from range and hurls fireballs up close.
+// Orc mage: casts poison bolts from range, hurls fireballs up close and
+// knows one more evocation.
 export class Mageorc extends Enemy {
   defaults() {
     super.defaults();
     this.knockResist = 0.5;
+    this.holdScale = 0.5;
     this.hp = this.maxHp = 3000;
     this.desiredVel = 90;
     this.attackCooldown = 0;
     this.attackMax = 100;
     this.missileCooldown = 0;
     this.fireballCooldown = 0;
-    this.spellTimers = ['missileCooldown', 'fireballCooldown'];
+    this.arcanaSpell = OrcArcana.pick('mage');
+    this.arcanaCd = 120;
+    this.spellTimers = ['missileCooldown', 'fireballCooldown', 'arcanaCd'];
     this.spawnFrames = 300;
     this.pwkillDamage = 250;
     this.label = 'ORC MAGE';
@@ -134,6 +197,7 @@ export class Mageorc extends Enemy {
 
   init() {
     this.meleeDmg = Math.floor(Math.random() * 10) + 20;
+    this.resist = DungeonLevels.rollResist(this.game.depth);
     this.rig = buildOrc('mage');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -151,11 +215,21 @@ export class Mageorc extends Enemy {
     this.attackCooldown = Math.max(0, this.attackCooldown - k);
     this.missileCooldown = Math.max(0, this.missileCooldown - k);
     this.fireballCooldown = Math.max(0, this.fireballCooldown - k);
+    this.arcanaCd = Math.max(0, this.arcanaCd - k);
+    if (this.amble(k)) {
+      if (this.hp < 0) {
+        this.die();
+      }
+      return;
+    }
     const hasRoomSight = game.hasRoomLineOfSight(this, player);
     const aggro = game.updateAggro(this, player, hasRoomSight);
     const distance = this.distanceTo(player);
     const c = this.center();
     const angle = this.angleTo(player) + (Math.random() - 0.5) * 0.1;
+    if (this.freeToCast() && aggro && hasRoomSight) {
+      castOrcArcana(this, player, distance);
+    }
 
     if (this.spawnFrames > 0) {
       this.spawnFrames -= k;
@@ -164,6 +238,8 @@ export class Mageorc extends Enemy {
     } else if (this.isStunned) {
       this.vel.x = 0;
       this.vel.y = 0;
+    } else if (this.isFeared) {
+      this.stumble(k);
     } else if (!aggro) {
       game.idleEntity(this);
     } else if (hasRoomSight && !player.invis && distance < 400 && distance > 300 && this.missileCooldown <= 0) {
@@ -182,7 +258,7 @@ export class Mageorc extends Enemy {
       this.vel.y = 0;
     }
 
-    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && !this.lift) {
+    if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
       if (!player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 20) + 25, 0, this)) {
@@ -216,6 +292,7 @@ export class Boss extends Enemy {
   defaults() {
     super.defaults();
     this.knockResist = 0.9;
+    this.holdScale = 0.35;
     this.hp = this.maxHp = 20000;
     this.manergy = 200;
     this.maxManergy = 200;
@@ -242,6 +319,7 @@ export class Boss extends Enemy {
 
   init() {
     this.meleeDmg = Math.floor(Math.random() * 10) + 10;
+    this.resist = DungeonLevels.rollResist(this.game.depth);
     this.rig = buildOrc('boss');
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -262,11 +340,17 @@ export class Boss extends Enemy {
     this.msCooldown = Math.max(0, this.msCooldown - k);
     this.hkCooldown = Math.max(0, this.hkCooldown - k);
     this.frCooldown = Math.max(0, this.frCooldown - k);
+    if (this.amble(k)) {
+      if (this.hp < 0) {
+        this.die();
+      }
+      return;
+    }
     const hasSight = game.hasRoomLineOfSight(this, player);
     const aggro = game.updateAggro(this, player, hasSight);
     const distance = this.distanceTo(player);
 
-    if (this.touches(player) && this.attackCooldown <= 0 && !this.lift) {
+    if (this.touches(player) && this.attackCooldown <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
       player.takeMelee(this.meleeDmg * 5, 0, this);
@@ -280,6 +364,8 @@ export class Boss extends Enemy {
     } else if (this.isStunned) {
       this.vel.x = 0;
       this.vel.y = 0;
+    } else if (this.isFeared) {
+      this.stumble(k);
     } else if (!aggro) {
       // waits on the throne until the player shows up
       game.idleEntity(this);

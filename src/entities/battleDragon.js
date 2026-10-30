@@ -4,6 +4,7 @@ import { Dragon, DragonBreath } from './dragon.js';
 import { Projectile, Zone } from './spells.js';
 import { BattleRules } from './battle.js';
 import { TEAM_COLORS } from '../render/models.js';
+import { liftHeight } from './arcana.js';
 
 // frames the dragon rears before it breathes, and breathes (as in dragon.js)
 const WINDUP = 42;
@@ -27,7 +28,6 @@ export class BattleDragon extends Dragon {
     this.retarget = 0;
     this.roarCd = 0;
     this.goal = null;
-    this.canBeFeared = false;
   }
 
   init() {
@@ -92,17 +92,23 @@ export class BattleDragon extends Dragon {
       this.flyTo(k, target);
       return;
     }
+    if (this.amble(k)) {
+      return;
+    }
     const dist = target ? this.distanceTo(target) : Infinity;
     const engaged = dist < this.spec.reach + 120;
     const order = regiment.order;
-    if (this.isStunned) {
-      this.vel.x = 0;
-      this.vel.y = 0;
+    if (this.isStunned || this.isFeared) {
+      // held, or fleeing in terror: whatever it reared up for is lost
       this.state = 'hunt';
       this.rig.rear = 0;
       this.rig.gape = 0;
-    } else if (this.isFeared) {
-      this.stumble(k);
+      if (this.isStunned) {
+        this.vel.x = 0;
+        this.vel.y = 0;
+      } else {
+        this.stumble(k);
+      }
     } else if (this.state === 'windup') {
       this.vel.x = 0;
       this.vel.y = 0;
@@ -253,7 +259,7 @@ export class BattleDragon extends Dragon {
           f.frighten(70);
           game.hud.toast('FRIGHTFUL PRESENCE :: YOU FLEE IN TERROR', '#c090ff');
         }
-      } else if (f.canBeFeared && !f.isFeared && Math.random() < 0.7) {
+      } else if (!f.isFeared && Math.random() < 0.7) {
         f.fear();
       }
     });
@@ -375,7 +381,8 @@ export class BattleDragon extends Dragon {
         this.pos.x += this.vel.x * k / 60;
         this.pos.y += this.vel.y * k / 60;
       }
-      const near = d < 200 + this.size.x / 2 || this.flyFrames > 900;
+      // held by a spell, it comes down on the first open ground
+      const near = d < 200 + this.size.x / 2 || this.flyFrames > 900 || this.isStunned || this.sheepFrames > 0;
       if (near && this.altitude >= 1 && game.world.canStandAt(this.pos.x, this.pos.y, this.size.x, this.size.y)) {
         this.landing = true;
       }
@@ -433,7 +440,7 @@ export class BattleDragon extends Dragon {
 
   syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+    this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const speed = this.flying ? 0 : Math.hypot(this.vel.x, this.vel.y);
     let facing = null;
     if (this.flying && Math.hypot(this.vel.x, this.vel.y) > 2) {
@@ -447,15 +454,10 @@ export class BattleDragon extends Dragon {
       facing = Math.atan2(this.vel.x, this.vel.y);
     }
     this.rig.animate(dt, this.isStunned ? 0 : Math.min(1.2, speed / 110), facing);
-    this.teamRing.visible = this.altitude < 0.5;
+    this.teamRing.visible = this.altitude < 0.5 && !this.lift;
     const fx = this.game.fx;
-    if (this.isStunned && Math.random() < 0.3) {
-      fx.column(c.x, c.y, this.size.x / 2, { color: 0x40ff60, count: 1, rise: 0.8, life: 0.6, size: 0.6 });
-    }
-    if (this.chillFrames > 0 && Math.random() < 0.3) {
-      fx.emit(c.x + (Math.random() - 0.5) * this.size.x, c.y + (Math.random() - 0.5) * this.size.y, Math.random() * this.rig.height, { color: 0xbfe8ff, life: 0.5, size: 0.5, vy: -0.5 });
-    }
-    if (Math.random() < 0.08 + this.spec.scale * 0.04) {
+    this.syncHolds(time);
+    if (this.sheepFrames <= 0 && Math.random() < 0.08 + this.spec.scale * 0.04) {
       const m = this.mouth();
       fx.emit(m.x, m.y, this.rig.mouth.up + 0.2, { color: this.hue.fx[2], life: 0.9, size: 0.6 * this.spec.scale, vy: 0.8, grow: 1.5 });
     }
@@ -479,7 +481,7 @@ export class BattleBreath extends DragonBreath {
     const game = this.game;
     const dragon = this.dragon;
     this.life -= k;
-    if (this.life <= 0 || !dragon || dragon.killed || dragon.isStunned) {
+    if (this.life <= 0 || !dragon || dragon.killed || dragon.isStunned || dragon.isFeared || dragon.sheepFrames > 0) {
       this.kill();
       return;
     }

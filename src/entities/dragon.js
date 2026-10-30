@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
-import { Enemy, Elements } from './enemy.js';
+import { Enemy, Elements, arcanaFx } from './enemy.js';
 import { Projectile, Zone } from './spells.js';
+import { liftHeight } from './arcana.js';
 import { buildDragon } from '../render/models.js';
 
 // Dragons haunt the floors below the warlord (levels.js). Each has an age and
@@ -15,15 +16,17 @@ import { buildDragon } from '../render/models.js';
 //   weakening gas by turns.
 // The colour sets the breath weapon, the spell and the resistances (a
 // multiplier per element of the mage's spells, see Elements in enemy.js).
+// The age sets how long the long holds (fear, polymorph, sleep, confusion)
+// keep it (`hold`, Enemy.holdScale); the old ones also break roots sooner.
 // A breath is telegraphed: the dragon stops, rears and its mouth glows, then
 // breathes in a cone or a line that sweeps slowly after you. Get out of it,
 // or raise the shield. Numbers are in the game's units (px, frames).
 export const DragonAges = {
-  wyrmling: { label: 'WYRMLING', hp: 1800, size: 60, scale: 0.55, speed: 115, bite: 14, breath: 18, reach: 280, recharge: 330, knock: 0.5, pwkill: 400, loot: 1 },
-  young: { label: 'YOUNG', hp: 4500, size: 76, scale: 0.8, speed: 125, bite: 20, breath: 26, reach: 330, recharge: 320, knock: 0.65, pwkill: 450, loot: 2 },
-  adult: { label: 'ADULT', hp: 10000, size: 96, scale: 1.1, speed: 135, bite: 28, breath: 36, reach: 390, recharge: 300, knock: 0.8, pwkill: 500, loot: 3, tail: true, roar: true },
-  ancient: { label: 'ANCIENT', hp: 20000, size: 116, scale: 1.5, speed: 145, bite: 36, breath: 46, reach: 450, recharge: 280, knock: 0.9, pwkill: 550, loot: 4, tail: true, roar: true, buffet: true, spell: true, old: true, rootproof: true },
-  great: { label: 'GREAT', hp: 42000, size: 132, scale: 1.9, speed: 155, bite: 46, breath: 58, reach: 520, recharge: 260, knock: 0.95, pwkill: 600, loot: 6, tail: true, roar: true, buffet: true, spell: true, old: true, rootproof: true }
+  wyrmling: { label: 'WYRMLING', hp: 1800, size: 60, scale: 0.55, speed: 115, bite: 14, breath: 18, reach: 280, recharge: 330, hold: 0.6, knock: 0.5, pwkill: 400, loot: 1 },
+  young: { label: 'YOUNG', hp: 4500, size: 76, scale: 0.8, speed: 125, bite: 20, breath: 26, reach: 330, recharge: 320, hold: 0.5, knock: 0.65, pwkill: 450, loot: 2 },
+  adult: { label: 'ADULT', hp: 10000, size: 96, scale: 1.1, speed: 135, bite: 28, breath: 36, reach: 390, recharge: 300, hold: 0.45, knock: 0.8, pwkill: 500, loot: 3, tail: true, roar: true },
+  ancient: { label: 'ANCIENT', hp: 20000, size: 116, scale: 1.5, speed: 145, bite: 36, breath: 46, reach: 450, recharge: 280, hold: 0.4, knock: 0.9, pwkill: 550, loot: 4, tail: true, roar: true, buffet: true, spell: true, old: true },
+  great: { label: 'GREAT', hp: 42000, size: 132, scale: 1.9, speed: 155, bite: 46, breath: 58, reach: 520, recharge: 260, hold: 0.3, knock: 0.95, pwkill: 600, loot: 6, tail: true, roar: true, buffet: true, spell: true, old: true }
 };
 
 // breath: element and shape (cone or line); fx: particle colours
@@ -82,13 +85,14 @@ export class Dragon extends Enemy {
     this.maxSpeed = age.speed * 1.8;
     this.resist = hue.resist;
     this.knockResist = age.knock;
-    // too vast for reverse gravity; counterspell holds back its spell
-    this.canLift = false;
+    this.holdScale = age.hold;
+    // counterspell holds back its spell
     this.spellTimers = ['spellCd'];
     this.pwkillDamage = age.pwkill;
     this.fireSplash = age.size * 1.2;
     this.blizzardSlow = [0.7, 0.8];
-    this.stunDuration = age.rootproof ? 90 : 140;
+    // nothing roots a dragon for long, an old one least of all
+    this.stunDuration = age.old ? 90 : 140;
     this.sightRange = age.reach + 200;
     this.breathCd = 90 + Math.random() * 120;
     this.spellCd = 200;
@@ -99,15 +103,6 @@ export class Dragon extends Enemy {
     this.rig.setScale(age.scale);
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
-  }
-
-  // Ancients shake off roots; nothing stuns a dragon for long.
-  stun(cause) {
-    if (cause === 'root' && this.spec.rootproof) {
-      this.onResist('root', 0);
-      return;
-    }
-    super.stun(cause);
   }
 
   // Where the breath comes out, on the ground plane.
@@ -136,6 +131,9 @@ export class Dragon extends Enemy {
       this.fly(k, player);
       return;
     }
+    if (this.amble(k)) {
+      return;
+    }
     const sight = game.hasRoomLineOfSight(this, player);
     const aggro = game.updateAggro(this, player, sight);
     const distance = this.distanceTo(player);
@@ -147,12 +145,17 @@ export class Dragon extends Enemy {
     }
     this.blind = sight ? 0 : this.blind + k;
 
-    if (this.isStunned) {
-      this.vel.x = 0;
-      this.vel.y = 0;
+    if (this.isStunned || this.isFeared) {
+      // held, or fleeing in terror: whatever it reared up for is lost
       this.state = 'hunt';
       this.rig.rear = 0;
       this.rig.gape = 0;
+      if (this.isStunned) {
+        this.vel.x = 0;
+        this.vel.y = 0;
+      } else {
+        this.stumble(k);
+      }
     } else if (this.state === 'windup') {
       this.vel.x = 0;
       this.vel.y = 0;
@@ -263,7 +266,8 @@ export class Dragon extends Enemy {
   }
 
   biteAt(player) {
-    if (this.biteCd > 0 || this.state !== 'hunt' || !this.closeTo(player, 10)) {
+    // asleep or in the air it bites no one
+    if (this.biteCd > 0 || this.state !== 'hunt' || this.sleepFrames > 0 || this.lift || !this.closeTo(player, 10)) {
       return;
     }
     this.biteCd = 70;
@@ -433,7 +437,8 @@ export class Dragon extends Enemy {
         this.pos.x += this.vel.x * k / 60;
         this.pos.y += this.vel.y * k / 60;
       }
-      const near = d < 170 + this.size.x / 2 || this.flyFrames > 420;
+      // held by a spell, it comes down on the first open floor
+      const near = d < 170 + this.size.x / 2 || this.flyFrames > 420 || this.isStunned || this.sheepFrames > 0;
       if (near && this.altitude >= 1 && game.world.canStandAt(this.pos.x, this.pos.y, this.size.x, this.size.y)) {
         this.landing = true;
       }
@@ -507,7 +512,7 @@ export class Dragon extends Enemy {
 
   syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0, c.y * UNIT);
+    this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const player = this.game.player;
     const speed = this.flying ? 0 : Math.hypot(this.vel.x, this.vel.y);
     let facing = null;
@@ -522,21 +527,33 @@ export class Dragon extends Enemy {
       facing = Math.atan2(this.vel.x, this.vel.y);
     }
     this.rig.animate(dt, this.isStunned ? 0 : Math.min(1.2, speed / 110), facing);
-    const fx = this.game.fx;
-    if (this.isStunned && Math.random() < 0.3) {
-      fx.column(c.x, c.y, this.size.x / 2, { color: 0x40ff60, count: 1, rise: 0.8, life: 0.6, size: 0.6 });
-    }
-    if (this.chillFrames > 0 && Math.random() < 0.3) {
-      fx.emit(c.x + (Math.random() - 0.5) * this.size.x, c.y + (Math.random() - 0.5) * this.size.y, Math.random() * this.rig.height, { color: 0xbfe8ff, life: 0.5, size: 0.5, vy: -0.5 });
-    }
+    this.syncHolds(time);
     // smoke curls from the nostrils, and the old ones glow
-    if (Math.random() < 0.08 + this.spec.scale * 0.04) {
+    if (this.sheepFrames <= 0 && Math.random() < 0.08 + this.spec.scale * 0.04) {
       const m = this.mouth();
-      fx.emit(m.x, m.y, this.rig.mouth.up + 0.2, { color: this.hue.fx[2], life: 0.9, size: 0.6 * this.spec.scale, vy: 0.8, grow: 1.5 });
+      this.game.fx.emit(m.x, m.y, this.rig.mouth.up + 0.2, { color: this.hue.fx[2], life: 0.9, size: 0.6 * this.spec.scale, vy: 0.8, grow: 1.5 });
     }
     if (this.spec.old) {
       this.game.gfx.requestLight(c.x, c.y, 2, this.hue.fx[0], 6 + this.spec.scale * 4);
     }
+  }
+
+  // The marks of the spells holding it, sized to the dragon: roots, terror,
+  // frost, the newer spells' marks (arcanaFx) and a sheep in its place.
+  syncHolds(time) {
+    const c = this.center();
+    const fx = this.game.fx;
+    if (this.isStunned && !this.sleepFrames && !this.lift && Math.random() < 0.3) {
+      fx.column(c.x, c.y, this.size.x / 2, { color: 0x40ff60, count: 1, rise: 0.8, life: 0.6, size: 0.6 });
+    }
+    if (this.isFeared && Math.random() < 0.3) {
+      fx.emit(c.x, c.y, this.rig.height + 0.3, { color: 0xc040ff, life: 0.5, size: 0.6 + this.spec.scale * 0.3, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2 });
+    }
+    if (this.chillFrames > 0 && Math.random() < 0.3) {
+      fx.emit(c.x + (Math.random() - 0.5) * this.size.x, c.y + (Math.random() - 0.5) * this.size.y, Math.random() * this.rig.height, { color: 0xbfe8ff, life: 0.5, size: 0.5, vy: -0.5 });
+    }
+    arcanaFx(this, time, this.rig.height);
+    this.syncSheep(time);
   }
 }
 
@@ -602,7 +619,7 @@ export class DragonBreath extends Entity {
     const dragon = this.dragon;
     const player = game.player;
     this.life -= k;
-    if (this.life <= 0 || !dragon || dragon.killed || dragon.isStunned || !player) {
+    if (this.life <= 0 || !dragon || dragon.killed || dragon.isStunned || dragon.isFeared || dragon.sheepFrames > 0 || !player) {
       this.kill();
       return;
     }

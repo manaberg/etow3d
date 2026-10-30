@@ -495,8 +495,6 @@ export class MirrorImage extends Entity {
     this.hp = 100;
     this.life = 300;
     this.source = null;
-    // a polymorph, like any other spell on it, dispels it
-    this.canPolymorph = true;
     this.desiredVel = 100;
     // no colours: the decoy looks like the player's wizard
     this.robe = undefined;
@@ -553,9 +551,13 @@ export class MirrorImage extends Entity {
     this.pop();
   }
 
-  // it has no mind to sleep, curse, haunt, confuse or lift: the spell
-  // shows it up for the illusion it is
+  // it has no mind to polymorph, frighten, sleep, curse, haunt, confuse or
+  // lift: the spell shows it up for the illusion it is
   polymorph() {
+    this.pop();
+  }
+
+  fear() {
     this.pop();
   }
 

@@ -364,13 +364,13 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | transposition (hover an enemy: trade places with it) | II | cooldown -25% |
 | blizzard at the cursor | III | twice the radius |
 | invisibility | III | +30% duration |
-| polymorph (turns an orc under the cursor into a sheep; a wizard only briefly, and a sheep cannot cast) | III | +30% duration |
+| polymorph (turns the enemy under the cursor into a sheep; bosses and dragons not for long, a wizard only briefly, and a sheep cannot cast) | III | +30% duration |
 | cloudkill at the cursor (a poison cloud that rolls away from you) | III | +30% damage |
 | spirit guardians (a damaging, slowing aura that follows you) | III | +30% damage |
 | spiritual weapon (a spectral sword that fights beside you) | III | +30% damage |
 | disintegrate (a ray into the first enemy in line) | III | +30% damage |
 | phantasmal killer (hover an enemy: it flees in terror and takes psychic damage) | III | +30% damage |
-| confusion at the cursor (orcs fall on each other; others only reel) | III | +30% duration |
+| confusion at the cursor (orcs and their kind fall on each other; bigger foes reel) | III | +30% duration |
 | maelstrom at the cursor (a whirlpool that drags enemies to its eye) | III | +30% damage |
 | time stop | IV | +30% duration |
 | meteor swarm at the cursor | IV | +30% damage |
@@ -381,7 +381,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 
 - **Sleep** spends a pool of health on the weakest enemies in the burst first; a sleeper stands
   helpless until it wears off (12 s) or it loses any health, so the next blow both lands and
-  wakes it. Bosses and dragons shrug it off.
+  wakes it. Those the pool does not cover, bosses and dragons among them, only doze (5 s).
 - **Armor of agathys** is a ward that takes blows before your health does (the HUD shows it
   beside your health) for 10 s; whoever strikes you through it in melee is chilled and
   takes cold damage.
@@ -392,16 +392,24 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   and holds back the spells of the casters there (warlocks, shamans, the orc clerics and
   mages, the warlord, dragons and your reflection) for 4 s; it breaks off a word of death
   being spoken.
-- **Transposition** swaps you with an enemy in sight, if both of you fit; dragons are too
-  vast to move.
-- **Phantasmal killer** sends one enemy fleeing for 5 s while the terror deals psychic damage
-  (bosses and dragons only take the damage).
+- **Transposition** swaps you with an enemy in sight, however big, if both of you fit.
+- **Phantasmal killer** sends one enemy fleeing for 5 s while the terror deals psychic damage.
 - **Confusion** turns orcs on each other: for 8 s they hunt and strike the nearest of their own
-  side instead of you. Others only reel.
+  side instead of you. Bigger foes (the orc clerics and mages, the warlord, dragons) and battle
+  soldiers reel instead.
 - **Maelstrom** drags everything in it toward its eye for 6 s while it batters them; bosses and
   dragons barely budge.
 - **Reverse gravity** throws everything in the circle into the air, where it hangs helpless,
-  then crashes down for 150 damage. Dragons are too vast to lift.
+  then crashes down for 150 damage.
+
+Every hold works on every enemy, bosses and dragons included (`src/entities/enemy.js`): chain
+root, fear, polymorph, sleep, confusion, a nightmare, reverse gravity, transposition, chill,
+thunderwave and maelstrom, and counterspell silences every caster. Bosses and dragons only
+shake off the long holds (fear, polymorph, sleep, confusion and a nightmare's terror) sooner,
+by their `holdScale`: the orc clerics and mages after half the time, the warlord after 35%,
+dragons after 60% (wyrmlings) down to 30% (the great golden wyrm). Roots hold dragons
+for a shorter time (1.5 s for the ancients and the wyrm), and the heaviest bodies barely
+budge from a thunderwave or a maelstrom.
 
 Between wizards these hit on the duel scale: a wizard only dozes (2.5 s) or reels (1.5 s, with
 its spells flying wild), a curse adds a quarter for 5 s, a silence lasts 2 s (magic missile
@@ -478,6 +486,18 @@ shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orc
 and champions, which grow more common with depth, drop the most loot. Potions are scarce: a
 few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 4 and grow in
 number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
+Each orc cleric also knows one spell from the cleric's list (spirit guardians, spiritual
+weapon or bestow curse) and each orc mage one more evocation (scorching ray, cone of cold,
+thunderwave, meteor swarm or maelstrom), drawn when it spawns (`OrcArcana` in
+`src/entities/bosses.js`); they hit you as your reflection's do, and the spell is named over
+the foe's health bar.
+
+Now and then an orc, one of the other races or a mini-boss resists one element (half
+damage from it): 12% of them on the first floor, a point more on each floor down (31% on
+floor 20). Every floor but the first leans to an element (its plan's `resists` in
+`src/world/levels.js`: fire in the Iron Forges, cold in the Frozen Cisterns, necrotic in the
+Bone Crypts...), three times as likely as each of the others. A resistance is named over the
+foe's health bar, and a resisted hit puffs grey.
 
 Below him the climb steepens (foes' health grows with the square of the depth past 10, to
 5.4x on floor 20; damage to 2.6x; more foes, champions and mini-bosses) and dragons lair in
@@ -488,14 +508,14 @@ resistances (a damage multiplier per element; every spell of the mage now carrie
 | Colour | Breath | Ancient's spell | Immune | Weak to |
 | --- | --- | --- | --- | --- |
 | red | fire cone, leaves burning ground | three fireballs | fire | cold |
-| white | frost cone, a slowing blizzard | a fan of ice shards | cold (and chill) | fire |
+| white | frost cone, a slowing blizzard | a fan of ice shards | cold | fire |
 | blue | lightning line, a short stun | three storm bolts | lightning (resists thunder) | poison |
 | green | poison cone, a lingering cloud | a poison cloud on you | poison (resists necrotic) | fire |
 | black | acid line, acid pools | three acid bolts | necrotic (resists poison) | radiant, lightning |
 
 All dragons bite, breathe and fly over walls to reach you; adults add a tail sweep at
 whoever stands behind them and a frightful roar that makes you flee; ancients add a wing
-buffet, their colour's spell and shrug off roots. Before a breath the dragon stops, rears and
+buffet, their colour's spell and break roots sooner. Before a breath the dragon stops, rears and
 its mouth glows; the breath then sweeps slowly after you. Step out of it or raise the shield,
 which turns it. On floor 20 the great golden wyrm (immune to fire and poison, resistant to
 most else) breathes fire and weakening gas by turns, rains meteors, and at 75%, 50% and 25%

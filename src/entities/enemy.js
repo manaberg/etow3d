@@ -16,10 +16,14 @@ const CHAIN_JUMPS = 24;
 const CHILL_SLOW = 0.4;
 
 // Shared parts of every dungeon monster: hit points, the player's spells
-// landing on it, stun and fear, and the 3D rig. Every hit carries an element
+// landing on it, stun and fear, and the 3D rig. Every hold (root, fear,
+// polymorph, sleep, confusion, reverse gravity...) works on every monster;
+// bosses and dragons only shake the long ones off sooner (`holdScale`).
+// Every hit carries an element
 // (Elements below) and a monster may resist some: `resist` maps an element
-// to a damage multiplier (0 immune, 0.5 resistant, 1.5 vulnerable). Orcs and
-// their kind resist nothing; dragons (dragon.js) do.
+// to a damage multiplier (0 immune, 0.5 resistant, 1.5 vulnerable). Dragons
+// (dragon.js) resist by colour; now and then an orc or one of its kind
+// resists an element too (DungeonLevels.rollResist).
 export const Elements = {
   force: 'FORCE', fire: 'FIRE', cold: 'COLD', lightning: 'LIGHTNING', thunder: 'THUNDER', poison: 'POISON',
   necrotic: 'NECROTIC', radiant: 'RADIANT', physical: 'IRON', psychic: 'PSYCHIC'
@@ -44,22 +48,23 @@ export class Enemy extends Entity {
     this.fireSplash = 96;
     this.pwkillDamage = 175;
     this.blizzardSlow = [0.25, 0.5];
-    this.canBeFeared = false;
+    // share of a long hold (fear, polymorph, sleep, confusion, a
+    // nightmare's terror) it suffers: bosses and dragons shake them off sooner
+    this.holdScale = 1;
     this.spawnFrames = 0;
     this.wander = 0;
     // the mage's D&D spells: chill (cone of cold), knockback (thunderwave),
-    // polymorph (regular orcs only)
+    // polymorph
     this.chillFrames = 0;
     this.knock = null;
     this.knockResist = 0;
-    this.canPolymorph = false;
     this.sheepFrames = 0;
     this.resist = null;
     // the newer spells (arcana.js): sleep (any lost health wakes it), a
     // curse (more damage taken), a nightmare (phantasmal killer: { frames,
-    // dps }), confusion (regular foes, `canBrawl`, fight their own side),
-    // reverse gravity (`lift`: { frames, total, caster }; `canLift` is false
-    // for dragons), a ward of frost (armor of agathys) and silence
+    // dps, terror }), confusion (regular foes, `canBrawl`, fight their own
+    // side), reverse gravity (`lift`: { frames, total, caster }), a ward of
+    // frost (armor of agathys) and silence
     // (counterspell holds back the cooldowns named in `spellTimers`)
     this.sleepFrames = 0;
     this.sleepHp = 0;
@@ -69,7 +74,6 @@ export class Enemy extends Entity {
     this.confusedFrames = 0;
     this.canBrawl = false;
     this.lift = null;
-    this.canLift = true;
     this.wardHp = 0;
     this.wardFrames = 0;
     this.spellTimers = [];
@@ -310,8 +314,8 @@ export class Enemy extends Entity {
     this.game.fx.burst(c.x, c.y, (this.rig ? this.rig.height : 2) * 0.7, { color, count: mult < 1 ? 6 : 12, speed: 3, life: 0.4, size: 0.7 });
   }
 
-  // `cause` is what stunned it (root, shadow), for monsters that shrug some off.
-  stun(cause) {
+  // `cause` is what stunned it (root, shadow).
+  stun(_cause) {
     this.isStunned = true;
     this.stunFrames = 0;
     const c = this.center();
@@ -319,9 +323,6 @@ export class Enemy extends Entity {
   }
 
   chill(frames) {
-    if (this.resisted(1, 'cold') === 0) {
-      return;
-    }
     this.chillFrames = Math.max(this.chillFrames, frames);
   }
 
@@ -333,15 +334,25 @@ export class Enemy extends Entity {
     }
   }
 
+  // Risen, and not held (rooted, asleep, lifted) nor in a panic.
+  freeToCast() {
+    return this.spawnFrames <= 0 && !this.isStunned && !this.isFeared;
+  }
+
+  // How long a long hold of `frames` holds it (holdScale).
+  heldFor(frames) {
+    return frames * this.holdScale;
+  }
+
   polymorph(frames) {
-    this.sheepFrames = frames;
+    this.sheepFrames = Math.max(this.sheepFrames, this.heldFor(frames));
     this.isFeared = false;
     this.aggro = false;
   }
 
   fear() {
     this.isFeared = true;
-    this.fearFrames = 0;
+    this.fearFrames = this.fearDuration - this.heldFor(this.fearDuration);
     this.vel.x = Math.floor(Math.random() * 201) - 100;
     this.vel.y = Math.floor(Math.random() * 201) - 100;
   }
@@ -357,7 +368,7 @@ export class Enemy extends Entity {
   // Asleep: it stands as if rooted until the sleep wears off or it loses
   // any health.
   sleep(frames) {
-    this.sleepFrames = Math.max(this.sleepFrames, frames);
+    this.sleepFrames = Math.max(this.sleepFrames, this.heldFor(frames));
     this.sleepHp = this.hp;
     this.isStunned = true;
     this.stunFrames = 0;
@@ -377,35 +388,27 @@ export class Enemy extends Entity {
     this.curseMult = mult;
   }
 
-  // Phantasmal killer: it flees in terror if it can, and the fear hurts.
+  // Phantasmal killer: it flees in terror while the fear hurts (`terror`:
+  // frames it stays frightened, for as long as the nightmare lasts).
   haunt(frames, dps) {
-    this.nightmare = { frames, dps };
-    if (this.canBeFeared) {
-      this.fearFor(frames);
-    }
+    this.nightmare = { frames, dps, terror: this.heldFor(frames) };
+    this.fearFor(this.nightmare.terror);
   }
 
-  // Regular foes turn on their own side (Orc.brawl); others that can be
-  // frightened only reel; the rest shrug it off.
+  // Regular foes turn on their own side (Orc.brawl); the rest reel.
   confuse(frames) {
     if (this.canBrawl) {
-      this.confusedFrames = Math.max(this.confusedFrames, frames);
+      this.confusedFrames = Math.max(this.confusedFrames, this.heldFor(frames));
       this.isFeared = false;
       this.aggro = true;
-    } else if (this.canBeFeared) {
-      this.fearFor(frames);
     } else {
-      const c = this.center();
-      this.game.fx.burst(c.x, c.y, 1.6, { color: 0xb0b0b0, count: 6, speed: 2, life: 0.4, size: 0.6 });
+      this.fearFor(this.heldFor(frames));
     }
   }
 
-  // Reverse gravity: it falls upward and hangs helpless, then lands hard
-  // (tickDebuffs). Returns false for what is too vast to lift.
+  // Reverse gravity: it falls upward and hangs helpless, then crashes down
+  // (tickArcana). Returns whether it went up.
   liftUp(frames, caster) {
-    if (!this.canLift) {
-      return false;
-    }
     this.lift = { frames, total: frames, caster };
     this.isStunned = true;
     this.stunFrames = 0;
@@ -413,7 +416,7 @@ export class Enemy extends Entity {
     return true;
   }
 
-  land() {
+  crashDown() {
     const caster = this.lift.caster;
     this.lift = null;
     if (this.sleepFrames <= 0) {
@@ -494,14 +497,15 @@ export class Enemy extends Entity {
     const n = this.nightmare;
     if (n) {
       n.frames -= k;
+      n.terror -= k;
       const dmg = this.resisted(n.dps / 60 * k * this.gearBoost('psychic'), 'psychic');
       this.hp -= dmg;
       if (this.onDuelDamage) {
         this.onDuelDamage(dmg, 'phantasm');
       }
-      // the terror holds as long as the nightmare does
-      if (this.canBeFeared && !this.isFeared && n.frames > 0 && this.sheepFrames <= 0) {
-        this.fearFor(n.frames);
+      // the terror holds as long as it lasts
+      if (!this.isFeared && n.terror > 0 && this.sheepFrames <= 0) {
+        this.fearFor(n.terror);
       }
       if (n.frames <= 0) {
         this.nightmare = null;
@@ -522,9 +526,26 @@ export class Enemy extends Entity {
       this.isStunned = true;
       this.stunFrames = 0;
       if (this.lift.frames <= 0) {
-        this.land();
+        this.crashDown();
       }
     }
+  }
+
+  // Polymorphed, one step: the sheep ambles about and can neither fight nor
+  // cast. Returns false when it is no sheep.
+  amble(k) {
+    if (this.sheepFrames <= 0) {
+      return false;
+    }
+    this.wander -= k;
+    if (this.wander <= 0) {
+      const a = Math.random() * Math.PI * 2;
+      this.vel.x = Math.cos(a) * 30;
+      this.vel.y = Math.sin(a) * 30;
+      this.wander = 90;
+    }
+    this.moveBody(k);
+    return true;
   }
 
   // Feared monsters stumble about, changing direction now and then.
@@ -605,7 +626,11 @@ export class Enemy extends Entity {
         color: 0xbfe8ff, life: 0.5, size: 0.4, vy: -0.5
       });
     }
-    // polymorphed: the orc is hidden and a sheep wanders in its place
+    this.syncSheep(time);
+  }
+
+  // Polymorphed: the body is hidden and a sheep wanders in its place.
+  syncSheep(time) {
     const sheep = this.sheepFrames > 0;
     if (sheep && !this.sheep) {
       this.sheep = buildSheep();
@@ -615,6 +640,7 @@ export class Enemy extends Entity {
       this.sheep.visible = sheep;
       this.rig.body.visible = !sheep;
       if (sheep) {
+        const speed = Math.hypot(this.vel.x, this.vel.y);
         this.sheep.position.y = Math.abs(Math.sin(time * 8)) * 0.08 * Math.min(1, speed / 20);
       }
     }

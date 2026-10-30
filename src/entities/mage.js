@@ -43,20 +43,20 @@ export const SpellBook = [
   { id: 'guardians', name: 'SPIRIT GUARDIANS', cd: 1000, need: 60, cost: 60, flag: 'hasGuardians', circle: 3, grows: 'DAMAGE', text: 'A damaging, slowing aura that follows you.', lore: 'The spirits of wizards who fell on the way down, still keeping watch over those who did not.' },
   { id: 'cloud', name: 'CLOUDKILL', cd: 700, need: 50, cost: 50, flag: 'hasCloud', circle: 3, grows: 'DAMAGE', text: 'A poison cloud at the cursor that rolls away from you.', lore: 'Bottled in the Venom Mires. Uncork it upwind.' },
   { id: 'heal', name: 'HEALING WORD', cd: 600, need: 40, cost: 40, flag: 'hasHeal', circle: 1, grows: 'HEALING', text: 'Heals you at once.', lore: 'One word, softly spoken, and the wound forgets it was ever there.' },
-  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph', circle: 3, grows: 'DURATION', text: 'Hover a foe to turn it into a sheep for a while (a wizard only briefly).', lore: 'Orcs have no word for sheep. They have learnt to fear the bleating.' },
+  { id: 'polymorph', name: 'POLYMORPH', cd: 500, need: 40, cost: 40, flag: 'hasPolymorph', circle: 3, grows: 'DURATION', text: 'Hover a foe to turn it into a sheep for a while (bosses and dragons not for long, a wizard only briefly).', lore: 'Orcs have no word for sheep. They have learnt to fear the bleating.' },
   { id: 'disintegrate', name: 'DISINTEGRATE', cd: 360, need: 50, cost: 50, flag: 'hasDisintegrate', circle: 3, grows: 'DAMAGE', text: 'A ray into the first foe in line.', lore: 'It leaves nothing to bury, which the Bone Crypts consider very rude.' },
   { id: 'weapon', name: 'SPIRITUAL WEAPON', cd: 900, need: 50, cost: 50, flag: 'hasWeapon', circle: 3, grows: 'DAMAGE', text: 'A spectral sword that fights beside you.', lore: 'It needs no hand to hold it and never tires of the work.' },
   // ten more, each working in a way no other spell does (arcana.js)
-  { id: 'sleep', name: 'SLEEP', cd: 600, need: 30, cost: 30, flag: 'hasSleep', circle: 1, grows: 'HEALTH IT CAN LULL', text: 'The weakest foes around the cursor fall asleep, as many as its pool of health covers; a blow wakes them. Bosses and dragons shrug it off, and a wizard only dozes.', lore: 'Even orcs dream, mostly of other orcs losing.' },
+  { id: 'sleep', name: 'SLEEP', cd: 600, need: 30, cost: 30, flag: 'hasSleep', circle: 1, grows: 'HEALTH IT CAN LULL', text: 'The weakest foes around the cursor fall asleep, as many as its pool of health covers, and the rest doze; a blow wakes them. Bosses and dragons wake sooner, and a wizard only dozes.', lore: 'Even orcs dream, mostly of other orcs losing.' },
   { id: 'agathys', name: 'ARMOR OF AGATHYS', cd: 900, need: 40, cost: 40, flag: 'hasAgathys', circle: 1, grows: 'WARD', text: 'A coat of frost that takes the next blows for you; whoever strikes you through it is bitten by the cold and chilled.', lore: 'Named for a wizard of the Frozen Cisterns whom nobody ever struck twice.' },
   { id: 'curse', name: 'BESTOW CURSE', cd: 500, need: 30, cost: 30, flag: 'hasCurse', circle: 2, grows: 'DURATION', text: 'Hover a foe: it takes half again as much damage from everything for ten seconds (a wizard a quarter more, for five).', lore: 'The old words cling like soot, and every blow finds the mark they leave.' },
   { id: 'sphere', name: 'FLAMING SPHERE', cd: 800, need: 40, cost: 40, flag: 'hasSphere', circle: 2, grows: 'DAMAGE', text: 'A ball of fire that rolls after your cursor and burns whatever it touches.', lore: 'It rolls where you look, and it is always hungry.' },
   { id: 'counter', name: 'COUNTERSPELL', cd: 600, need: 30, cost: 30, flag: 'hasCounter', circle: 2, grows: 'REACH', text: 'Unmakes the hostile bolts, meteors and spheres around you and silences the casters near you for a while.', lore: 'The rarest art: a spell that unmakes another. The Red Order teaches it last.' },
   { id: 'swap', name: 'TRANSPOSITION', cd: 500, need: 30, cost: 30, flag: 'hasSwap', circle: 2, text: 'Hover a foe in sight: you trade places with it.', lore: 'The safest place in a fight is sometimes exactly where your foe is standing.' },
   { id: 'phantasm', name: 'PHANTASMAL KILLER', cd: 600, need: 45, cost: 45, flag: 'hasPhantasm', circle: 3, grows: 'DAMAGE', text: 'Hover a foe: its worst nightmare hunts it for five seconds; it flees in terror, and the terror eats at it.', lore: 'The killer is not real. The fear is, and fear is enough.' },
-  { id: 'confusion', name: 'CONFUSION', cd: 700, need: 45, cost: 45, flag: 'hasConfusion', circle: 3, grows: 'DURATION', text: 'Foes around the cursor lose their wits and fall on each other; a wizard only reels, and its spells fly wild.', lore: 'For a few heartbeats every face looks like a foe\'s. Orcs never could tell each other apart.' },
+  { id: 'confusion', name: 'CONFUSION', cd: 700, need: 45, cost: 45, flag: 'hasConfusion', circle: 3, grows: 'DURATION', text: 'Foes around the cursor lose their wits: orcs and their kind fall on each other, bigger foes reel, and a wizard\'s spells fly wild.', lore: 'For a few heartbeats every face looks like a foe\'s. Orcs never could tell each other apart.' },
   { id: 'maelstrom', name: 'MAELSTROM', cd: 800, need: 55, cost: 55, flag: 'hasMaelstrom', circle: 3, grows: 'DAMAGE', text: 'A whirlpool at the cursor that drags foes toward its eye and batters them.', lore: 'Called up from the drowned stacks of the Sunken Library, where the water still turns the pages.' },
-  { id: 'gravity', name: 'REVERSE GRAVITY', cd: 900, need: 70, cost: 70, flag: 'hasGravity', circle: 4, grows: 'DAMAGE', text: 'Foes around the cursor fall upward, hang helpless, then crash back down. Dragons are too vast to lift.', lore: 'For a moment the floor is the ceiling. Then, all at once, it is the floor again.' }
+  { id: 'gravity', name: 'REVERSE GRAVITY', cd: 900, need: 70, cost: 70, flag: 'hasGravity', circle: 4, grows: 'DAMAGE', text: 'Foes around the cursor fall upward, hang helpless, then crash back down.', lore: 'For a moment the floor is the ceiling. Then, all at once, it is the floor again.' }
 ];
 
 export const SpellById = {};
@@ -802,7 +802,7 @@ export class Mage extends Entity {
     if (this.wants('fear') && this.canCast('fear')) {
       const reach = (game.duelMode ? 450 : 400) * rankPower(this, 'fear');
       for (const enemy of game.hostilesOf('player')) {
-        if (enemy.canBeFeared && this.distanceTo(enemy) < reach) {
+        if (this.distanceTo(enemy) < reach) {
           enemy.fear();
         }
       }
