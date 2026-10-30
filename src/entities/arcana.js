@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildOrb, buildSpectralBlade } from '../render/models.js';
-import { Projectile, Zone } from './spells.js';
+import { Projectile, Zone, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { rankPower } from './spellbar.js';
 
@@ -170,6 +170,17 @@ export const ArcanaCast = {
         color: Math.random() < 0.5 ? 0xffffff : 0x9ad8ff, life: 0.5, size: 0.7, vy: 0.6, vx: Math.cos(a) * 2, vz: Math.sin(a) * 2
       });
     }
+    // the cold pours out of the staff head
+    const head = staffHead(caster, true);
+    if (head) {
+      for (let i = 0; i < 24; i++) {
+        const a = aim + (Math.random() * 2 - 1) * spec.halfAngle;
+        const s = 6 + Math.random() * 8;
+        fx.emit(head.x, head.y, head.h, {
+          color: Math.random() < 0.5 ? 0xffffff : 0x9ad8ff, life: 0.35, size: 0.6, vx: Math.cos(a) * s, vz: Math.sin(a) * s, vy: -head.h * 1.5, drag: 2
+        });
+      }
+    }
     game.gfx.flash(c.x + Math.cos(aim) * 80, c.y + Math.sin(aim) * 80, 1.5, 0x80d0ff, 30, 0.25);
     caster.rig.swing();
     return true;
@@ -192,6 +203,8 @@ export const ArcanaCast = {
     fx.burst(c.x, c.y, 0.6, { color: [0xc0d8ff, 0xffffff], count: 40, speed: 9, life: 0.35, size: 0.8, flat: true });
     game.gfx.flash(c.x, c.y, 2, 0xa0c0ff, 50, 0.3);
     game.gfx.addShake(0.5);
+    // the staff's foot strikes the floor
+    caster.rig.gesture('slam');
     return true;
   },
 
@@ -215,6 +228,7 @@ export const ArcanaCast = {
       kind: 'guardians', team: teamOf(caster), radius: Arcana.guardians.radius, life: Arcana.guardians.life, follow: caster, timeOwner: caster
     });
     game.fx.column(c.x, c.y, Arcana.guardians.radius, { color: [0xffe8a0, 0xffffff], count: 40, rise: 3, life: 0.8, size: 0.8 });
+    caster.rig.gesture('raise');
     return true;
   },
 
@@ -240,6 +254,7 @@ export const ArcanaCast = {
     if (caster === game.player) {
       game.hud.toast('HEALING WORD :: +' + Math.round(caster.hp - before) + ' HP', '#9dffb0');
     }
+    caster.rig.gesture('raise');
     return true;
   },
 
@@ -289,8 +304,10 @@ export const ArcanaCast = {
     const ey = c.y + dy * end;
     const fx = game.fx;
     const color = caster.isDuelWizard ? 0xff6060 : 0x60ff60;
-    fx.bolt(c.x, c.y, ex, ey, { color, life: 0.35, width: 0.12, jag: 0.02 });
-    fx.bolt(c.x, c.y, ex, ey, { color: 0xe0ffe0, life: 0.25, width: 0.04, jag: 0.0 });
+    // the ray leaves the staff head
+    const from = staffHead(caster, true) || { x: c.x, y: c.y, h: 1.4 };
+    fx.bolt(from.x, from.y, ex, ey, { color, life: 0.35, width: 0.12, jag: 0.02, h: from.h, h2: 1.4 });
+    fx.bolt(from.x, from.y, ex, ey, { color: 0xe0ffe0, life: 0.25, width: 0.04, jag: 0.0, h: from.h, h2: 1.4 });
     game.gfx.flash(ex, ey, 1.5, color, 40, 0.3);
     if (hit && hit.shielded) {
       fx.ring(ex, ey, { color: 0x60b0ff, radius: 50, life: 0.3 });
@@ -306,6 +323,7 @@ export const ArcanaCast = {
   weapon(caster) {
     const c = caster.center();
     caster.game.spawn(SpiritualWeapon, c.x, c.y, { owner: caster, timeOwner: caster });
+    caster.rig.gesture('raise');
     return true;
   },
 
@@ -349,6 +367,7 @@ export const ArcanaCast = {
     if (caster === game.player) {
       game.hud.toast('ARMOR OF AGATHYS :: ' + Math.round(caster.wardHp) + ' WARD', '#bfe8ff');
     }
+    caster.rig.gesture('raise');
     return true;
   },
 
@@ -363,7 +382,8 @@ export const ArcanaCast = {
     const fx = caster.game.fx;
     fx.burst(tc.x, tc.y, 1.8, { color: [0x9a30d0, 0x30083a, 0xd080ff], count: 30, speed: 3, life: 0.7, size: 0.9, gravity: -1 });
     fx.ring(tc.x, tc.y, { color: 0x9a30d0, radius: 44, life: 0.5 });
-    fx.bolt(caster.center().x, caster.center().y, tc.x, tc.y, { color: 0x8020c0, life: 0.25, width: 0.03, jag: 0.5 });
+    const from = staffHead(caster, true) || { x: caster.center().x, y: caster.center().y, h: 1.4 };
+    fx.bolt(from.x, from.y, tc.x, tc.y, { color: 0x8020c0, life: 0.25, width: 0.03, jag: 0.5, h: from.h, h2: 1.4 });
     caster.rig.swing();
     return true;
   },
@@ -377,7 +397,7 @@ export const ArcanaCast = {
       }
     }
     const c = caster.center();
-    game.spawn(FlamingSphere, c.x, c.y, { owner: caster, team: teamOf(caster), timeOwner: caster });
+    game.spawn(FlamingSphere, c.x, c.y, { owner: caster, team: teamOf(caster), timeOwner: caster, drop: staffHead(caster, true) });
     caster.rig.swing();
     return true;
   },
@@ -699,6 +719,10 @@ export class FlamingSphere extends Entity {
     this.life = Arcana.sphere.life;
     this.burn = 0;
     this.flies = true;
+    // the staff head it falls from to the floor ({ x, y, h }), and how far
+    // through the fall it is
+    this.drop = null;
+    this.dropT = 0;
   }
 
   init() {
@@ -763,14 +787,29 @@ export class FlamingSphere extends Entity {
     }
   }
 
-  syncView(time) {
+  syncView(time, dt) {
     const c = this.center();
-    this.view.position.set(c.x * UNIT, 0.55 + Math.abs(Math.sin(this.roll * 0.08)) * 0.05, c.y * UNIT);
+    let x = c.x;
+    let y = c.y;
+    let h = 0.55 + Math.abs(Math.sin(this.roll * 0.08)) * 0.05;
+    if (this.drop) {
+      // dropped from the staff, it falls and comes down where it rolls
+      this.dropT = Math.min(1, this.dropT + (dt || 0) / 0.3);
+      const t = this.dropT;
+      x = this.drop.x + (c.x - this.drop.x) * t;
+      y = this.drop.y + (c.y - this.drop.y) * t;
+      h = this.drop.h + (h - this.drop.h) * t * t;
+      if (t >= 1) {
+        this.drop = null;
+        this.game.fx.burst(c.x, c.y, 0.4, { color: [0xff5010, 0xffb030], count: 12, speed: 3, life: 0.35, size: 0.7, flat: true });
+      }
+    }
+    this.view.position.set(x * UNIT, h, y * UNIT);
     this.view.rotation.x = this.roll * 0.05;
     const s = 1 + Math.sin(time * 14) * 0.06;
     this.view.scale.setScalar(Math.min(1, this.life / 20) * s);
     const fx = this.game.fx;
-    fx.emit(c.x + (Math.random() - 0.5) * 16, c.y + (Math.random() - 0.5) * 16, 0.7, { color: Math.random() < 0.5 ? 0xffb030 : 0xff5010, life: 0.45, size: 1, vy: 1.6 });
-    this.game.gfx.requestLight(c.x, c.y, 1, 0xff7020, 14);
+    fx.emit(x + (Math.random() - 0.5) * 16, y + (Math.random() - 0.5) * 16, h + 0.15, { color: Math.random() < 0.5 ? 0xffb030 : 0xff5010, life: 0.45, size: 1, vy: 1.6 });
+    this.game.gfx.requestLight(x, y, h + 0.45, 0xff7020, 14);
   }
 }

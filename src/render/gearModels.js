@@ -159,6 +159,9 @@ function buildStaff(look, material) {
   glow.position.y = top + (look.style === 'skull' ? 0.12 : 0.2);
   g.add(glow);
   g.userData.gem = look.gem;
+  // the head spells leave from (models.js MageRig.holdStaff)
+  g.userData.glow = glow;
+  g.userData.tip = glow.position.y;
   return g;
 }
 
@@ -342,6 +345,10 @@ export function dressRig(rig, inventory) {
       cloth.side = THREE.DoubleSide;
       const cape = mesh(geo('cape.worn', () => new THREE.CylinderGeometry(0.5, 0.86, 1.8, 14, 1, true, Math.PI * 0.32, Math.PI * 1.36)), cloth, 0, w.cape.y - 0.9, w.cape.z);
       wear(rig.body, cape);
+      // on the wizard it swings with the robe's hem
+      if (rig.swayCloth) {
+        rig.swayCloth(cloth, cape.position.y);
+      }
     }
   }
   if (eq.hat) {
@@ -351,11 +358,17 @@ export function dressRig(rig, inventory) {
     hat.rotation.x = -0.08;
     wear(rig.head, hat);
   }
+  let staff = null;
   if (eq.staff && !w.noStaff) {
-    const staff = buildStaff(eq.staff.type.look, tracked);
-    staff.position.set(0, w.handR, 0.04);
-    wear(rig.limbs.armR, staff);
+    staff = buildStaff(eq.staff.type.look, tracked);
+    // in the hand, on the grip that turns it if the rig has one
+    const grip = rig.grip;
+    staff.position.set(0, w.handR - (grip ? grip.position.y : 0), 0.04);
+    wear(grip || rig.limbs.armR, staff);
     rig.orbColor = eq.staff.type.look.gem;
+  }
+  if (rig.holdStaff) {
+    rig.holdStaff(staff);
   }
   for (const [slot, arm, y] of [['ring1', rig.limbs.armL, w.handL], ['ring2', rig.limbs.armR, w.handR]]) {
     if (eq[slot] && arm) {
