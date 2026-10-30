@@ -1,5 +1,5 @@
 import { Enemy } from './enemy.js';
-import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier } from './spells.js';
+import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, ArcanaCast, FlamingSphere, Meteor, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
 import { arcanaFx } from './enemy.js';
@@ -197,7 +197,9 @@ export class DuelWizard extends Enemy {
     }
     const me = this.center();
     if (Math.random() < 0.6) {
-      game.fx.emit(me.x, me.y, 2.2, { color: [0x9a40ff, 0x200830], life: 0.5, size: 0.7, vy: 2 });
+      // the word gathers at the raised staff
+      const head = staffHead(this) || { x: me.x, y: me.y, h: 2.2 };
+      game.fx.emit(head.x, head.y, head.h, { color: Math.random() < 0.7 ? 0x9a40ff : 0x200830, life: 0.5, size: 0.7, vy: 2 });
     }
     if (--this.channel.left > 0) {
       return;
@@ -951,6 +953,7 @@ export class DuelWizard extends Enemy {
     this.shieldFrames = this.shieldDuration;
     const c = this.center();
     this.game.fx.ring(c.x, c.y, { color: 0xff6060, radius: 50, life: 0.4 });
+    this.rig.gesture('raise');
   }
 
   blinkTo(spot) {
@@ -1065,6 +1068,7 @@ export class DuelWizard extends Enemy {
     if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill) &&
       Math.random() < this.ai.pwkillRate) {
       this.channel = { left: DuelRules.pwkillCast };
+      this.rig.gesture('raise');
       this.vel.x = 0;
       this.vel.y = 0;
       game.hud.toast('YOUR REFLECTION SPEAKS A WORD OF DEATH', '#c040ff');
@@ -1078,6 +1082,7 @@ export class DuelWizard extends Enemy {
       this.spend('timestop', false);
       game.fx.ring(me.x, me.y, { color: 0xff8080, radius: 600, life: 0.8 });
       game.onTimestop();
+      this.rig.gesture('raise');
       return;
     }
     // a curse first, while there is manergy left for what follows
@@ -1251,12 +1256,14 @@ export class DuelWizard extends Enemy {
     if (this.ready('invis') && this.tactic === 'retreat' && this.manergy > 75) {
       this.invisFrames = this.invisDuration;
       this.spend('invis', false);
+      this.rig.gesture('raise');
       return;
     }
     // haste to escape or to close in
     if (this.ready('haste') && this.manergy > 75 && ((this.tactic === 'retreat' && dist < 320) || (this.tactic === 'engage' && dist > 420))) {
       this.hasteFrames = this.hasteDuration;
       this.spend('haste', false);
+      this.rig.gesture('raise');
       return;
     }
     // magic missile is free: keep the pressure on
@@ -1304,6 +1311,7 @@ export class DuelWizard extends Enemy {
     this.strafeSign = -side;
     this.strafeTimer = 90;
     this.spend('image', false);
+    this.rig.gesture('raise');
   }
 
   clearOfShield(player, kind, dist) {
@@ -1410,6 +1418,9 @@ export class DuelWizard extends Enemy {
       const pc = player.center();
       facing = Math.atan2(pc.x - c.x, pc.y - c.y);
     }
+    // a word of death keeps the staff raised
+    this.rig.hold = this.channel ? 'raise' : null;
+    this.rig.rooted = this.isStunned || !!this.sleepFrames || !!this.lift || !!this.channel;
     this.rig.animate(dt, this.isStunned ? 0 : Math.min(1.3, Math.hypot(this.vel.x, this.vel.y) / 90), facing);
     this.rig.setAlpha(this.invis ? 0.1 : 1);
     const fx = this.game.fx;

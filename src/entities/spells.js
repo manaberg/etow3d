@@ -38,6 +38,23 @@ export const BoltKinds = {
 
 const FLY_HEIGHT = 1.45;
 
+// A bolt cast from a wizard's spot is drawn leaving the head of its staff and
+// easing onto its line of flight over its first LAUNCH_PX; the bolt itself
+// flies, and hits, from the caster's centre as it always did.
+const LAUNCH_PX = 70;
+
+// The head of a caster's staff as a sim point with a height, or null for a
+// caster without one (models.js MageRig.castPoint). `release`: where it is
+// at the height of a cast, for spells that land the moment they are cast.
+export function staffHead(caster, release = false) {
+  const rig = caster && caster.rig;
+  if (!rig || !rig.castPoint || !rig.root.parent) {
+    return null;
+  }
+  const p = rig.castPoint(release);
+  return { x: p.x / UNIT, y: p.z / UNIT, h: p.y };
+}
+
 // Magic missile looses one dart, or more once a wizard has read more magic
 // missile scrolls (`MissileTiers`). Each dart leaves on its own random arc
 // (`spread` radians off the aim), curves in on the target while it homes
@@ -99,6 +116,15 @@ export class Projectile extends Entity {
     this.originY = this.pos.y + spec.size / 2;
     this.aimAt(this.angle);
     this.buildView();
+    // cast by a wizard from where it stands: it leaves from the staff
+    const caster = this.timeOwner;
+    this.launch = null;
+    if (!this.batched && caster && caster.rig && caster.rig.castPoint && caster.center) {
+      const cc = caster.center();
+      if (Math.hypot(cc.x - this.originX, cc.y - this.originY) < 32) {
+        this.launch = { caster, from: null };
+      }
+    }
   }
 
   buildView() {
@@ -135,6 +161,7 @@ export class Projectile extends Entity {
   reflect(newTeam) {
     this.team = newTeam;
     this.homing = null;
+    this.launch = null;
     this.aimAt(this.angle + Math.PI);
     this.life = this.spec.life * 60;
     this._seenFrame = undefined;
@@ -235,6 +262,37 @@ export class Projectile extends Entity {
     return false;
   }
 
+  // Where the bolt is drawn: on its line of flight, or while it is still
+  // leaving the staff somewhere between the staff head and that line.
+  drawnAt() {
+    const c = this.center();
+    const at = { x: c.x, y: c.y, h: FLY_HEIGHT };
+    const launch = this.launch;
+    if (!launch) {
+      return at;
+    }
+    const u = Math.hypot(c.x - this.originX, c.y - this.originY) / LAUNCH_PX;
+    // the staff head as it moves, or where it was last if its wizard is gone
+    const head = launch.caster.killed ? null : staffHead(launch.caster);
+    const first = !launch.from;
+    if (head) {
+      launch.from = head;
+    }
+    const from = launch.from;
+    if (u >= 1 || !from) {
+      this.launch = null;
+      return at;
+    }
+    if (first && this.kind !== 'ray') {
+      this.game.fx.burst(from.x, from.y, from.h, { color: this.spec.trail || 0xffffff, count: 6, speed: 2.5, life: 0.25, size: 0.5 });
+    }
+    const w = u * u * (3 - 2 * u);
+    at.x = from.x + (c.x - from.x) * w;
+    at.y = from.y + (c.y - from.y) * w;
+    at.h = from.h + (FLY_HEIGHT - from.h) * w;
+    return at;
+  }
+
   syncView(time) {
     const c = this.center();
     const fx = this.game.fx;
@@ -246,26 +304,27 @@ export class Projectile extends Entity {
       }
       return;
     }
-    this.view.position.set(c.x * UNIT, FLY_HEIGHT, c.y * UNIT);
+    const at = this.drawnAt();
+    this.view.position.set(at.x * UNIT, at.h, at.y * UNIT);
     this.view.rotation.y = -this.angle;
     if (this.spec.rock || this.spec.pierce) {
       this.view.rotation.x = time * 12;
     }
     if (this.spec.trail) {
-      fx.emit(c.x, c.y, FLY_HEIGHT + (Math.random() - 0.5) * 0.15, {
+      fx.emit(at.x, at.y, at.h + (Math.random() - 0.5) * 0.15, {
         color: this.team === 'enemy' && this.spec.enemyColor ? this.spec.enemyColor : this.spec.trail,
         life: 0.35, size: this.spec.radius * 7, vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, vz: (Math.random() - 0.5) * 0.6
       });
     }
     if (this.kind === 'fireball' || this.kind === 'fireball2') {
-      fx.emit(c.x, c.y, FLY_HEIGHT, { color: 0xffd060, life: 0.25, size: 1.0, vy: 0.8 });
+      fx.emit(at.x, at.y, at.h, { color: 0xffd060, life: 0.25, size: 1.0, vy: 0.8 });
     }
     if (this.spec.arcs && Math.random() < 0.35) {
       const a = Math.random() * Math.PI * 2;
-      fx.bolt(c.x, c.y, c.x + Math.cos(a) * 30, c.y + Math.sin(a) * 30, { color: 0xa0e8ff, life: 0.08, width: 0.025, jag: 0.25 });
+      fx.bolt(at.x, at.y, at.x + Math.cos(a) * 30, at.y + Math.sin(a) * 30, { color: 0xa0e8ff, life: 0.08, width: 0.025, jag: 0.25, h: at.h });
     }
     if (this.spec.light) {
-      this.game.gfx.requestLight(c.x, c.y, FLY_HEIGHT, this.spec.light, 14);
+      this.game.gfx.requestLight(at.x, at.y, at.h, this.spec.light, 14);
     }
   }
 }

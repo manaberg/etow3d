@@ -95,15 +95,32 @@ class Rig {
     return p;
   }
 
-  // speed: 0..1 walk intensity
-  animate(dt, speed, facing) {
+  // Turns toward `facing` (radians about the vertical) at `rate`.
+  face(dt, facing, rate = 12) {
     if (facing !== undefined && facing !== null) {
       let diff = facing - this.facing;
       while (diff > Math.PI) { diff -= Math.PI * 2; }
       while (diff < -Math.PI) { diff += Math.PI * 2; }
-      this.facing += diff * Math.min(1, dt * 12);
+      this.facing += diff * Math.min(1, dt * rate);
       this.root.rotation.y = this.facing;
     }
+  }
+
+  // The red of a hit fading.
+  fadeFlash(dt) {
+    if (this.flash > 0) {
+      this.flash = Math.max(0, this.flash - dt * 4);
+    }
+    for (const m of this.materials) {
+      if (m.emissive && m.userData.baseEmissive) {
+        m.emissive.copy(m.userData.baseEmissive).lerp(FLASH, this.flash);
+      }
+    }
+  }
+
+  // speed: 0..1 walk intensity
+  animate(dt, speed, facing) {
+    this.face(dt, facing);
     this.phase += dt * (4 + speed * 8);
     const swing = Math.sin(this.phase) * 0.7 * speed;
     const { legL, legR, armL, armR } = this.limbs;
@@ -120,14 +137,7 @@ class Rig {
       this.attack = Math.max(0, this.attack - dt * 3);
     }
     this.body.position.y = Math.abs(Math.sin(this.phase)) * 0.08 * speed + Math.sin(this.phase * 0.35) * 0.02;
-    if (this.flash > 0) {
-      this.flash = Math.max(0, this.flash - dt * 4);
-    }
-    for (const m of this.materials) {
-      if (m.emissive && m.userData.baseEmissive) {
-        m.emissive.copy(m.userData.baseEmissive).lerp(FLASH, this.flash);
-      }
-    }
+    this.fadeFlash(dt);
   }
 
   hit() {
@@ -137,6 +147,9 @@ class Rig {
   swing() {
     this.attack = 1;
   }
+
+  // A cast with no swing ('raise', 'slam'): only the wizard's rig acts it out.
+  gesture() {}
 
   setAlpha(alpha) {
     if (alpha === this.alpha) {
@@ -194,9 +207,9 @@ export async function loadModels() {
   }));
 }
 
-// colors: role -> colour overrides. Returns the rig with its materials by role.
-function rigFromModel(parts, colors = {}, glowScale = 0.8) {
-  const rig = new Rig();
+// colors: role -> colour overrides. Returns the rig (`rig`, a plain Rig if
+// none is given) with its materials by role.
+function rigFromModel(parts, colors = {}, glowScale = 0.8, rig = new Rig()) {
   const mats = {};
   const material = (m) => {
     if (!mats[m.material]) {
@@ -245,6 +258,401 @@ function rigFromModel(parts, colors = {}, glowScale = 0.8) {
 
 // ---------------------------------------------------------------- mage
 
+// The wizard's poses. `arm` is the staff arm's rotation (x raises it ahead,
+// z swings it out to its side), `staff` the way the staff points in the
+// body's space (the hand turns it there whatever the arm does) and `off` the
+// other arm's rotation (z negative is out). The body leans ahead (`lean`),
+// brings its staff shoulder round (`turn`), crouches (`dip`), steps into the
+// cast (`ahead`) and tips its head back (`look`). `thrust` points the staff
+// head at the foe, `raise` lifts it overhead for a spell on the wizard
+// itself and `slam` drives its foot into the floor.
+const MAGE_POSES = {
+  rest: { arm: [-0.06, 0, 0.14], staff: [-0.1, 1, 0.03], off: [-0.05, 0, -0.08] },
+  thrust: { arm: [-0.95, 0, 0.35], staff: [-0.12, 0.8, 0.6], off: [-1.3, 0, 0.2], lean: 0.1, turn: -0.18, ahead: 0.06 },
+  raise: { arm: [-1.9, 0, 0.15], staff: [-0.05, 1, 0.12], off: [-0.5, 0, -0.9], lean: -0.06, turn: -0.05, look: -0.15 },
+  slam: { arm: [-0.55, 0, 0.25], staff: [0, 1, 0.08], off: [0.35, 0, -0.35], lean: 0.15, dip: 0.1 }
+};
+const GESTURES = ['thrust', 'raise', 'slam'];
+// seconds a gesture is held at its height, and by when it has eased back out
+const GESTURE_TIMES = { thrust: [0.14, 0.45], raise: [0.3, 0.8], slam: [0.12, 0.5] };
+
+const UP = new THREE.Vector3(0, 1, 0);
+const tmpV = new THREE.Vector3();
+const tmpQ = new THREE.Quaternion();
+const tmpQ2 = new THREE.Quaternion();
+const savedArm = new THREE.Euler();
+const savedGrip = new THREE.Quaternion();
+const smoothstep = (t) => t * t * (3 - 2 * t);
+const clampTo = (v, lim) => Math.max(-lim, Math.min(lim, v));
+
+// The robe below the belt bends in the vertex shader (MageRig.robe): each
+// leg pushes the hem on its side (uLegL, uLegR: the boot's shift and lift),
+// and the hem sways (uHem) and twists (uTwist) on a spring of its own.
+// `uRobeBase` lifts a mesh's own space to the body's.
+const ROBE_HEAD = `
+uniform vec2 uHem;
+uniform float uTwist;
+uniform vec3 uLegL;
+uniform vec3 uLegR;
+uniform float uRobeBase;
+`;
+const ROBE_BEND = `
+{
+  float robeW = clamp((1.2 - position.y - uRobeBase) / 1.2, 0.0, 1.0);
+  robeW *= robeW;
+  vec3 robeLeg = mix(uLegL, uLegR, smoothstep(-0.3, 0.3, position.x));
+  float robeA = uTwist * robeW;
+  float robeC = cos(robeA);
+  float robeS = sin(robeA);
+  transformed.xz = vec2(robeC * transformed.x + robeS * transformed.z, robeC * transformed.z - robeS * transformed.x);
+  transformed.xz += (uHem + robeLeg.xz) * robeW;
+  transformed.y += robeLeg.y * robeW;
+}
+`;
+
+function bendWithRobe(material, base, robe) {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, robe);
+    shader.uniforms.uRobeBase = { value: base };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\n' + ROBE_HEAD)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + ROBE_BEND);
+  };
+  material.customProgramCacheKey = () => 'mage-robe';
+  material.needsUpdate = true;
+}
+
+// Gives a rig's robe meshes materials of their own that bend with the legs.
+// They share their colour with the material they copy, so gear that dyes
+// the robe dyes them too.
+function swayRobe(rig, meshes) {
+  const robe = {
+    uHem: { value: new THREE.Vector2() },
+    uTwist: { value: 0 },
+    uLegL: { value: new THREE.Vector3() },
+    uLegR: { value: new THREE.Vector3() }
+  };
+  const made = new Map();
+  for (const o of meshes) {
+    let m = made.get(o.material);
+    if (!m) {
+      m = o.material.clone();
+      m.color = o.material.color;
+      bendWithRobe(m, o.position.y, robe);
+      if (rig.materials.includes(o.material)) {
+        rig.track(m);
+      }
+      made.set(o.material, m);
+    }
+    o.material = m;
+  }
+  rig.robe = robe;
+}
+
+// The wizard's rig. Its walk has weight: the steps go the way it moves, not
+// the way it faces (it strafes and backs off on its feet, and shuffles round
+// when it turns on the spot), the hips rise as the feet pass and sway over
+// the standing foot, the staff swings like a walking stick, and the hem is
+// pushed about by the legs and swings on after a stop or a turn. A cast is a
+// gesture (`gesture`; `swing` thrusts) blended over the walk, and `hold`
+// keeps one up while a spell is held or spoken. The staff turns in the hand
+// on `grip`; its head, `tip`, is where spells leave from (`castPoint`).
+class MageRig extends Rig {
+  constructor() {
+    super();
+    this.gait = 0;
+    this.heading = { x: 0, z: 1 };
+    this.ground = { x: 0, z: 0 };
+    this.last = null;
+    this.turnRate = 0;
+    this.hem = { x: 0, z: 0, vx: 0, vz: 0, twist: 0, vt: 0 };
+    this.gestures = {};
+    for (const kind of GESTURES) {
+      this.gestures[kind] = { age: Infinity, w: 0 };
+    }
+    // set by the wizard each frame: the gesture to hold, and whether it is
+    // rooted to the spot (its feet stay put while it turns)
+    this.hold = null;
+    this.rooted = false;
+    this.snap = 0;
+    this.flare = 0;
+    this.breath = Math.random() * 10;
+    this.grip = null;
+    this.tip = null;
+    this.tipRest = new THREE.Vector3();
+    this.glows = [];
+    this.glowsRest = [];
+    this.robe = null;
+    this.rest = null;
+    this.point = new THREE.Vector3();
+  }
+
+  // The staff in the hand: `grip` turns it, `tip` (in the grip's space) is
+  // its head and `glows` the sprites there that flare as a spell leaves.
+  setStaff(grip, tip, glows) {
+    this.grip = grip;
+    this.tip = new THREE.Object3D();
+    grip.add(this.tip);
+    this.tipRest.copy(tip);
+    this.glowsRest = glows;
+    this.holdStaff(null);
+  }
+
+  // A staff from the gear (gearModels.js buildStaff, worn on the grip), or
+  // null for the wizard's own.
+  holdStaff(staff) {
+    for (const glow of this.glows) {
+      glow.scale.setScalar(glow.userData.size);
+    }
+    if (staff) {
+      this.tip.position.set(staff.position.x, staff.position.y + staff.userData.tip, staff.position.z);
+      this.glows = [staff.userData.glow];
+    } else {
+      this.tip.position.copy(this.tipRest);
+      this.glows = this.glowsRest;
+    }
+    for (const glow of this.glows) {
+      if (glow.userData.size === undefined) {
+        glow.userData.size = glow.scale.x;
+      }
+    }
+  }
+
+  // Where the staff head is in the world (a vector the rig reuses), or with
+  // `release` where it is at the height of a thrust, for spells that land
+  // the moment they are cast.
+  castPoint(release = false) {
+    if (!release) {
+      return this.tip.getWorldPosition(this.point);
+    }
+    const arm = this.limbs.armR;
+    savedArm.copy(arm.rotation);
+    savedGrip.copy(this.grip.quaternion);
+    const pose = MAGE_POSES.thrust;
+    arm.rotation.fromArray(pose.arm);
+    this.pointStaff(tmpV.fromArray(pose.staff).normalize());
+    this.tip.getWorldPosition(this.point);
+    arm.rotation.copy(savedArm);
+    this.grip.quaternion.copy(savedGrip);
+    return this.point;
+  }
+
+  // Cloth worn over the robe (a cape) swings with its hem; `base` lifts the
+  // cloth mesh's own space to the body's.
+  swayCloth(material, base) {
+    if (this.robe) {
+      bendWithRobe(material, base, this.robe);
+    }
+  }
+
+  // Turns the staff in the hand to point along `dir` (a unit vector in the
+  // body's space) whatever the arm is doing.
+  pointStaff(dir) {
+    tmpQ.setFromEuler(this.limbs.armR.rotation).invert();
+    tmpQ2.setFromUnitVectors(UP, dir);
+    this.grip.quaternion.multiplyQuaternions(tmpQ, tmpQ2);
+  }
+
+  gesture(kind) {
+    if (!this.gestures[kind]) {
+      return;
+    }
+    for (const k of GESTURES) {
+      this.gestures[k].age = k === kind ? 0 : Infinity;
+    }
+    this.flare = 1;
+    // and it turns to its foe at once
+    this.snap = 0.2;
+  }
+
+  swing() {
+    this.gesture('thrust');
+  }
+
+  // `speed` is ignored: the steps come from how far the rig itself moved
+  // (so a slowed, shoved or paused wizard steps as it really goes).
+  animate(dt, _speed, facing) {
+    const { legL, legR, armL, armR } = this.limbs;
+    if (!this.rest) {
+      this.rest = { legL: legL.position.clone(), legR: legR.position.clone(), armL: armL.position.clone(), armR: armR.position.clone() };
+    }
+    const before = this.facing;
+    this.snap = Math.max(0, this.snap - dt);
+    this.face(dt, facing, this.snap > 0 ? 28 : 12);
+    const turned = this.facing - before;
+    const step = Math.min(dt, 0.05);
+
+    // how fast it goes over the ground, in its own space
+    const p = this.root.position;
+    let vx = 0;
+    let vz = 0;
+    if (!this.last) {
+      this.last = p.clone();
+    } else if (dt > 0) {
+      const dx = p.x - this.last.x;
+      const dz = p.z - this.last.z;
+      // a blink or a swap is a jump, not a step
+      if (dx * dx + dz * dz < 4) {
+        vx = dx / dt;
+        vz = dz / dt;
+      }
+      this.last.copy(p);
+    }
+    const ground = this.ground;
+    const ease = Math.min(1, dt * 10);
+    ground.x += (vx - ground.x) * ease;
+    ground.z += (vz - ground.z) * ease;
+    const cf = Math.cos(this.facing);
+    const sf = Math.sin(this.facing);
+    const lx = ground.x * cf - ground.z * sf;
+    const lz = ground.x * sf + ground.z * cf;
+    // turning hard on the spot shuffles the feet round
+    this.turnRate += ((dt > 0 ? turned / dt : 0) - this.turnRate) * Math.min(1, dt * 8);
+    const shuffle = this.rooted ? 0 : Math.min(1, Math.max(0, (Math.abs(this.turnRate) - 2.5) / 5)) * Math.max(0, 1 - Math.hypot(lx, lz) / 2);
+    const ex = lx + Math.sign(this.turnRate) * shuffle * 2;
+    const ez = lz;
+    const pace = Math.hypot(ex, ez);
+    this.gait += ((this.rooted ? 0 : Math.min(1.25, pace / 4.4)) - this.gait) * Math.min(1, dt * 6);
+    const g = this.gait;
+    if (pace > 0.3) {
+      const k = Math.min(1, dt * 10);
+      const h = this.heading;
+      h.x += (ex / pace - h.x) * k;
+      h.z += (ez / pace - h.z) * k;
+      const n = Math.hypot(h.x, h.z) || 1;
+      h.x /= n;
+      h.z /= n;
+    }
+    const hx = this.heading.x;
+    const hz = this.heading.z;
+    // the stride lengthens with the pace, so faster steps come less often
+    // than the ground alone would ask
+    this.phase += dt * Math.PI * pace / (1.15 + 0.12 * pace);
+    const s = Math.sin(this.phase);
+    const c = Math.cos(this.phase);
+
+    // legs: each swings along the heading and lifts as it comes through
+    const swing = 0.42 * g;
+    const reach = 0.16 * g;
+    const lift = 0.11 * g;
+    const robe = this.robe;
+    const legs = [[legL, this.rest.legL, s, Math.max(0, c), robe && robe.uLegL.value], [legR, this.rest.legR, -s, Math.max(0, -c), robe && robe.uLegR.value]];
+    for (const [leg, rest, f, up, hemLeg] of legs) {
+      const raise = lift * up * up;
+      leg.position.set(rest.x + hx * f * reach, rest.y + raise, rest.z + hz * f * reach);
+      leg.rotation.set(-swing * f * hz, 0, swing * f * hx);
+      if (hemLeg) {
+        // the hem on its side goes most of the way the boot goes
+        const shift = f * (reach + 0.4 * swing) * 0.6;
+        hemLeg.set(hx * shift, raise * 0.6, hz * shift);
+      }
+    }
+
+    // gestures rise fast and ease back out
+    const gest = this.gestures;
+    for (const kind of GESTURES) {
+      const ge = gest[kind];
+      ge.age += dt;
+      const [held, done] = GESTURE_TIMES[kind];
+      let target = ge.age < held ? 1 : ge.age < done ? 1 - smoothstep((ge.age - held) / (done - held)) : 0;
+      if (this.hold === kind) {
+        target = 1;
+      }
+      ge.w += (target - ge.w) * Math.min(1, dt * (target > ge.w ? 35 : 16));
+    }
+
+    // arms swing against the legs, a little behind them; the staff arm only
+    // short swings, the hand keeping the staff upright like a walking stick
+    this.breath += dt;
+    const breathe = Math.sin(this.breath * 1.7);
+    const fore = Math.sin(this.phase - 0.35) * g * hz;
+    const rest = MAGE_POSES.rest;
+    const arm = [rest.arm[0] - 0.16 * fore, rest.arm[1], rest.arm[2] + 0.015 * breathe];
+    const off = [rest.off[0] + 0.45 * fore, rest.off[1], rest.off[2] - 0.06 * g - 0.015 * breathe];
+    const staff = tmpV.set(rest.staff[0], rest.staff[1], rest.staff[2] + 0.12 * fore);
+    let lean = 0.08 * g * hz;
+    let turn = 0.07 * g * s * hz;
+    let roll = -0.08 * g * hx - 0.025 * g * c;
+    let dip = 0;
+    let ahead = 0;
+    let look = 0;
+    for (const kind of GESTURES) {
+      const w = gest[kind].w;
+      if (w < 0.001) {
+        continue;
+      }
+      const pose = MAGE_POSES[kind];
+      for (let i = 0; i < 3; i++) {
+        arm[i] += (pose.arm[i] - arm[i]) * w;
+        off[i] += (pose.off[i] - off[i]) * w;
+      }
+      staff.x += (pose.staff[0] - staff.x) * w;
+      staff.y += (pose.staff[1] - staff.y) * w;
+      staff.z += (pose.staff[2] - staff.z) * w;
+      lean += (pose.lean || 0) * w;
+      turn += (pose.turn || 0) * w;
+      dip += (pose.dip || 0) * w;
+      ahead += (pose.ahead || 0) * w;
+      look += (pose.look || 0) * w;
+    }
+    armR.rotation.fromArray(arm);
+    armL.rotation.fromArray(off);
+    if (this.grip) {
+      this.pointStaff(staff.normalize());
+    }
+    // the shoulders rise with each breath
+    armR.position.y = this.rest.armR.y + 0.008 * breathe;
+    armL.position.y = this.rest.armL.y + 0.008 * breathe;
+
+    // the body rises as the feet pass and sways over the standing foot;
+    // at rest it breathes and shifts its weight now and then
+    const idle = Math.max(0, 1 - g);
+    this.body.position.set(
+      0.035 * g * c + 0.012 * idle * Math.sin(this.breath * 0.45),
+      0.055 * g * (0.5 + 0.5 * Math.cos(2 * this.phase)) + 0.01 * idle * breathe - dip,
+      ahead
+    );
+    this.body.rotation.set(lean, turn, roll);
+    if (this.head) {
+      // the head stays steady on the foe
+      this.head.rotation.set(-lean * 0.5 + 0.025 * g * Math.cos(2 * this.phase) + look + 0.02 * idle * Math.sin(this.breath * 0.6), -turn * 0.85, -roll * 0.6);
+    }
+
+    // the hem: a damped spring that trails the way it walks and swings on
+    // past a stop; a turn leaves it behind for a moment
+    if (robe) {
+      const h = this.hem;
+      h.twist = clampTo(h.twist - turned * 0.7, 0.5);
+      h.vx += ((clampTo(-lx * 0.022, 0.22) - h.x) * 55 - h.vx * 6) * step;
+      h.vz += ((clampTo(-lz * 0.022, 0.22) - h.z) * 55 - h.vz * 6) * step;
+      h.vt += (-h.twist * 40 - h.vt * 5) * step;
+      h.x += h.vx * step;
+      h.z += h.vz * step;
+      h.twist += h.vt * step;
+      robe.uHem.value.set(h.x, h.z);
+      robe.uTwist.value = h.twist;
+    }
+
+    // the staff head flares as a spell leaves it, and flickers while held
+    if (this.hold) {
+      this.flare = Math.max(this.flare, 0.45 + 0.15 * Math.sin(this.breath * 31));
+    }
+    this.flare = Math.max(0, this.flare - dt * 3.5);
+    for (const glow of this.glows) {
+      glow.scale.setScalar(glow.userData.size * (1 + this.flare));
+    }
+    this.fadeFlash(dt);
+  }
+}
+
+// The box centre of a part's mesh (in its part's space).
+function centreOf(o) {
+  if (!o.geometry.boundingBox) {
+    o.geometry.computeBoundingBox();
+  }
+  return o.geometry.boundingBox.getCenter(new THREE.Vector3()).add(o.position);
+}
+
 export function buildMage(o = {}) {
   const parts = templates.get('mage');
   if (!parts) {
@@ -259,21 +667,37 @@ export function buildMage(o = {}) {
     Hair: o.beard,
     Beard: o.beard,
     Gem: o.orb
-  });
+  }, 0.8, new MageRig());
   rig.root.add(blobShadow(0.85));
   rig.height = 2.7;
+  // the staff turns in the hand: its parts move off the arm onto a grip at
+  // the leather wrap, and its gem is the head spells leave from
+  const staffParts = rig.partMeshes('ArmR', 'Wood', 'Gem', 'Leather');
+  const wrap = rig.partMeshes('ArmR', 'Leather')[0];
+  const gem = rig.partMeshes('ArmR', 'Gem');
+  const grip = new THREE.Group();
+  grip.position.copy(wrap ? centreOf(wrap) : new THREE.Vector3(0, -0.76, 0));
+  rig.limbs.armR.add(grip);
+  for (const part of staffParts) {
+    part.position.sub(grip.position);
+    grip.add(part);
+  }
+  const gemMesh = gem.find((g) => g.isMesh);
+  const tip = gemMesh ? centreOf(gemMesh) : new THREE.Vector3(0, 1.56, 0);
+  rig.setStaff(grip, tip, gem.filter((g) => g.isSprite));
+  swayRobe(rig, rig.partMeshes('Body', 'Robe', 'RobeShade'));
   // gear (gearModels.js): a hat replaces the circlet, a staff the plain one
   rig.wardrobe = {
     mats: { Robe: mats.Robe, RobeShade: mats.RobeShade, Mantle: mats.Mantle, Trim: mats.Trim },
     skin: mats.Skin,
-    hide: { hat: rig.partMeshes('Head', 'Trim', 'Gem'), staff: rig.partMeshes('ArmR', 'Wood', 'Gem', 'Leather') },
+    hide: { hat: rig.partMeshes('Head', 'Trim', 'Gem'), staff: staffParts },
     cape: { y: 1.98, z: -0.06 }
   };
   return rig;
 }
 
 function buildPrimitiveMage(o) {
-  const rig = new Rig();
+  const rig = new MageRig();
   const robe = rig.track(mat(o.robe || 0x2a4fa8, { emissive: 0x000000 }));
   const trim = mat(o.trim || 0xd8c070);
   const skin = rig.track(mat(0xe0b896, { emissive: 0x000000 }));
@@ -286,6 +710,7 @@ function buildPrimitiveMage(o) {
   const torso = mesh(geo('mage.torso', () => new THREE.CylinderGeometry(0.34, 0.42, 0.62, 10)), robe, 0, 1.62, 0);
   const belt = mesh(geo('mage.belt', () => new THREE.CylinderGeometry(0.4, 0.4, 0.09, 10)), trim, 0, 1.33, 0);
   rig.body.add(skirt, hem, torso, belt);
+  swayRobe(rig, [skirt, hem]);
 
   const footGeo = geo('mage.foot', () => new THREE.BoxGeometry(0.2, 0.14, 0.34));
   const footMat = mat(0x3a2a20);
@@ -301,7 +726,10 @@ function buildPrimitiveMage(o) {
   rig.limbs.armL = rig.pivot(-0.46, 1.86, 0, armL);
   rig.limbs.armR = rig.pivot(0.46, 1.86, 0, armR);
 
-  // staff with a glowing focus
+  // staff with a glowing focus, turning in the hand
+  const grip = new THREE.Group();
+  grip.position.set(0, -0.68, 0);
+  armR.add(grip);
   const staff = new THREE.Group();
   staff.add(mesh(geo('mage.staff', () => new THREE.CylinderGeometry(0.045, 0.06, 2.3, 6)), wood, 0, 0.3, 0));
   const orbMat = new THREE.MeshBasicMaterial({ color: o.orb || 0x9fd8ff });
@@ -309,9 +737,10 @@ function buildPrimitiveMage(o) {
   const orbGlow = glowSprite(o.orb || 0x9fd8ff, 0.9);
   orbGlow.position.y = 1.5;
   staff.add(orb, orbGlow);
-  staff.position.set(0, -0.68, 0.05);
-  armR.add(staff);
+  staff.position.set(0, 0, 0.05);
+  grip.add(staff);
   rig.orb = orb;
+  rig.setStaff(grip, new THREE.Vector3(0, 1.5, 0.05), [orbGlow]);
 
   const head = new THREE.Group();
   head.add(mesh(geo('mage.head', () => new THREE.SphereGeometry(0.28, 12, 10)), skin, 0, 0, 0));

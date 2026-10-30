@@ -551,6 +551,18 @@ scripts save `.blend` files to `tools/blender/blend/` for editing by hand. Model
 split into rigid parts on the rig's pivots and animated in code; if one fails to load,
 the game falls back to the older primitive model.
 
+The wizard has a rig of its own (`MageRig` in `src/render/models.js`). Its steps follow the
+way it actually moves rather than the way it faces, so it strafes and backs away on its
+feet and shuffles round when it turns on the spot. Its hips rise and sway over the
+standing foot, its staff swings like a walking stick, and the robe's hem (bent in the
+vertex shader, a worn cape with it) is pushed by the legs and swings on after a stop or a
+turn. Casts are gestures blended over the walk: bolts and aimed spells thrust the staff
+head at the foe, spells on the wizard itself raise it overhead, and thunderwave slams its
+foot into the floor; the lifesteal ray and a word of death hold their pose. The staff turns
+in the hand, and spells leave from its head. Bolts are drawn easing from the staff head
+onto their line of flight, while the bolt itself still flies, and hits, from the wizard's
+centre. Beams, cone of cold and the flaming sphere also start at the staff head.
+
 ## Differences from the 2D game
 
 - Bodies slide along walls instead of stopping (and orcs no longer die on wall contact).

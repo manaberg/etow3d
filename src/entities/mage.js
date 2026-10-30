@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildMage, buildSheep, glowMap } from '../render/models.js';
-import { Projectile, Zone, MirrorImage, castMissiles, missileTier } from './spells.js';
+import { Projectile, Zone, MirrorImage, castMissiles, missileTier, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, castArcana, arcanaHit, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
 import { arcanaFx } from './enemy.js';
@@ -742,11 +742,13 @@ export class Mage extends Entity {
       this.spend('timestop');
       game.fx.ring(c.x, c.y, { color: 0xffe080, radius: 600, life: 0.8 });
       game.onTimestop();
+      this.rig.gesture('raise');
     }
     if (this.wants('image') && this.canCast('image')) {
       game.spawn(MirrorImage, this.pos.x, this.pos.y, { source: this, timeOwner: this });
       stats.imcount++;
       this.spend('image');
+      this.rig.gesture('raise');
     }
     if (this.wants('blink') && this.canCast('blink')) {
       const fx = game.fx;
@@ -774,17 +776,20 @@ export class Mage extends Entity {
       stats.shcount++;
       this.spend('shield');
       game.fx.ring(c.x, c.y, { color: 0x60b0ff, radius: 50, life: 0.4 });
+      this.rig.gesture('raise');
     }
     if (this.wants('haste') && this.canCast('haste')) {
       this.hasteFrames = this.hasteDuration * rankPower(this, 'haste');
       stats.hscount++;
       this.spend('haste');
+      this.rig.gesture('raise');
     }
     if (this.wants('invis') && this.canCast('invis')) {
       this.invisFrames = this.invisDuration * rankPower(this, 'invis');
       stats.incount++;
       this.spend('invis');
       game.fx.burst(c.x, c.y, 1.2, { color: 0x8090a0, count: 20, speed: 3, life: 0.6, size: 1 });
+      this.rig.gesture('raise');
     }
     if (this.wants('blizzard') && this.canCast('blizzard')) {
       game.spawn(Zone, mouse.x, mouse.y, {
@@ -792,6 +797,7 @@ export class Mage extends Entity {
       });
       stats.bzcount++;
       this.spend('blizzard', this.hasBz2 ? 10 : 0);
+      this.rig.swing();
     }
     if (this.wants('fear') && this.canCast('fear')) {
       const reach = (game.duelMode ? 450 : 400) * rankPower(this, 'fear');
@@ -803,13 +809,14 @@ export class Mage extends Entity {
       stats.fecount++;
       this.spend('fear');
       game.fx.ring(c.x, c.y, { color: 0xc040ff, radius: reach, life: 0.6 });
+      this.rig.gesture('raise');
     }
     if (this.wants('pwkill') && this.canCast('pwkill')) {
       // the word takes a second to speak, standing still (speakWord)
       const target = game.hoveredHostile();
       if (target) {
         this.channel = { target, left: DuelRules.pwkillCast, total: DuelRules.pwkillCast };
-        this.rig.swing();
+        this.rig.gesture('raise');
       }
     }
     if (this.wants('tele') && this.canCast('tele')) {
@@ -819,6 +826,7 @@ export class Mage extends Entity {
         item.pickUp(this);
         stats.tlcount++;
         this.spend('tele');
+        this.rig.swing();
       }
     }
     castArcana(this);
@@ -838,7 +846,9 @@ export class Mage extends Entity {
     ch.left -= k;
     const c = this.center();
     if (Math.random() < 0.6) {
-      game.fx.emit(c.x, c.y, 2.2, { color: [0x9a40ff, 0x200830], life: 0.5, size: 0.7, vy: 2 });
+      // the word gathers at the raised staff
+      const head = staffHead(this) || { x: c.x, y: c.y, h: 2.2 };
+      game.fx.emit(head.x, head.y, head.h, { color: Math.random() < 0.7 ? 0x9a40ff : 0x200830, life: 0.5, size: 0.7, vy: 2 });
     }
     if (ch.left > 0) {
       return;
@@ -1033,6 +1043,9 @@ export class Mage extends Entity {
     const c = this.center();
     this.view.position.set(c.x * UNIT, this.lift ? liftHeight(this.lift, time) : 0, c.y * UNIT);
     const moving = Math.hypot(this.vel.x, this.vel.y) > 1;
+    // the lifesteal ray keeps the staff pointed, a word of death keeps it raised
+    this.rig.hold = this.rayOn && !this.helpless && this.sheepFrames <= 0 ? 'thrust' : (this.channel ? 'raise' : null);
+    this.rig.rooted = this.isStunned || this.helpless || !!this.channel;
     this.rig.animate(dt, moving ? Math.min(1.4, Math.hypot(this.vel.x, this.vel.y) / 100) : 0, Math.atan2(Math.cos(this.aim), Math.sin(this.aim)));
     this.rig.setAlpha(this.invis ? 0.35 : 1);
     this.shieldBubble.visible = this.shielded;
