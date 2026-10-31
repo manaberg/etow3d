@@ -225,7 +225,8 @@ export class Projectile extends Entity {
   steer(k) {
     const h = this.homing;
     this.homeFrames -= k;
-    if (this.homeFrames <= 0 || h.killed) {
+    // a body that turns invisible is lost: the dart flies straight on
+    if (this.homeFrames <= 0 || h.killed || h.invis) {
       this.homing = null;
       return;
     }

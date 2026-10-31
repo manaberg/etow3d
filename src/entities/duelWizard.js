@@ -9,6 +9,14 @@ import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { GLOBAL_COOLDOWN, rankCooldown, rankPower } from './spellbar.js';
 
+// An invisible player: it notices them only within `near` px (centre to
+// centre, about a stride apart), and otherwise searches around where it last
+// knew them, ever less sure of the spot: within `start` px at first, `grow`
+// px more each frame unseen, up to `max`, picking a new spot every `every`
+// frames. It fires blind only for `blind` frames after it last knew the
+// spot; a spell the player casts gives the spot again.
+const SEARCH = { near: 72, start: 100, grow: 2, max: 200, every: 45, blind: 60 };
+
 // The rival wizard: the player's reflection in the trials (mirror.js). It
 // reads every bolt in flight, scores sixteen escape directions a short horizon
 // ahead, shields or blinks out of hits it cannot dodge, and learns how far to
@@ -116,6 +124,7 @@ export class DuelWizard extends Enemy {
     this.zones = [];
     this.bestMove = null;
     this.seen = null;
+    this.search = null;
     this.target = null;
     this.lastPlayerCastFrame = -1;
     this.decoyId = -1;
@@ -483,9 +492,9 @@ export class DuelWizard extends Enemy {
     const pc = this.center(player);
     const dx = pc.x - me.x;
     const dy = pc.y - me.y;
-    // invisible players are only noticed up close, or by the spells they cast;
-    // walls hide everyone
-    const visible = (!player.invis || Math.sqrt(dx * dx + dy * dy) < 110) && this.canSee(pc.x, pc.y);
+    // invisible players are only noticed up close (SEARCH), or by the spells
+    // they cast; walls hide everyone
+    const visible = (!player.invis || Math.sqrt(dx * dx + dy * dy) < SEARCH.near) && this.canSee(pc.x, pc.y);
     this.newThreat = false;
     this.threats = [];
     this.zones = [];
@@ -570,12 +579,29 @@ export class DuelWizard extends Enemy {
       this.target = { x: pc.x, y: pc.y, vx: this.seen.vx, vy: this.seen.vy, visible: true, real: true, entity: player };
     } else if (this.seen) {
       // dead reckoning from the last sighting, at most one second ahead
-      const age = Math.min(60, this.frame - this.seen.frame) * tick;
-      const guess = this.clampToArena({ x: this.seen.x + this.seen.vx * age, y: this.seen.y + this.seen.vy * age }, 30);
+      const lost = this.frame - this.seen.frame;
+      const age = Math.min(60, lost) * tick;
+      const off = player.invis ? this.searchOffset(lost) : { x: 0, y: 0 };
+      const guess = this.clampToArena({ x: this.seen.x + this.seen.vx * age + off.x, y: this.seen.y + this.seen.vy * age + off.y }, 30);
       this.target = { x: guess.x, y: guess.y, vx: 0, vy: 0, visible: false, real: true, entity: null };
     } else {
-      this.target = { x: pc.x, y: pc.y, vx: 0, vy: 0, visible: false, real: true, entity: null };
+      // not seen yet: it heads for the player, an invisible one only roughly
+      const off = player.invis ? this.searchOffset(Infinity) : null;
+      const guess = off ? this.clampToArena({ x: pc.x + off.x, y: pc.y + off.y }, 30) : pc;
+      this.target = { x: guess.x, y: guess.y, vx: 0, vy: 0, visible: false, real: true, entity: null };
     }
+  }
+
+  // How far off the spot it searches for an invisible player, `lost` frames
+  // after it last knew where they were (SEARCH).
+  searchOffset(lost) {
+    const s = this.search;
+    if (!s || s.seen !== this.seen || this.frame - s.frame >= SEARCH.every) {
+      const r = Math.min(SEARCH.max, SEARCH.start + lost * SEARCH.grow) * Math.sqrt(Math.random());
+      const a = Math.random() * Math.PI * 2;
+      this.search = { x: Math.cos(a) * r, y: Math.sin(a) * r, frame: this.frame, seen: this.seen };
+    }
+    return this.search;
   }
 
   chooseTactic(player) {
@@ -1041,6 +1067,11 @@ export class DuelWizard extends Enemy {
     if (this.ready('agathys') && this.wardHp <= 0 && t.visible && dist < 600 && spare >= 40) {
       ArcanaCast.agathys(this);
       this.spend('agathys', false);
+      return;
+    }
+    // an invisible player it lost a while ago (or never saw): search, do not
+    // waste spells
+    if (!t.visible && player.invis && (!this.seen || this.frame - this.seen.frame > SEARCH.blind)) {
       return;
     }
     const wizardShot = this.canSee(t.x, t.y) && t.visible && dist < 520;

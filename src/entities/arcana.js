@@ -653,7 +653,7 @@ export class SpiritualWeapon extends Entity {
     this.swing = Math.max(0, this.swing - k);
     // (wizards and decoys have no `alive`: their health and `dead` tell)
     const t = this.target;
-    if (!t || t.killed || t.dead || t.hp <= 0 || owner.distanceTo(t) > Arcana.weapon.reach) {
+    if (!t || t.killed || t.dead || t.hp <= 0 || t.invis || owner.distanceTo(t) > Arcana.weapon.reach) {
       this.target = game.nearestHostile(owner, Arcana.weapon.reach, teamOf(owner));
     }
     // glide (through walls, it is a spirit) to the target or beside the caster

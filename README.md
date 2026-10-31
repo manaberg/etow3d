@@ -191,6 +191,14 @@ with an easy brain to depth 5, a normal one to depth 12 and a hard one below (`T
 most every half second, aims loosely, learns slowly and never notices one bolt in five at all
 (the easy brain misses one in three); a hard one notices every one.
 
+Invisibility works on it as on any foe, with a hunter's wits (`SEARCH` in
+`src/entities/duelWizard.js`): it notices you only when it all but walks into you, or by the
+spells you cast, which show where you stand. Otherwise it searches around where it last saw
+you, less sure of the spot the longer you stay hidden, and fires blind only for a second after
+it last knew where you were. Bolts already in the air fly on (homing darts lose their lock),
+and chain lightning, chain root, a spiritual weapon and the cursor cannot lock on to an
+invisible wizard: you, or the reflection when it vanishes.
+
 **Duels.** Most are fought in a small dungeon of six themed rooms and corridors; you start in
 the two rooms farthest apart. Walls block sight and bolts, so you can hide, flank and ambush,
 and your reflection hunts you through the corridors when it loses you. A third are fought in
