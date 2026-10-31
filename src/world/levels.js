@@ -14,7 +14,8 @@ import { randInt } from '../core/constants.js';
 //            from `colors`; they lair in the largest rooms
 //   boss     'warlord' (floor 10; slaying him opens the stairs) or 'wyrm'
 //            (floor 20; slaying it wins the run)
-//   scrolls, potions, rings  loot placed on the floor at the start
+//   scrolls, potions, rings  loot placed on the floor at the start (only
+//            `scrollShare` of the scrolls: every level brings a spell too)
 //   champion chance that an orc rolls as a champion (tougher, drops more loot)
 //   resists  the element the floor's foes lean to when they resist one
 //            (rollResist; dragons resist by colour instead)
@@ -22,6 +23,12 @@ export const DungeonLevels = {
   count: 20,
   // share of the floor's enemies to slay before the stairs unseal
   unlockShare: 0.4,
+  // share of the plans' scrolls laid on the floors, and of the scrolls
+  // monsters drop, now that every wizard level brings a spell to choose
+  scrollShare: 0.5,
+  // the orc clerics' and mages' health: `base` times the orcs' hpScale for
+  // the depth, but never more than `max`
+  miniBossHp: { cleric: { base: 2500, max: 8000 }, mage: { base: 1000, max: 3000 } },
   // now and then an orc, one of its kind or a mini-boss resists one element
   // (to `mult` of the damage): `chance` on the first floor and `perFloor`
   // more on each floor down, the floor's `resists` element `lean` times as
@@ -61,6 +68,11 @@ export const DungeonLevels = {
   hpScale(depth) {
     const deep = Math.max(0, depth - 10);
     return 1 + (depth - 1) * 0.1 + deep * deep * 0.025;
+  },
+
+  miniBossHpAt(kind, depth) {
+    const spec = this.miniBossHp[kind];
+    return Math.min(spec.max, Math.round(spec.base * this.hpScale(depth)));
   },
 
   damageScale(depth) {

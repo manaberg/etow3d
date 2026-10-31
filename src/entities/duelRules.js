@@ -8,7 +8,8 @@ export const DuelRules = {
   // power word kill is spoken over this many frames, standing still (either
   // wizard); a root, fear or polymorph breaks it off
   pwkillCast: 60,
-  rayHeal: 3,
+  // per bolt of the lifesteal ray (a bolt a frame while it is held)
+  rayHeal: 0.3,
   damage: {
     // per dart: a cast looses one to three by tier (spells.js MissileTiers),
     // so three darts every 44 frames about match the old 3 x 20 every 24
@@ -17,7 +18,7 @@ export const DuelRules = {
     ironshot: 180,
     lightning: 70,
     chain: 70,
-    ray: 15,
+    ray: 2,
     pwkill: 120,
     root: 0,
     rootchain: 0,
@@ -96,7 +97,7 @@ export const DuelRules = {
     potionEvery: 660,
     maxPotions: 2,
     redHeal: 120,
-    blueManergy: 60
+    blueManergy: 90
   },
   // reaction: frames before a new projectile is noticed
   // castLock: minimum frames between two offensive casts

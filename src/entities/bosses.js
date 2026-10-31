@@ -53,7 +53,7 @@ export class Clericorc extends Enemy {
     super.defaults();
     this.knockResist = 0.5;
     this.holdScale = 0.5;
-    this.hp = this.maxHp = 8000;
+    // health grows with the depth (init, levels.js DungeonLevels.miniBossHp)
     this.desiredVel = 100;
     this.attackCooldown = 0;
     this.attackMax = 50;
@@ -71,6 +71,7 @@ export class Clericorc extends Enemy {
   }
 
   init() {
+    this.hp = this.maxHp = DungeonLevels.miniBossHpAt('cleric', this.game.depth);
     this.meleeDmg = Math.floor(Math.random() * 10) + 40;
     this.resist = DungeonLevels.rollResist(this.game.depth);
     this.rig = buildOrc('cleric');
@@ -180,7 +181,7 @@ export class Mageorc extends Enemy {
     super.defaults();
     this.knockResist = 0.5;
     this.holdScale = 0.5;
-    this.hp = this.maxHp = 3000;
+    // health grows with the depth (init, levels.js DungeonLevels.miniBossHp)
     this.desiredVel = 90;
     this.attackCooldown = 0;
     this.attackMax = 100;
@@ -196,6 +197,7 @@ export class Mageorc extends Enemy {
   }
 
   init() {
+    this.hp = this.maxHp = DungeonLevels.miniBossHpAt('mage', this.game.depth);
     this.meleeDmg = Math.floor(Math.random() * 10) + 20;
     this.resist = DungeonLevels.rollResist(this.game.depth);
     this.rig = buildOrc('mage');

@@ -15,7 +15,7 @@ import { setting } from '../core/settings.js';
 import { DuelRules } from '../entities/duelRules.js';
 import { missileTier } from '../entities/spells.js';
 import { spellIcon } from './spellIcons.js';
-import { circleName, cooldownFor, dragSource, dropTarget, seconds } from './spellbook.js';
+import { circleName, cooldownFor, costLabel, dragSource, dropTarget, seconds } from './spellbook.js';
 
 // height of an item's name tag on the floor (CSS px)
 const LOOT_TAG_H = 17;
@@ -133,7 +133,7 @@ export class Hud {
     // (spellbar.js); the wizard's experience runs along its top
     const dock = el('div', 'hud-dock', root);
     this.dock = dock;
-    this.hint = el('div', 'hud-hint', dock, 'Find scrolls to learn spells.');
+    this.hint = el('div', 'hud-hint', dock, 'Gain a level or find scrolls to learn spells.');
     const strip = el('div', 'xp-strip', dock);
     this.xpBar = { fill: el('div', 'xp-fill', strip), text: el('span', 'xp-text', strip) };
     const bar = el('div', 'action-bar', dock);
@@ -294,6 +294,7 @@ export class Hud {
 
     this.inventoryScreen = new InventoryScreen(root, game);
     this.endScreen = el('div', 'screen hidden', root);
+    this.levelScreen = el('div', 'screen hidden', root);
     this.applyMode();
   }
 
@@ -376,7 +377,7 @@ export class Hud {
     const school = DuelRules.schools[DuelRules.schoolOf(id)];
     line('tip-title', spell.name, rank >= 2 || id === 'missile' ? 'RANK ' + ROMAN[rank] : '');
     const cd = cooldownFor(player, id);
-    line('tip-stat', spell.cost ? spell.cost + ' MANERGY' : 'NO COST', cd ? seconds(cd) + ' COOLDOWN' : 'NO COOLDOWN');
+    line('tip-stat', costLabel(player, id), cd ? seconds(cd) + ' COOLDOWN' : 'NO COOLDOWN');
     if (school) {
       line('tip-school', school.name + (spell.circle ? ' :: ' + circleName(spell.circle) : '')).style.color = school.color;
     }
@@ -747,6 +748,28 @@ export class Hud {
       node.onclick = (e) => battle.toggleSelect(regiment.id, e.shiftKey || isTouch());
       return { regiment, node, count, order, fill };
     });
+  }
+
+  // A level gained: the spell to choose for it (Game.offerLevelPick).
+  // `onPick` gets the chosen spell's id ('missile' for a dart).
+  showLevelPick({ level, choices, onPick }) {
+    const screen = this.levelScreen;
+    screen.innerHTML = '';
+    screen.classList.remove('hidden');
+    this.hideTip();
+    const card = el('div', 'card end win', screen);
+    el('h2', null, card, 'LEVEL ' + level);
+    el('p', null, card, 'Choose a spell to learn, another magic missile dart or a rank.');
+    const buttons = el('div', 'buttons draft', card);
+    for (const c of choices) {
+      const b = el('button', null, buttons, c.name);
+      b.onclick = () => onPick(c.id);
+    }
+  }
+
+  hideLevelPick() {
+    this.levelScreen.classList.add('hidden');
+    this.levelScreen.innerHTML = '';
   }
 
   // A trial is over: what happened and, if it was won, the spoils to choose
