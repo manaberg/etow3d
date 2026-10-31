@@ -22,8 +22,6 @@ export class Orc extends Enemy {
     this.castMax = 160;
     this.enraged = false;
     this.quiver = 0;
-    this.canBeFeared = true;
-    this.canPolymorph = true;
     // confusion turns it on its own side (brawl); counterspell holds back
     // its bolts and its healing
     this.canBrawl = true;
@@ -68,6 +66,8 @@ export class Orc extends Enemy {
     // clerics and mages do
     const name = (this.race === 'orc' ? 'ORC ' : '') + race.names[this.orcClass];
     this.label = ((this.isChampion ? 'CHAMPION ' : '') + name).trim();
+    // now and then it resists an element, as its floor leans
+    this.resist = DungeonLevels.rollResist(this.depth);
     this.rig = buildOrc(raceLook(this.race, this.orcClass), { champion: this.isChampion });
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
@@ -110,16 +110,7 @@ export class Orc extends Enemy {
     this.healCooldown = Math.max(0, this.healCooldown - k);
     this.castCooldown = Math.max(0, this.castCooldown - k);
 
-    if (this.sheepFrames > 0) {
-      // polymorphed into a sheep: it ambles about and can neither fight nor cast
-      this.wander -= k;
-      if (this.wander <= 0) {
-        const a = Math.random() * Math.PI * 2;
-        this.vel.x = Math.cos(a) * 30;
-        this.vel.y = Math.sin(a) * 30;
-        this.wander = 90;
-      }
-      this.moveBody(k);
+    if (this.amble(k)) {
       if (this.hp < 0) {
         this.die();
       }

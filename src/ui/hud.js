@@ -5,6 +5,7 @@ import { DungeonLevels, Races } from '../world/levels.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
 import { Dragon } from '../entities/dragon.js';
+import { Elements } from '../entities/enemy.js';
 import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
@@ -55,6 +56,22 @@ const ICON_LOCK = SVG('<path d="M13 18 V13 Q13 6 20 6 Q27 6 27 13 V18" stroke="#
 // the top right, labels above monsters, banners, toasts and the pause and
 // end screens.
 // A regiment's name, short enough for its card.
+// The small line over a foe's name: the spell an orc cleric or mage knows
+// (bosses.js OrcArcana) and the elements it resists (dragons announce theirs).
+function foeNote(e) {
+  const parts = [];
+  if (e.arcanaSpell && SpellById[e.arcanaSpell]) {
+    parts.push(SpellById[e.arcanaSpell].name);
+  }
+  if (e.resist && !e.isDragon) {
+    const resisted = Object.keys(e.resist).filter((element) => e.resist[element] < 1).map((element) => Elements[element]);
+    if (resisted.length) {
+      parts.push('RESISTS ' + resisted.join(', '));
+    }
+  }
+  return parts.join(' :: ');
+}
+
 const SHORT = { INFANTRY: 'INF', SLINGERS: 'MISSILE', KNIGHTS: 'KNIGHTS', 'SHOCK TROOPS': 'SHOCK', MYSTICS: 'MYSTICS', DRAGONS: 'DRAGONS' };
 function shortName(name) {
   for (const long in SHORT) {
@@ -941,6 +958,13 @@ export class Hud {
       ctx.fillText(text, p.x + 1, p.y - 4);
       ctx.fillStyle = e.isChampion ? '#ffd060' : (big ? '#ff9ad0' : '#f0e0d0');
       ctx.fillText(text, p.x, p.y - 5);
+      const note = foeNote(e);
+      if (note) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillText(note, p.x + 1, p.y - 16);
+        ctx.fillStyle = '#9ad8ff';
+        ctx.fillText(note, p.x, p.y - 17);
+      }
     }
     this.drawLootLabels(ctx, w, h);
   }

@@ -663,11 +663,15 @@ export class Game {
     return this.entities.find((e) => e instanceof MirrorImage && !e.killed && e.source === this.player) || null;
   }
 
-  // The nearest foe of `team` within range of a body.
+  // The nearest foe of `team` within range of a body. These lookups (and
+  // the cursor's) pass over an invisible wizard: it cannot be locked on to.
   nearestHostile(from, range, team = 'player') {
     let best = null;
     let bestDistance = range;
     for (const e of this.hostilesOf(team)) {
+      if (e.invis) {
+        continue;
+      }
       const d = from.distanceTo(e);
       if (d < bestDistance) {
         bestDistance = d;
@@ -682,6 +686,9 @@ export class Game {
     let best = null;
     let bestD = range;
     for (const e of this.hostilesOf(team)) {
+      if (e.invis) {
+        continue;
+      }
       const c = e.center();
       const d = Math.hypot(c.x - point.x, c.y - point.y);
       if (d < bestD) {
@@ -697,7 +704,7 @@ export class Game {
     let best = null;
     let bestD = Infinity;
     for (const e of this.hostilesOf('player')) {
-      if (e.containsPoint(g.x, g.y, 14)) {
+      if (!e.invis && e.containsPoint(g.x, g.y, 14)) {
         const c = e.center();
         const d = Math.hypot(c.x - g.x, c.y - g.y);
         if (d < bestD) {

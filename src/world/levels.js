@@ -16,31 +16,38 @@ import { randInt } from '../core/constants.js';
 //            (floor 20; slaying it wins the run)
 //   scrolls, potions, rings  loot placed on the floor at the start
 //   champion chance that an orc rolls as a champion (tougher, drops more loot)
+//   resists  the element the floor's foes lean to when they resist one
+//            (rollResist; dragons resist by colour instead)
 export const DungeonLevels = {
   count: 20,
   // share of the floor's enemies to slay before the stairs unseal
   unlockShare: 0.4,
+  // now and then an orc, one of its kind or a mini-boss resists one element
+  // (to `mult` of the damage): `chance` on the first floor and `perFloor`
+  // more on each floor down, the floor's `resists` element `lean` times as
+  // likely as each of the others
+  resistRoll: { chance: 0.12, perFloor: 0.01, lean: 3, mult: 0.5, elements: ['fire', 'cold', 'lightning', 'thunder', 'poison', 'necrotic', 'radiant', 'psychic'] },
   plans: [
     { name: 'THE UPPER HALLS', rooms: 4, orcs: 22, classes: { grunt: 7, slinger: 3 }, races: { orc: 8, human: 2 }, scrolls: 2, potions: 1, rings: 0, champion: 0 },
-    { name: 'THE WARRENS', rooms: 5, orcs: 30, classes: { grunt: 6, slinger: 3, knight: 2 }, races: { orc: 6, human: 2, dwarf: 2 }, scrolls: 2, potions: 2, rings: 0, champion: 0.02 },
-    { name: 'THE MUSTER HALLS', rooms: 5, orcs: 38, classes: { grunt: 5, slinger: 3, knight: 2, shaman: 1, berserker: 1 }, races: { orc: 5, human: 2, dwarf: 2, elf: 1 }, clerics: 1, scrolls: 3, potions: 2, rings: 1, champion: 0.04 },
-    { name: 'THE BONE CRYPTS', rooms: 6, orcs: 46, classes: { grunt: 4, slinger: 3, knight: 2, shaman: 2, berserker: 2 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 1, mages: 1, scrolls: 3, potions: 2, rings: 1, champion: 0.06 },
-    { name: 'THE SUNKEN LIBRARY', rooms: 7, orcs: 54, classes: { grunt: 4, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 1 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 1, mages: 2, scrolls: 3, potions: 2, rings: 1, champion: 0.09 },
-    { name: 'THE IRON FORGES', rooms: 7, orcs: 62, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 2, warlock: 2 }, races: { orc: 4, human: 1, dwarf: 3, elf: 2 }, clerics: 2, mages: 2, scrolls: 3, potions: 3, rings: 1, champion: 0.12 },
-    { name: 'THE BLOOD PITS', rooms: 8, orcs: 70, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 2, warlock: 2 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, scrolls: 4, potions: 3, rings: 2, champion: 0.15 },
-    { name: 'THE SHADOW VAULTS', rooms: 8, orcs: 78, classes: { grunt: 2, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, races: { orc: 4, human: 2, dwarf: 1, elf: 3 }, clerics: 3, mages: 2, scrolls: 4, potions: 3, rings: 2, champion: 0.18 },
-    { name: 'THE BURNING DEEP', rooms: 9, orcs: 86, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 3, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, scrolls: 4, potions: 3, rings: 2, champion: 0.22 },
-    { name: 'THRONE OF THE WARLORD', rooms: 8, orcs: 34, classes: { knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, races: { orc: 6, human: 1, dwarf: 1, elf: 1 }, boss: 'warlord', clerics: 1, mages: 1, scrolls: 3, potions: 4, rings: 1, champion: 0.28 },
-    { name: 'THE SCORCHED GALLERIES', rooms: 10, orcs: 92, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 1, dragons: { ages: { wyrmling: 2 }, colors: ['red'] }, scrolls: 4, potions: 3, rings: 2, champion: 0.30 },
-    { name: 'THE FROZEN CISTERNS', rooms: 10, orcs: 98, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 3 }, colors: ['white'] }, scrolls: 4, potions: 3, rings: 2, champion: 0.32 },
-    { name: 'THE STORM HALLS', rooms: 11, orcs: 104, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 2, young: 1 }, colors: ['blue'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.34 },
-    { name: 'THE VENOM MIRES', rooms: 11, orcs: 110, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 2, young: 2 }, colors: ['green'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.36 },
-    { name: 'THE BLACK POOLS', rooms: 12, orcs: 116, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 2, dragons: { ages: { young: 2, adult: 1 }, colors: ['black'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.38 },
-    { name: 'THE WYRM WARRENS', rooms: 12, orcs: 122, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 2, dragons: { ages: { wyrmling: 3, young: 2, adult: 1 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 5, potions: 3, rings: 3, champion: 0.40 },
-    { name: 'THE HOARD VAULTS', rooms: 13, orcs: 128, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, dragons: { ages: { young: 2, adult: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 5, potions: 4, rings: 3, champion: 0.42 },
-    { name: 'THE ASHEN DEEP', rooms: 13, orcs: 134, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, dragons: { ages: { young: 1, adult: 2, ancient: 1 }, colors: ['red', 'black'] }, scrolls: 6, potions: 4, rings: 3, champion: 0.44 },
-    { name: 'THE BONEYARD OF KINGS', rooms: 14, orcs: 140, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 4, mages: 3, dragons: { ages: { adult: 2, ancient: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 6, potions: 4, rings: 3, champion: 0.46 },
-    { name: 'THE GOLDEN HOARD', rooms: 11, orcs: 60, classes: { knight: 3, shaman: 2, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, dragons: { ages: { adult: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, boss: 'wyrm', scrolls: 5, potions: 5, rings: 2, champion: 0.48 }
+    { name: 'THE WARRENS', resists: 'poison', rooms: 5, orcs: 30, classes: { grunt: 6, slinger: 3, knight: 2 }, races: { orc: 6, human: 2, dwarf: 2 }, scrolls: 2, potions: 2, rings: 0, champion: 0.02 },
+    { name: 'THE MUSTER HALLS', resists: 'thunder', rooms: 5, orcs: 38, classes: { grunt: 5, slinger: 3, knight: 2, shaman: 1, berserker: 1 }, races: { orc: 5, human: 2, dwarf: 2, elf: 1 }, clerics: 1, scrolls: 3, potions: 2, rings: 1, champion: 0.04 },
+    { name: 'THE BONE CRYPTS', resists: 'necrotic', rooms: 6, orcs: 46, classes: { grunt: 4, slinger: 3, knight: 2, shaman: 2, berserker: 2 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 1, mages: 1, scrolls: 3, potions: 2, rings: 1, champion: 0.06 },
+    { name: 'THE SUNKEN LIBRARY', resists: 'psychic', rooms: 7, orcs: 54, classes: { grunt: 4, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 1 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 1, mages: 2, scrolls: 3, potions: 2, rings: 1, champion: 0.09 },
+    { name: 'THE IRON FORGES', resists: 'fire', rooms: 7, orcs: 62, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 2, brute: 2, warlock: 2 }, races: { orc: 4, human: 1, dwarf: 3, elf: 2 }, clerics: 2, mages: 2, scrolls: 3, potions: 3, rings: 1, champion: 0.12 },
+    { name: 'THE BLOOD PITS', resists: 'poison', rooms: 8, orcs: 70, classes: { grunt: 3, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 2, warlock: 2 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, scrolls: 4, potions: 3, rings: 2, champion: 0.15 },
+    { name: 'THE SHADOW VAULTS', resists: 'psychic', rooms: 8, orcs: 78, classes: { grunt: 2, slinger: 3, knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, races: { orc: 4, human: 2, dwarf: 1, elf: 3 }, clerics: 3, mages: 2, scrolls: 4, potions: 3, rings: 2, champion: 0.18 },
+    { name: 'THE BURNING DEEP', resists: 'fire', rooms: 9, orcs: 86, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 3, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, scrolls: 4, potions: 3, rings: 2, champion: 0.22 },
+    { name: 'THRONE OF THE WARLORD', resists: 'thunder', rooms: 8, orcs: 34, classes: { knight: 3, shaman: 2, berserker: 3, brute: 3, warlock: 3 }, races: { orc: 6, human: 1, dwarf: 1, elf: 1 }, boss: 'warlord', clerics: 1, mages: 1, scrolls: 3, potions: 4, rings: 1, champion: 0.28 },
+    { name: 'THE SCORCHED GALLERIES', resists: 'fire', rooms: 10, orcs: 92, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 1, dragons: { ages: { wyrmling: 2 }, colors: ['red'] }, scrolls: 4, potions: 3, rings: 2, champion: 0.30 },
+    { name: 'THE FROZEN CISTERNS', resists: 'cold', rooms: 10, orcs: 98, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 3 }, colors: ['white'] }, scrolls: 4, potions: 3, rings: 2, champion: 0.32 },
+    { name: 'THE STORM HALLS', resists: 'lightning', rooms: 11, orcs: 104, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 2, young: 1 }, colors: ['blue'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.34 },
+    { name: 'THE VENOM MIRES', resists: 'poison', rooms: 11, orcs: 110, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 2, mages: 2, dragons: { ages: { wyrmling: 2, young: 2 }, colors: ['green'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.36 },
+    { name: 'THE BLACK POOLS', resists: 'necrotic', rooms: 12, orcs: 116, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 2, dragons: { ages: { young: 2, adult: 1 }, colors: ['black'] }, scrolls: 5, potions: 3, rings: 2, champion: 0.38 },
+    { name: 'THE WYRM WARRENS', resists: 'lightning', rooms: 12, orcs: 122, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 2, dragons: { ages: { wyrmling: 3, young: 2, adult: 1 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 5, potions: 3, rings: 3, champion: 0.40 },
+    { name: 'THE HOARD VAULTS', resists: 'radiant', rooms: 13, orcs: 128, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, dragons: { ages: { young: 2, adult: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 5, potions: 4, rings: 3, champion: 0.42 },
+    { name: 'THE ASHEN DEEP', resists: 'fire', rooms: 13, orcs: 134, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 3, mages: 3, dragons: { ages: { young: 1, adult: 2, ancient: 1 }, colors: ['red', 'black'] }, scrolls: 6, potions: 4, rings: 3, champion: 0.44 },
+    { name: 'THE BONEYARD OF KINGS', resists: 'necrotic', rooms: 14, orcs: 140, classes: { grunt: 2, slinger: 2, knight: 3, shaman: 3, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, clerics: 4, mages: 3, dragons: { ages: { adult: 2, ancient: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, scrolls: 6, potions: 4, rings: 3, champion: 0.46 },
+    { name: 'THE GOLDEN HOARD', resists: 'radiant', rooms: 11, orcs: 60, classes: { knight: 3, shaman: 2, berserker: 3, brute: 4, warlock: 4 }, races: { orc: 4, human: 2, dwarf: 2, elf: 2 }, dragons: { ages: { adult: 2 }, colors: ['red', 'white', 'blue', 'green', 'black'] }, boss: 'wyrm', scrolls: 5, potions: 5, rings: 2, champion: 0.48 }
   ],
 
   getPlan(depth) {
@@ -59,6 +66,21 @@ export const DungeonLevels = {
   damageScale(depth) {
     const deep = Math.max(0, depth - 10);
     return 1 + (depth - 1) * 0.07 + deep * deep * 0.003;
+  },
+
+  // A foe's resistances (Enemy.resist) as it spawns on a floor, or null:
+  // most resist nothing.
+  rollResist(depth) {
+    const spec = this.resistRoll;
+    if (Math.random() >= spec.chance + (depth - 1) * spec.perFloor) {
+      return null;
+    }
+    const lean = this.getPlan(depth).resists;
+    const weights = {};
+    for (const element of spec.elements) {
+      weights[element] = element === lean ? spec.lean : 1;
+    }
+    return { [this.pickWeighted(weights, spec.elements[0])]: spec.mult };
   },
 
   pickClass(plan) {

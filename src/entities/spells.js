@@ -225,7 +225,8 @@ export class Projectile extends Entity {
   steer(k) {
     const h = this.homing;
     this.homeFrames -= k;
-    if (this.homeFrames <= 0 || h.killed) {
+    // a body that turns invisible is lost: the dart flies straight on
+    if (this.homeFrames <= 0 || h.killed || h.invis) {
       this.homing = null;
       return;
     }
@@ -495,8 +496,6 @@ export class MirrorImage extends Entity {
     this.hp = 100;
     this.life = 300;
     this.source = null;
-    // a polymorph, like any other spell on it, dispels it
-    this.canPolymorph = true;
     this.desiredVel = 100;
     // no colours: the decoy looks like the player's wizard
     this.robe = undefined;
@@ -553,9 +552,13 @@ export class MirrorImage extends Entity {
     this.pop();
   }
 
-  // it has no mind to sleep, curse, haunt, confuse or lift: the spell
-  // shows it up for the illusion it is
+  // it has no mind to polymorph, frighten, sleep, curse, haunt, confuse or
+  // lift: the spell shows it up for the illusion it is
   polymorph() {
+    this.pop();
+  }
+
+  fear() {
     this.pop();
   }
 

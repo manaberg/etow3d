@@ -34,8 +34,6 @@ export class Soldier extends Enemy {
     this.sidestep = 0;
     this.lastX = 0;
     this.lastY = 0;
-    this.canBeFeared = true;
-    this.canPolymorph = true;
     this.aggro = true;
   }
 
@@ -97,15 +95,7 @@ export class Soldier extends Enemy {
       this.vel.y = 0;
       return;
     }
-    if (this.sheepFrames > 0) {
-      this.wander -= k;
-      if (this.wander <= 0) {
-        const a = Math.random() * Math.PI * 2;
-        this.vel.x = Math.cos(a) * 30;
-        this.vel.y = Math.sin(a) * 30;
-        this.wander = 90;
-      }
-      this.moveBody(k);
+    if (this.amble(k)) {
       return;
     }
 
