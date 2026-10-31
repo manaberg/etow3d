@@ -16,14 +16,14 @@ import { rankPower } from './spellbar.js';
 // Numbers are in the game's units: pixels (24 to a tile) and 60 frames a second.
 export const Arcana = {
   scorch: { damage: 60, spread: 0.16 },
-  cone: { damage: 90, range: 280, halfAngle: 0.62, chill: 180 },
-  thunder: { damage: 60, radius: 170, push: 150 },
+  cone: { damage: 150, range: 280, halfAngle: 0.62, chill: 180 },
+  thunder: { damage: 100, radius: 170, push: 150 },
   meteor: { count: 6, scatter: 120, damage: 140, blast: 90 },
   guardians: { radius: 130, life: 480, dps: 60 },
   cloud: { radius: 110, life: 600, dps: 42, drift: 22 },
   heal: { amount: 40 },
   polymorph: { frames: 360, range: 560 },
-  disintegrate: { damage: 320, range: 640 },
+  disintegrate: { damage: 400, range: 640 },
   weapon: { life: 600, damage: 45, every: 45, reach: 420 },
   // the weakest foes in the burst sleep, as many as `pool` health covers,
   // and the rest doze for `doze`; any lost health wakes a sleeper

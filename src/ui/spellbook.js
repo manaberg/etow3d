@@ -82,6 +82,16 @@ export function cooldownFor(caster, id) {
   return spell.cd ? caster.cooldownOf(spell.cd * rankCooldown(caster, id)) : 0;
 }
 
+// What a cast of `id` costs `caster`, as the spellbook and the bar show it:
+// rank II and gear included, by the second for a held spell (lifesteal).
+export function costLabel(caster, id) {
+  const spell = SpellById[id];
+  if (!spell.cost) {
+    return 'NO COST';
+  }
+  return Math.round(caster.castCost(id)) + ' MANERGY' + (spell.held ? ' A SECOND' : '');
+}
+
 // The spell being dragged, { id, from } (`from` is the bar slot it was
 // dragged off, or -1 from the book), shared with the HUD's bar.
 export const SpellDrag = { current: null };
@@ -498,7 +508,7 @@ export class SpellbookPanel {
     el('div', 'inv-name', title, spell.name).style.color = school ? school.color : '';
     const cd = cooldownFor(player, spell.id);
     el('div', 'dim', title, (school ? school.name + ' :: ' : '') + (spell.circle ? circleName(spell.circle) + ' :: ' : '') +
-      'COOLDOWN ' + (cd ? seconds(cd) : 'NONE') + ' :: COST ' + spell.cost);
+      'COOLDOWN ' + (cd ? seconds(cd) : 'NONE') + ' :: ' + costLabel(player, spell.id));
     el('div', 'inv-text', box, spell.text);
     if (spell.lore) {
       el('div', 'sb-lore', box, spell.lore);

@@ -3,7 +3,7 @@ import { SpellById } from './mage.js';
 import { DuelSpells } from './duelLoot.js';
 import { scrollPool } from './items.js';
 import { MAX_MISSILE_TIER } from './spells.js';
-import { RankRules, ROMAN, rankOf } from './spellbar.js';
+import { MANERGY_REGEN, RankRules, ROMAN, rankOf } from './spellbar.js';
 import { Trials } from '../world/levels.js';
 import { randInt } from '../core/constants.js';
 
@@ -28,7 +28,7 @@ export function spawnReflection(game, x, y, player) {
   rival.level = player.level;
   rival.hp = rival.maxHp = player.maxHp;
   rival.manergy = rival.maxManergy = player.maxManergy;
-  rival.manergyRegen = 0.4 * (1 + player.bonus('regen'));
+  rival.manergyRegen = MANERGY_REGEN * (1 + player.bonus('regen'));
   rival.desiredVel = player.desiredVel * (1 + player.bonus('speed'));
   rival.gearStats = { ...rival.gearStats, armor: player.bonus('armor') };
   return rival;
@@ -55,6 +55,26 @@ export function rollSpoils(player, _depth, count = 3) {
   // the rank goes last
   const ranked = (id) => id !== 'missile' && player.knowsSpell(id);
   return spoils.sort((a, b) => ranked(a) - ranked(b));
+}
+
+// The spells that are there to deal damage (README: Damage spells).
+export const DamageSpells = ['fireball', 'lightning', 'ironshot', 'scorch', 'cone', 'thunder', 'ray', 'disintegrate', 'meteor', 'pwkill'];
+
+// What a new level offers (Game.offerLevelPick): `count` choices as for the
+// spoils (a rank among them, last, whenever there is one to take), the first
+// of them, while there is one, a damage spell the wizard does not know yet.
+export function rollLevelPicks(player, count = 3) {
+  const fresh = DamageSpells.filter((id) => !player.knowsSpell(id));
+  const picks = fresh.length ? [fresh[randInt(0, fresh.length - 1)]] : [];
+  for (const id of rollSpoils(player, 0, count)) {
+    if (!picks.includes(id)) {
+      picks.push(id);
+    }
+  }
+  while (picks.length > count) {
+    picks.splice(picks.length - 2, 1);
+  }
+  return picks;
 }
 
 export function spoilName(player, id) {

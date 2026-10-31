@@ -71,6 +71,15 @@ export function missileTier(caster) {
   return MissileTiers[Math.max(1, Math.min(MAX_MISSILE_TIER, caster.missileTier || 1))];
 }
 
+// Every wizard level past the first makes each dart hit `perLevel` harder
+// on monsters (enemy.js: 51 at level 1, 97 at level 10, 122 at 15); between
+// wizards a dart stays at its duel number, as both are the same level.
+export const MissileGrowth = { perLevel: 0.1 };
+
+export function missileLevelPower(caster) {
+  return 1 + MissileGrowth.perLevel * Math.max(0, ((caster && caster.level) || 1) - 1);
+}
+
 // `target` is the body to home in on, or a point {x, y}.
 export function castMissiles(game, caster, team, angle, target, settings = {}) {
   const c = caster.center();

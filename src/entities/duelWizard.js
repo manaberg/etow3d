@@ -3,11 +3,11 @@ import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier, st
 import { DuelRules } from './duelRules.js';
 import { Arcana, ArcanaCast, FlamingSphere, Meteor, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
 import { arcanaFx } from './enemy.js';
-import { syncSheep } from './mage.js';
+import { SpellById, syncSheep } from './mage.js';
 import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
-import { GLOBAL_COOLDOWN, rankCooldown, rankPower } from './spellbar.js';
+import { GLOBAL_COOLDOWN, MANERGY_REGEN, rankCooldown, rankPower } from './spellbar.js';
 
 // An invisible player: it notices them only within `near` px (centre to
 // centre, about a stride apart), and otherwise searches around where it last
@@ -16,6 +16,29 @@ import { GLOBAL_COOLDOWN, rankCooldown, rankPower } from './spellbar.js';
 // frames. It fires blind only for `blind` frames after it last knew the
 // spot; a spell the player casts gives the spot again.
 const SEARCH = { near: 72, start: 100, grow: 2, max: 200, every: 45, blind: 60 };
+
+// The rival's spell book: cooldowns and costs as the player's (mage.js
+// SpellBook) in a duel loadout of every rank II and the rings of fire and
+// storms: blink's cooldown halved, fireball, lightning and blizzard at their
+// rank II cost, and the rings taking 10 off fireball and lightning. The
+// rival names chain root 'root'.
+const RIVAL_RINGS = { fireball: 10, lightning: 10 };
+
+function rivalSpellBook() {
+  const book = {};
+  for (const id in SpellById) {
+    const spell = SpellById[id];
+    book[id === 'stun' ? 'root' : id] = {
+      cd: id === 'blink' ? spell.cd / 2 : spell.cd,
+      cost: spell.cost + (spell.rank2Cost || 0) - (RIVAL_RINGS[id] || 0),
+      need: spell.need
+    };
+  }
+  return book;
+}
+
+// How long the rival holds its lifesteal ray once it starts it (frames).
+const RAY_BURST = 60;
 
 // The rival wizard: the player's reflection in the trials (mirror.js). It
 // reads every bolt in flight, scores sixteen escape directions a short horizon
@@ -30,50 +53,12 @@ export class DuelWizard extends Enemy {
     this.hp = this.maxHp = DuelRules.hp;
     this.manergy = 100;
     this.maxManergy = 100;
-    this.manergyRegen = 0.5;
+    this.manergyRegen = MANERGY_REGEN;
     this.desiredVel = 120;
     this.isDuelWizard = true;
     this.blizzardSlow = [0.5, 0.5];
     this.difficulty = 'hard';
-    // cooldowns and costs mirror the player's duel loadout (all tier 2 spells and rings)
-    this.spellBook = {
-      missile: { cd: 24, cost: 0, need: 0 },
-      fireball: { cd: 48, cost: 20, need: 20 },
-      ironshot: { cd: 300, cost: 40, need: 40 },
-      lightning: { cd: 200, cost: 35, need: 30 },
-      root: { cd: 400, cost: 30, need: 30 },
-      blink: { cd: 200, cost: 40, need: 40 },
-      shield: { cd: 200, cost: 40, need: 40 },
-      haste: { cd: 1000, cost: 70, need: 70 },
-      invis: { cd: 1000, cost: 70, need: 70 },
-      timestop: { cd: 1000, cost: 70, need: 50 },
-      image: { cd: 1000, cost: 50, need: 50 },
-      blizzard: { cd: 600, cost: 50, need: 40 },
-      fear: { cd: 400, cost: 50, need: 50 },
-      pwkill: { cd: 300, cost: 30, need: 50 },
-      ray: { cd: 0, cost: 10, need: 10 },
-      // the D&D spells (arcana.js)
-      scorch: { cd: 90, cost: 25, need: 25 },
-      cone: { cd: 240, cost: 35, need: 35 },
-      thunder: { cd: 300, cost: 30, need: 30 },
-      meteor: { cd: 900, cost: 70, need: 70 },
-      guardians: { cd: 1000, cost: 60, need: 60 },
-      cloud: { cd: 700, cost: 50, need: 50 },
-      heal: { cd: 600, cost: 40, need: 40 },
-      polymorph: { cd: 500, cost: 40, need: 40 },
-      disintegrate: { cd: 360, cost: 50, need: 50 },
-      weapon: { cd: 900, cost: 50, need: 50 },
-      sleep: { cd: 600, cost: 30, need: 30 },
-      agathys: { cd: 900, cost: 40, need: 40 },
-      curse: { cd: 500, cost: 30, need: 30 },
-      sphere: { cd: 800, cost: 40, need: 40 },
-      counter: { cd: 600, cost: 30, need: 30 },
-      swap: { cd: 500, cost: 30, need: 30 },
-      phantasm: { cd: 600, cost: 45, need: 45 },
-      confusion: { cd: 700, cost: 45, need: 45 },
-      maelstrom: { cd: 800, cost: 55, need: 55 },
-      gravity: { cd: 900, cost: 70, need: 70 }
-    };
+    this.spellBook = rivalSpellBook();
     this.shieldDuration = 125;
     this.hasteDuration = 250;
     this.invisDuration = 250;
@@ -168,6 +153,17 @@ export class DuelWizard extends Enemy {
 
   knows(spell) {
     return spell === 'missile' || !this.known || this.known.has(spell);
+  }
+
+  // Manergy a cast of `spell` spends.
+  costOf(spell) {
+    return this.spellBook[spell].cost;
+  }
+
+  // The costliest spells wait until they would leave 20 manergy to spare,
+  // or for near-full manergy when the pool is too small for that.
+  canSplurge(spell) {
+    return this.manergy >= Math.min(this.costOf(spell) + 20, this.maxManergy * 0.9);
   }
 
   ready(spell) {
@@ -612,7 +608,7 @@ export class DuelWizard extends Enemy {
       this.tactic = 'punish';
     } else if (!t.visible) {
       this.tactic = 'hunt';
-    } else if ((hpRatio < 0.3 && playerRatio > hpRatio + 0.1) || this.manergy < 25) {
+    } else if ((hpRatio < 0.3 && playerRatio > hpRatio + 0.1) || this.manergy < this.costOf('fireball')) {
       this.tactic = 'retreat';
     } else if (playerRatio < 0.22) {
       this.tactic = 'pressure';
@@ -655,39 +651,39 @@ export class DuelWizard extends Enemy {
     const best = foes.slice(0, 8).reduce((a, f) => (crowd(f, 100) > crowd(a, 100) ? f : a), near);
     const me = this.center();
     const at = (f) => Math.atan2(f.y - me.y, f.x - me.x);
-    if (this.ready('blizzard') && this.manergy >= 50 && crowd(best, 150) >= 3) {
+    if (this.ready('blizzard') && this.manergy >= this.costOf('blizzard') && crowd(best, 150) >= 3) {
       this.game.spawn(Zone, best.x, best.y, { kind: 'blizzard', team: 'enemy', radius: 192, tier: 1, life: 240, timeOwner: this });
       this.spend('blizzard', true);
       return true;
     }
-    if (this.ready('fireball') && this.manergy >= 20 && best.d < 390 && (crowd(best, 100) >= 2 || best.d < 200)) {
+    if (this.ready('fireball') && this.manergy >= this.costOf('fireball') && best.d < 390 && (crowd(best, 100) >= 2 || best.d < 200)) {
       this.fireBolt('fireball', at(best));
       this.spend('fireball', true);
       return true;
     }
-    if (this.ready('lightning') && this.manergy >= 35 && near.d < 295) {
+    if (this.ready('lightning') && this.manergy >= this.costOf('lightning') && near.d < 295) {
       this.fireBolt('lightning', at(near));
       this.spend('lightning', true);
       return true;
     }
-    if (this.ready('thunder') && this.manergy >= 30 && near.d < Arcana.thunder.radius - 20) {
+    if (this.ready('thunder') && this.manergy >= this.costOf('thunder') && near.d < Arcana.thunder.radius - 20) {
       ArcanaCast.thunder(this);
       this.spend('thunder', true);
       return true;
     }
-    if (this.ready('meteor') && this.manergy >= 70 && best.d < 650 && crowd(best, 120) >= 4) {
+    if (this.ready('meteor') && this.manergy >= this.costOf('meteor') && best.d < 650 && crowd(best, 120) >= 4) {
       ArcanaCast.meteor(this, best);
       this.spend('meteor', true);
       return true;
     }
-    if (this.ready('cone') && this.manergy >= 35 && near.d < Arcana.cone.range - 30 && crowd(near, 120) >= 2) {
+    if (this.ready('cone') && this.manergy >= this.costOf('cone') && near.d < Arcana.cone.range - 30 && crowd(near, 120) >= 2) {
       ArcanaCast.cone(this, at(near));
       this.spend('cone', true);
       return true;
     }
     // the ground spells into the thickest ranks
-    for (const [id, cost, radius] of [['maelstrom', 55, 150], ['gravity', 70, 130], ['confusion', 45, 120], ['sleep', 30, 120]]) {
-      if (this.ready(id) && this.manergy >= cost && best.d < 560 && crowd(best, radius) >= 4) {
+    for (const [id, radius] of [['maelstrom', 150], ['gravity', 130], ['confusion', 120], ['sleep', 120]]) {
+      if (this.ready(id) && this.manergy >= this.costOf(id) && best.d < 560 && crowd(best, radius) >= 4) {
         ArcanaCast[id](this, best);
         this.spend(id, true);
         return true;
@@ -788,19 +784,19 @@ export class DuelWizard extends Enemy {
 
   engageReady(player) {
     // go in for the root combo when the player cannot answer it
-    if (!this.ready('root') || this.manergy < 65 || player.shielded) {
+    if (!this.ready('root') || this.manergy < this.costOf('root') + this.costOf('lightning') || player.shielded) {
       return false;
     }
-    const playerCanShield = player.prepared('shield') && player.cd.shield < 30 && player.manergy > 40;
-    const playerCanBlink = player.prepared('blink') && player.cd.blink <= 0 && player.manergy > 40;
+    const playerCanShield = player.prepared('shield') && player.cd.shield < 30 && player.manergy > SpellById.shield.need;
+    const playerCanBlink = player.prepared('blink') && player.cd.blink <= 0 && player.manergy > SpellById.blink.need;
     return !playerCanShield && (!playerCanBlink || this.ai.advanced);
   }
 
   playerHasAutoThreat(player) {
     // the player's lightning and root lock on to anything within 300
     // only what the player has on the bar can be cast at it
-    const lightning = player.prepared('lightning') && player.cd.lightning <= 20 && player.manergy > 25;
-    const root = player.prepared('stun') && player.cd.stun <= 20 && player.manergy > 25;
+    const lightning = player.prepared('lightning') && player.cd.lightning <= 20 && player.manergy > SpellById.lightning.need - 5;
+    const root = player.prepared('stun') && player.cd.stun <= 20 && player.manergy > SpellById.stun.need - 5;
     return lightning || root;
   }
 
@@ -1050,7 +1046,12 @@ export class DuelWizard extends Enemy {
     // asleep or hanging in the air: the next blow lands for certain
     const helpless = rooted || feared || (real && player.helpless);
     // keep enough manergy to answer the next big spell with a shield or blink
-    let reserve = ((this.knows('shield') && this.cdLeft.shield < 30) || (this.knows('blink') && this.cdLeft.blink < 30)) ? 40 : 0;
+    let reserve = 0;
+    for (const id of ['shield', 'blink']) {
+      if (this.knows(id) && this.cdLeft[id] < 30) {
+        reserve = Math.max(reserve, this.costOf(id));
+      }
+    }
     if (rooted || this.tactic === 'pressure') {
       reserve = 0;
     }
@@ -1064,7 +1065,7 @@ export class DuelWizard extends Enemy {
       return;
     }
     // armor of agathys whenever the fight is on and the frost is gone
-    if (this.ready('agathys') && this.wardHp <= 0 && t.visible && dist < 600 && spare >= 40) {
+    if (this.ready('agathys') && this.wardHp <= 0 && t.visible && dist < 600 && spare >= this.costOf('agathys')) {
       ArcanaCast.agathys(this);
       this.spend('agathys', false);
       return;
@@ -1085,7 +1086,7 @@ export class DuelWizard extends Enemy {
     // trade places with the player to get out of the player's ground spells
     // (and leave the player in its own)
     const inPlayerZone = this.zones.some((zn) => me.x > zn.x && me.x < zn.x + zn.w && me.y > zn.y && me.y < zn.y + zn.h);
-    if (real && this.ready('swap') && spare >= 30 && (this.inSlowZone || inPlayerZone) && ArcanaCast.swap(this, player)) {
+    if (real && this.ready('swap') && spare >= this.costOf('swap') && (this.inSlowZone || inPlayerZone) && ArcanaCast.swap(this, player)) {
       this.spend('swap', false);
       return;
     }
@@ -1095,7 +1096,7 @@ export class DuelWizard extends Enemy {
     }
     // power word kill cannot be dodged or reflected, but it takes a second
     // to speak, standing still (speakWord)
-    if (real && dist < 650 && this.ready('pwkill') && (spare >= 30 || player.hp <= DuelRules.damage.pwkill) &&
+    if (real && dist < 650 && this.ready('pwkill') && (spare >= this.costOf('pwkill') || player.hp <= DuelRules.damage.pwkill) &&
       Math.random() < this.ai.pwkillRate) {
       this.channel = { left: DuelRules.pwkillCast };
       this.rig.gesture('raise');
@@ -1105,7 +1106,7 @@ export class DuelWizard extends Enemy {
       return;
     }
     // time stop: everyone crawls except us, then unload
-    if (this.ai.advanced && real && dist < 420 && !player.shielded && this.ready('timestop') && this.manergy >= 90 &&
+    if (this.ai.advanced && real && dist < 420 && !player.shielded && this.ready('timestop') && this.canSplurge('timestop') &&
       !game.time.active && player.hp / player.maxHp > 150 / DuelRules.hp) {
       game.time.alterTimeScale(0.2, 0, 4, 0.2, this);
       this.timestopFrames = this.timestopDuration;
@@ -1116,12 +1117,12 @@ export class DuelWizard extends Enemy {
       return;
     }
     // a curse first, while there is manergy left for what follows
-    if (real && this.ready('curse') && spare >= 70 && player.curseFrames <= 0 && ArcanaCast.curse(this, player)) {
+    if (real && this.ready('curse') && spare >= this.costOf('curse') + this.costOf('fireball') && player.curseFrames <= 0 && ArcanaCast.curse(this, player)) {
       this.spend('curse', true);
       return;
     }
     // engage: blink into root range when the combo is ready
-    if (this.ai.advanced && this.tactic === 'engage' && real && dist > 360 && this.ready('blink') && this.manergy >= 110) {
+    if (this.ai.advanced && this.tactic === 'engage' && real && dist > 360 && this.ready('blink') && this.manergy >= this.costOf('blink') + this.costOf('root') + this.costOf('lightning')) {
       const spot = this.findBlinkSpot(player, 'engage');
       if (spot) {
         this.blinkTo(spot);
@@ -1129,13 +1130,13 @@ export class DuelWizard extends Enemy {
       }
     }
     // thunderwave: shove off a player who got too close
-    if (real && dist < Arcana.thunder.radius - 20 && this.ready('thunder') && spare >= 30) {
+    if (real && dist < Arcana.thunder.radius - 20 && this.ready('thunder') && spare >= this.costOf('thunder')) {
       ArcanaCast.thunder(this);
       this.spend('thunder', true);
       return;
     }
     // polymorph: a sheep cannot cast, so use it to get away or to go in
-    if (real && !helpless && player.sheepFrames <= 0 && dist < Arcana.polymorph.range - 40 && this.ready('polymorph') && spare >= 40 &&
+    if (real && !helpless && player.sheepFrames <= 0 && dist < Arcana.polymorph.range - 40 && this.ready('polymorph') && spare >= this.costOf('polymorph') &&
       (this.tactic === 'retreat' || this.tactic === 'engage' || this.recentDamage > 60) && ArcanaCast.polymorph(this, player)) {
       this.spend('polymorph', true);
       return;
@@ -1143,37 +1144,37 @@ export class DuelWizard extends Enemy {
     // sleep, confusion and a nightmare take the player out of the fight for
     // a moment (a blow ends the sleep, so it sets up the biggest one)
     const ahead = (k) => this.clampToArena({ x: t.x + t.vx * k, y: t.y + t.vy * k }, 60);
-    if (real && !helpless && !player.shielded && dist < 520 && this.ready('sleep') && spare >= 30) {
+    if (real && !helpless && !player.shielded && dist < 520 && this.ready('sleep') && spare >= this.costOf('sleep')) {
       ArcanaCast.sleep(this, ahead(0.3));
       this.spend('sleep', true);
       return;
     }
-    if (real && !helpless && dist < 560 && this.ready('confusion') && spare >= 45) {
+    if (real && !helpless && dist < 560 && this.ready('confusion') && spare >= this.costOf('confusion')) {
       ArcanaCast.confusion(this, ahead(0.3));
       this.spend('confusion', true);
       return;
     }
-    if (real && !helpless && !player.nightmare && this.ready('phantasm') && spare >= 45 && ArcanaCast.phantasm(this, player)) {
+    if (real && !helpless && !player.nightmare && this.ready('phantasm') && spare >= this.costOf('phantasm') && ArcanaCast.phantasm(this, player)) {
       this.spend('phantasm', true);
       return;
     }
     // root: sets up everything else
-    if (real && !player.isStunned && dist < 290 && this.ready('root') && spare >= 30 && this.clearOfShield(player, 'root', dist)) {
+    if (real && !player.isStunned && dist < 290 && this.ready('root') && spare >= this.costOf('root') && this.clearOfShield(player, 'root', dist)) {
       this.fireBolt('root', this.aimAngle('root', t, true));
       this.spend('root', true);
       this.castLock = 2;
       return;
     }
     // disintegrate is instant: only the aim can miss, and a shield soaks it
-    if (real && dist < Arcana.disintegrate.range - 40 && this.ready('disintegrate') && spare >= 50 && !player.shielded) {
+    if (real && dist < Arcana.disintegrate.range - 40 && this.ready('disintegrate') && spare >= this.costOf('disintegrate') && !player.shielded) {
       ArcanaCast.disintegrate(this, Math.atan2(dy, dx) + this.aimError());
       this.spend('disintegrate', true);
       return;
     }
     // iron shot: only when it will land
-    if (this.ready('ironshot') && spare >= 40 && dist < 480 && this.clearOfShield(player, 'ironshot', dist)) {
+    if (this.ready('ironshot') && spare >= this.costOf('ironshot') && dist < 480 && this.clearOfShield(player, 'ironshot', dist)) {
       const arrival = this.arrivalFrames('ironshot', dist);
-      const shieldThreat = player.prepared('shield') && player.cd.shield <= 0 && player.manergy > 40;
+      const shieldThreat = player.prepared('shield') && player.cd.shield <= 0 && player.manergy > SpellById.shield.need;
       if (helpless || arrival <= 9 || (!shieldThreat && this.hitChance('ironshot', dist) > 0.7)) {
         this.fireBolt('ironshot', this.aimAngle('ironshot', t, true));
         if (this.ironCharges === 1) {
@@ -1189,20 +1190,20 @@ export class DuelWizard extends Enemy {
     }
     // scorching ray: three fanned rays cover a dodge either way (mix it up
     // with the fireball)
-    if (this.ready('scorch') && spare >= 25 && dist < 420 && (helpless || this.hitChance('scorch', dist) > 0.35) &&
+    if (this.ready('scorch') && spare >= this.costOf('scorch') && dist < 420 && (helpless || this.hitChance('scorch', dist) > 0.35) &&
       this.clearOfShield(player, 'scorch', dist) && (!this.ready('fireball') || Math.random() < 0.5)) {
       ArcanaCast.scorch(this, this.aimAngle('scorch', t, true));
       this.spend('scorch', true);
       return;
     }
     // cone of cold: up close it hurts and slows the player for what follows
-    if (real && dist < Arcana.cone.range - 30 && this.ready('cone') && spare >= 35) {
+    if (real && dist < Arcana.cone.range - 30 && this.ready('cone') && spare >= this.costOf('cone')) {
       ArcanaCast.cone(this, Math.atan2(dy, dx));
       this.spend('cone', true);
       return;
     }
     // fireball: two orbs, one at the best lead and one at the runner-up to cover both dodges
-    if (this.ready('fireball') && spare >= 20 && dist < 390 && (helpless || dist < 320 || this.hitChance('fireball', dist) > 0.45) &&
+    if (this.ready('fireball') && spare >= this.costOf('fireball') && dist < 390 && (helpless || dist < 320 || this.hitChance('fireball', dist) > 0.45) &&
       this.clearOfShield(player, 'fireball', dist)) {
       const ranked = this.rankedLeads();
       this.fireBolt('fireball', this.aimAngle('fireball', t, true, ranked[0].k));
@@ -1211,13 +1212,13 @@ export class DuelWizard extends Enemy {
       return;
     }
     // lightning: same lock-on range as the player's
-    if (real && dist < 295 && this.ready('lightning') && spare >= 35 && this.clearOfShield(player, 'lightning', dist)) {
+    if (real && dist < 295 && this.ready('lightning') && spare >= this.costOf('lightning') && this.clearOfShield(player, 'lightning', dist)) {
       this.fireBolt('lightning', this.aimAngle('lightning', t, true));
       this.spend('lightning', true);
       return;
     }
     // blizzard: drop it where the player is going, or right on them if they are stuck
-    if (this.ready('blizzard') && spare >= 50 && dist < 650 && t.visible) {
+    if (this.ready('blizzard') && spare >= this.costOf('blizzard') && dist < 650 && t.visible) {
       const lead = rooted ? 0 : 0.6;
       const spot = this.clampToArena({ x: t.x + t.vx * lead, y: t.y + t.vy * lead }, 60);
       game.spawn(Zone, spot.x, spot.y, { kind: 'blizzard', team: 'enemy', radius: 192, tier: 1, life: 240, timeOwner: this });
@@ -1226,49 +1227,49 @@ export class DuelWizard extends Enemy {
     }
     // meteor swarm: the rocks land late, so drop them where the player will be
     // (it costs more than the shield reserve leaves, so it waits for near-full manergy)
-    if (this.ready('meteor') && this.manergy >= 90 && dist < 650 && t.visible) {
+    if (this.ready('meteor') && this.canSplurge('meteor') && dist < 650 && t.visible) {
       const lead = helpless ? 0 : 0.8;
       ArcanaCast.meteor(this, this.clampToArena({ x: t.x + t.vx * lead, y: t.y + t.vy * lead }, 60));
       this.spend('meteor', true);
       return;
     }
     // reverse gravity: everything the player has, it hangs in the air
-    if (real && !player.shielded && this.ready('gravity') && this.manergy >= 90 && dist < 560) {
+    if (real && !player.shielded && this.ready('gravity') && this.canSplurge('gravity') && dist < 560) {
       ArcanaCast.gravity(this, ahead(helpless ? 0 : 0.2));
       this.spend('gravity', true);
       return;
     }
     // maelstrom: drag the player into the eye, away from cover
-    if (this.ready('maelstrom') && spare >= 55 && dist < 600 && t.visible) {
+    if (this.ready('maelstrom') && spare >= this.costOf('maelstrom') && dist < 600 && t.visible) {
       ArcanaCast.maelstrom(this, ahead(0.5));
       this.spend('maelstrom', true);
       return;
     }
     // cloudkill: roll a cloud over the player
-    if (this.ready('cloud') && spare >= 50 && dist < 600 && t.visible) {
+    if (this.ready('cloud') && spare >= this.costOf('cloud') && dist < 600 && t.visible) {
       ArcanaCast.cloud(this, this.clampToArena({ x: t.x + t.vx * 0.4, y: t.y + t.vy * 0.4 }, 60));
       this.spend('cloud', true);
       return;
     }
     // spirit guardians when the fight is close, a spiritual weapon whenever the player is in reach
-    if (this.ready('guardians') && spare >= 60 && dist < 300) {
+    if (this.ready('guardians') && spare >= this.costOf('guardians') && dist < 300) {
       ArcanaCast.guardians(this);
       this.spend('guardians', false);
       return;
     }
-    if (this.ready('weapon') && spare >= 50 && real && dist < Arcana.weapon.reach) {
+    if (this.ready('weapon') && spare >= this.costOf('weapon') && real && dist < Arcana.weapon.reach) {
       ArcanaCast.weapon(this);
       this.spend('weapon', false);
       return;
     }
     // a flaming sphere rolls after the player (FlamingSphere.goal)
-    if (this.ready('sphere') && spare >= 40 && real && dist < 520) {
+    if (this.ready('sphere') && spare >= this.costOf('sphere') && real && dist < 520) {
       ArcanaCast.sphere(this);
       this.spend('sphere', false);
       return;
     }
     // fear: scramble the player before the next combo, or push them off when they crowd us
-    if (real && dist < 430 && !player.isStunned && !player.isFeared && this.ready('fear') && spare >= 50 &&
+    if (real && dist < 430 && !player.isStunned && !player.isFeared && this.ready('fear') && spare >= this.costOf('fear') &&
       (dist < 190 || this.cdLeft.root < 40 || this.cdLeft.fireball === 0)) {
       player.isFeared = true;
       player.fearFrames = 0;
@@ -1278,19 +1279,19 @@ export class DuelWizard extends Enemy {
       return;
     }
     // decoy when the player is landing hits
-    if (this.ready('image') && spare >= 50 && this.recentDamage > 90) {
+    if (this.ready('image') && spare >= this.costOf('image') && this.recentDamage > 90) {
       this.castImage();
       return;
     }
     // invisibility to break off and reset when losing
-    if (this.ready('invis') && this.tactic === 'retreat' && this.manergy > 75) {
+    if (this.ready('invis') && this.tactic === 'retreat' && this.manergy > this.costOf('invis') + 5) {
       this.invisFrames = this.invisDuration;
       this.spend('invis', false);
       this.rig.gesture('raise');
       return;
     }
     // haste to escape or to close in
-    if (this.ready('haste') && this.manergy > 75 && ((this.tactic === 'retreat' && dist < 320) || (this.tactic === 'engage' && dist > 420))) {
+    if (this.ready('haste') && this.manergy > this.costOf('haste') + 5 && ((this.tactic === 'retreat' && dist < 320) || (this.tactic === 'engage' && dist > 420))) {
       this.hasteFrames = this.hasteDuration;
       this.spend('haste', false);
       this.rig.gesture('raise');
@@ -1308,17 +1309,18 @@ export class DuelWizard extends Enemy {
       this.castLock = Math.min(this.castLock, 4);
       return;
     }
-    // lifesteal ray when overflowing with manergy and nothing else to do
-    // (starting it waits for and starts the global cooldown; keeping it going
-    // does not)
-    if (real && dist < 380 && this.knows('ray') && !player.shielded && this.hp < this.maxHp && (this.manergy > 92 || this.rayFrames > 0) && this.manergy > 10 &&
+    // lifesteal ray when overflowing with manergy and nothing else to do,
+    // held for a second (starting it waits for and starts the global
+    // cooldown; keeping it going does not; its cost is by the second)
+    if (real && dist < 380 && this.knows('ray') && !player.shielded && this.hp < this.maxHp &&
+      (this.manergy > this.maxManergy * 0.92 || this.rayFrames > 0) && this.manergy > this.spellBook.ray.need &&
       (this.rayFrames > 0 || this.gcd <= 0)) {
       if (this.rayFrames <= 0) {
-        this.rayFrames = 6;
+        this.rayFrames = RAY_BURST;
         this.gcd = GLOBAL_COOLDOWN;
       }
       this.fireBolt('ray', this.aimAngle('ray', t, false));
-      this.manergy -= this.spellBook.ray.cost;
+      this.manergy -= this.spellBook.ray.cost / 60;
     }
   }
 

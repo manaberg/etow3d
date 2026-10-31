@@ -78,6 +78,10 @@ export const RankRules = {
 
 export const ROMAN = ['', 'I', 'II', 'III'];
 
+// Manergy a wizard regains each frame (24 a second) before gear, the
+// player's and its reflection's alike.
+export const MANERGY_REGEN = 0.4;
+
 // The global cooldown: every spell but magic missile holds back all the
 // others (magic missile aside) for this many frames, in every mode, for the
 // mage and the wizards alike; each spell's own cooldown runs as well.

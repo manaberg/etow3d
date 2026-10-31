@@ -253,7 +253,7 @@ export class Orc extends Enemy {
       const roll = Math.random();
       if (roll < 0.01) {
         game.dropPotion(this, { isSpecial: true });
-      } else if (roll < 0.035) {
+      } else if (roll < 0.01 + 0.025 * DungeonLevels.scrollShare) {
         game.dropScroll(this);
       }
     } else if (this.hasCharge) {

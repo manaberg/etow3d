@@ -17,7 +17,7 @@ import { Zone, MirrorImage, Projectile } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs, studySpell } from './entities/items.js';
 import { Kits, Inventory, outfit, rollGear, applyGearPools } from './entities/gear.js';
 import { DuelLoot } from './entities/duelLoot.js';
-import { spawnReflection, rollSpoils, spoilName } from './entities/mirror.js';
+import { spawnReflection, rollSpoils, rollLevelPicks, spoilName } from './entities/mirror.js';
 import { actionKeyLabel } from './core/bindings.js';
 import { setting } from './core/settings.js';
 import { autosaveId, deleteSave, newRunId, newSaveId, writeSave } from './core/saves.js';
@@ -35,8 +35,8 @@ const CAMERA_TURN = 1.4;
 // Power word kill: damage to the target (at least its own pwkillDamage) and to
 // every orc within the splash radius around it.
 const PWKILL = {
-  tier1: { target: 175, splash: 175, radius: 150 },
-  tier2: { target: 300, splash: 230, radius: 230 }
+  tier1: { target: 250, splash: 175, radius: 150 },
+  tier2: { target: 400, splash: 230, radius: 230 }
 };
 
 // the zones that slow whoever stands in them
@@ -128,6 +128,8 @@ export class Game {
     this.state = 'playing';
     this.paused = false;
     this.inventoryOpen = false;
+    // a level's spell being chosen (offerLevelPick) holds the game still
+    this.levelPick = false;
     // enemies idle until they see, hear or get hit by the player
     this.aggroSightRange = 460;
     this.aggroHearRange = 130;
@@ -228,6 +230,8 @@ export class Game {
       this.startFloor(carry);
     }
     this.hud.onFloorChanged();
+    // a level's spell still to choose (from a save)
+    this.offerLevelPick();
     // the run's autosave; when the browser will not keep it, the player is
     // told once
     if (!this.saveRun(true) && !this.autosaveFailed) {
@@ -331,7 +335,7 @@ export class Game {
     }
     // the inventory goes down too, with the pools its gear has already raised
     for (const key of ['hp', 'maxHp', 'manergy', 'maxManergy', 'is2Charges', 'missileTier', 'timePlayed', 'inventory', 'gearStats',
-      'slotLimit', 'level', 'xp']) {
+      'slotLimit', 'level', 'xp', 'spellPicks']) {
       carry[key] = player[key];
     }
     // and the spell bar, the ranks and the order spells were learnt in
@@ -531,8 +535,10 @@ export class Game {
       this.stairs = this.spawn(Stairs, spot.x, spot.y);
       this.stairsRoomIndex = stairsRoom;
     }
-    // loot waiting on the floor; it stays until picked up
-    for (let s = 0; s < plan.scrolls; s++) {
+    // loot waiting on the floor; it stays until picked up (a share of the
+    // plan's scrolls: levels give spells too)
+    const scrolls = Math.round(plan.scrolls * DungeonLevels.scrollShare);
+    for (let s = 0; s < scrolls; s++) {
       const spot = world.getRoomSpawnPoint(rooms[this.pickLairRoom(all, 'library')], 2);
       this.spawn(Scroll, spot.x, spot.y, { persistent: true });
     }
@@ -569,7 +575,7 @@ export class Game {
       return;
     }
     const potionChance = orc.isChampion ? 0.35 : 0.02 + this.depth * 0.005;
-    const scrollChance = orc.isChampion ? 0.25 : 0.0075 + this.depth * 0.0035;
+    const scrollChance = (orc.isChampion ? 0.25 : 0.0075 + this.depth * 0.0035) * DungeonLevels.scrollShare;
     if (Math.random() < potionChance) {
       this.dropPotion(orc);
     }
@@ -663,9 +669,10 @@ export class Game {
     return this.entities.find((e) => e instanceof MirrorImage && !e.killed && e.source === this.player) || null;
   }
 
-  // The nearest foe of `team` within range of a body. These lookups (and
-  // the cursor's) pass over an invisible wizard: it cannot be locked on to.
-  nearestHostile(from, range, team = 'player') {
+  // The nearest foe of `team` within range of a body, and with `sight` only
+  // one it can see (not behind a wall or a pillar). These lookups (and the
+  // cursor's) pass over an invisible wizard: it cannot be locked on to.
+  nearestHostile(from, range, team = 'player', sight = false) {
     let best = null;
     let bestDistance = range;
     for (const e of this.hostilesOf(team)) {
@@ -673,7 +680,7 @@ export class Game {
         continue;
       }
       const d = from.distanceTo(e);
-      if (d < bestDistance) {
+      if (d < bestDistance && (!sight || this.hasRoomLineOfSight(from, e))) {
         bestDistance = d;
         best = e;
       }
@@ -1164,7 +1171,7 @@ export class Game {
   // The inventory screen (ui/inventory.js) holds the game still while open.
   // `tab` is 'gear' or 'spells' (the spellbook).
   toggleInventory(open = !this.inventoryOpen, tab = 'gear') {
-    if (open && (this.state !== 'playing' || this.paused || !this.player || this.player.dead || !this.player.inventory)) {
+    if (open && (this.state !== 'playing' || this.paused || this.levelPick || !this.player || this.player.dead || !this.player.inventory)) {
       return;
     }
     this.inventoryOpen = open;
@@ -1211,10 +1218,43 @@ export class Game {
     const c = player.center();
     this.fx.column(c.x, c.y, 26, { color: [0xffd040, 0xfff0c0], count: 40, rise: 3, life: 0.9, size: 0.8 });
     this.fx.ring(c.x, c.y, { color: 0xffd040, radius: 70, life: 0.5 });
+    this.offerLevelPick();
+  }
+
+  // Every level gained brings a spell to choose (mirror.js rollLevelPicks):
+  // a new one, another magic missile dart or a rank. The game holds still
+  // while the card is up, and a level with nothing left to offer gives none.
+  offerLevelPick() {
+    const player = this.player;
+    if (this.levelPick || this.state !== 'playing' || !player || player.dead || player.spellPicks <= 0) {
+      return;
+    }
+    const choices = rollLevelPicks(player);
+    if (!choices.length) {
+      player.spellPicks = 0;
+      return;
+    }
+    if (this.inventoryOpen) {
+      this.toggleInventory(false);
+    }
+    this.levelPick = true;
+    this.hud.showLevelPick({
+      level: player.level - player.spellPicks + 1,
+      choices: choices.map((id) => ({ id, name: spoilName(player, id) })),
+      onPick: (id) => {
+        this.hud.hideLevelPick();
+        this.levelPick = false;
+        player.spellPicks--;
+        this.hud.toast(studySpell(player, id), '#ffd040');
+        // the click must not turn into a spell when play resumes
+        this.input.queued.clear();
+        this.offerLevelPick();
+      }
+    });
   }
 
   setPaused(paused) {
-    if (this.state !== 'playing') {
+    if (this.state !== 'playing' || this.levelPick) {
       return;
     }
     if (paused && this.inventoryOpen) {
@@ -1310,11 +1350,12 @@ export class Game {
         this.input.ground.y = g.y;
       }
     }
-    if (!this.paused && !this.inventoryOpen && this.state === 'playing') {
+    if (!this.paused && !this.inventoryOpen && !this.levelPick && this.state === 'playing') {
       this.acc += dt;
       let steps = 0;
-      // a step that ends the stage (a trial won, the wizard fallen) is the last
-      while (this.acc >= STEP && steps < 5 && this.state === 'playing') {
+      // a step that ends the stage (a trial won, the wizard fallen) or gains
+      // a level (its spell to choose) is the last
+      while (this.acc >= STEP && steps < 5 && this.state === 'playing' && !this.levelPick) {
         this.step();
         this.acc -= STEP;
         steps++;

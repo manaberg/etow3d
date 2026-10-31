@@ -1,6 +1,6 @@
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
-import { Projectile } from './spells.js';
+import { Projectile, missileLevelPower } from './spells.js';
 import { Arcana, arcanaHit, liftHeight, pullToward } from './arcana.js';
 import { buildSheep } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
@@ -10,6 +10,13 @@ import { rankPower } from './spellbar.js';
 // Damage reflected enemy bolts deal when a shield sends them back.
 const REFLECTED_DAMAGE = { iceshard: 30, stormbolt: 60, acidbolt: 50, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
 const CHAIN_MEMORY = 45;
+// Chain lightning: the first strike, and each jump from it (rank II: every
+// jump as hard as the first).
+const LIGHTNING = { strike: 160, jump: 110 };
+// Lifesteal: the held ray looses a bolt a frame, each costing a sixtieth of
+// its cost a second (mage.js SpellBook), dealing `damage` and giving back
+// `heal` plus `leech` of the gear's lifesteal heal.
+const RAY = { damage: 4, heal: 0.3, leech: 0.1 };
 // most foes a chain jumps to at once in a battle
 const CHAIN_JUMPS = 24;
 // share of its speed a chilled monster keeps
@@ -118,8 +125,9 @@ export class Enemy extends Entity {
     const fx = game.fx;
     switch (p.kind) {
       case 'missile':
-        // each dart hits like the 2D game's single missile, plus gear
-        this.hurt(51 + statOf(player, 'missileDamage'), 'force');
+        // each dart hits like the 2D game's single missile, harder with
+        // every wizard level, plus gear
+        this.hurt(51 * missileLevelPower(player) + statOf(player, 'missileDamage'), 'force');
         fx.burst(c.x, c.y, 1.4, { color: [0xb070ff, 0xffffff], count: 12, speed: 4, life: 0.35, size: 0.7 });
         p.kill();
         break;
@@ -143,7 +151,7 @@ export class Enemy extends Entity {
         }
         break;
       case 'lightning':
-        this.hurt(101, 'lightning');
+        this.hurt(LIGHTNING.strike, 'lightning');
         p.kill();
         this.chainedAt = game.navFrame;
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.25, width: 0.07 });
@@ -155,7 +163,7 @@ export class Enemy extends Entity {
           return;
         }
         this.chainedAt = game.navFrame;
-        this.hurt(player && player.hasLg2 ? 101 : 75, 'lightning');
+        this.hurt(player && player.hasLg2 ? LIGHTNING.strike : LIGHTNING.jump, 'lightning');
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.2, width: 0.05 });
         p.kill();
         break;
@@ -174,11 +182,11 @@ export class Enemy extends Entity {
         p.kill();
         break;
       case 'ray':
-        this.hurt(15 * rankPower(player, 'ray'), 'necrotic');
+        this.hurt(RAY.damage * rankPower(player, 'ray'), 'necrotic');
         this.vel.x /= 3;
         this.vel.y /= 3;
         if (player && !player.killed) {
-          player.hp += 3 + statOf(player, 'leech');
+          player.hp += RAY.heal + statOf(player, 'leech') * RAY.leech;
         }
         fx.emit(c.x, c.y, 1.4, { color: 0xff2040, life: 0.4, size: 0.8, vy: 1 });
         p.kill();

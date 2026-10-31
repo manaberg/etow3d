@@ -265,7 +265,7 @@ through the dragons' lairs to The Golden Hoard (`DungeonLevels` in `src/world/le
 is a freshly generated dungeon of themed rooms joined by corridors, laid out and dressed after
 the floor's name (see **The floors** below). The stairs down wait in the room farthest from the
 start (the throne room, which every floor names its own way) and unseal once 40% of the floor's
-enemies are slain. Spells are learnt from scrolls into the
+enemies are slain. Spells are learnt from scrolls and level-ups into the
 spellbook, and kills level the wizard up (see **Spellbook and bar**). Potions heal or raise
 maximum manergy. Spells, ranks, the bar, level, gear and stats carry down the stairs.
 Besides the 2D game's spells, scrolls teach twenty D&D spells new to the 3D game (scorching ray
@@ -333,12 +333,17 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
   mid-fight is never free. Moving spells along the bar is free, and the cooldown stays with the
   spell.
 - **Levels.** Every kill on a dungeon floor gives experience (the square root of the foe's
-  health), and each level adds 6 health and 4 manergy. The bar
+  health), and each level adds 6 health and 4 manergy and brings a spell to choose: the game
+  holds still while you pick one of three, a new spell (one of them, while there is one, a
+  damage spell you lack), another magic missile dart or a rank (a rank among them whenever
+  there is one to take). Picks still to make are kept in a save. The bar
   opens with three slots (Q, E, F); R opens at level 2, 2 at 4, then 4, 1, 3 and C at 6, 8,
   10 and 12, and 5 at 15, the last level. Slaying about 60% of every floor reaches level 10 on
   the warlord's floor and 15 on the last (`WizardLevels`). A slot that opens takes the newest
   spell waiting in the book. Trials give no experience.
-- **Scrolls and ranks.** Any spell (or magic missile) can drop on any floor. A scroll draws
+- **Scrolls and ranks.** Any spell (or magic missile) can drop on any floor, though scrolls
+  are half as common as the floor plans list, on the floors and from monsters alike
+  (`scrollShare` in `src/world/levels.js`), since levels bring spells too. A scroll draws
   uniformly from all spells that are not yet at Rank III: if you do not know the spell yet, you
   learn it (Rank I); if you already know it (whether it is on your bar or in your spellbook), its
   rank goes up, to III. Magic missile's ranks are its darts. Fireball, chain lightning, iron shot,
@@ -358,7 +363,7 @@ F, R, 2, 4, 1, 3, C and 5, in that order, and `B` opens the spellbook to arrange
 | healing word | I | +30% healing |
 | sleep at the cursor (the weakest foes first, as many as 320 health covers; a blow wakes them) | I | +30% health it can lull |
 | armor of agathys (a 50-point ward of frost; whoever strikes through it is chilled and hurt) | I | +30% ward |
-| chain lightning (locks on to the nearest enemy) | II | every jump hits as hard as the first |
+| chain lightning (locks on to the nearest enemy in sight, then jumps to every enemy around it) | II | every jump hits as hard as the first |
 | chain root | II | cooldown -25% |
 | haste | II | +30% duration |
 | mirror image | II | cooldown -25% |
@@ -430,15 +435,49 @@ spellbook and in the action bar's tooltip.
 
 **Magic missile tiers.** Magic missile grows with its scrolls (its ranks; `MissileTiers` in
 `src/entities/spells.js`): one dart at first, then two, then three, each tier casting a
-little slower (cooldown 24, 34 and 44 frames). In the dungeon every dart hits like the 2D
-game's single missile (51, plus gear); between wizards a dart deals 36. Magic missile is
-in the scroll pool alongside every other spell until the third dart, and a trial's spoils may
-offer one; your reflection has as many darts as you.
+little slower (cooldown 24, 34 and 44 frames). Every wizard level past the first adds 10% to
+a dart's damage on monsters (`MissileGrowth`): a dart hits like the 2D game's single missile
+at level 1 (51, plus gear), 97 at level 10 and 122 at 15; between wizards it deals 36 at every
+level, since your reflection is as far along as you. Magic missile is
+in the scroll pool alongside every other spell until the third dart, and a trial's spoils or a
+level's pick may offer one; your reflection has as many darts as you.
 
 **Global cooldown.** Every spell but magic missile holds back all the others (magic missile
 aside) for one second, on every floor and in every trial and for every wizard, on top of its
 own cooldown; the bar shows the wait on each slot (`GLOBAL_COOLDOWN` in `src/entities/spellbar.js`). Lifesteal pays
 it once when the ray starts, not while it is held.
+
+**Manergy.** Spells are costly: a new wizard's 100 manergy pays for three fireballs (30 each)
+or one of the costliest spells (90: time stop, haste, invisibility, meteor swarm, reverse
+gravity), and it comes back at 24 a second (`MANERGY_REGEN` in `src/entities/spellbar.js`),
+so a fight soon leans on magic missile, which is free, and manergy gear (regeneration,
+cheaper spells, more manergy, manergy per kill) matters. The bar's tooltip and the spellbook
+show what a cast costs you, rank II and gear included. Lifesteal is held: it looses a bolt
+every frame for 60 manergy a second, each bolt dealing 4 necrotic damage (2 between wizards)
+and healing 0.3 health, plus a tenth of the gear's lifesteal heal. Your reflection's spells
+cost what yours do (with every rank II and the rings of fire and storms) and its manergy
+comes back as fast as yours.
+
+**Damage spells** (`src/entities/enemy.js`, `src/entities/arcana.js`, `PWKILL` in
+`src/game.js`), in the dungeon at rank I before gear:
+
+| Spell | Cost | Cooldown | Damage |
+| --- | --- | --- | --- |
+| magic missile | free | 0.4 s | 51 a dart, 10% more each wizard level |
+| fireball | 30 | 0.8 s | 110, and 101 to everything within 96 px |
+| scorching ray | 35 | 1.5 s | 60 a ray, three rays |
+| iron shot | 60 | 5 s | about 440 to every enemy in its line |
+| thunderwave | 45 | 5 s | 100 to everything within 170 px, and a shove |
+| chain lightning | 45 | 2 s | 160, and 110 to every enemy within 400 px of it |
+| cone of cold | 50 | 3 s | 150 and a chill to everything in the cone |
+| lifesteal | 60 a second | none | 240 a second |
+| disintegrate | 70 | 6 s | 400 |
+| power word kill | 45 | 5 s | 250 (rank II 400), and 175 (230) to everything around it |
+| meteor swarm | 90 | 15 s | 140 a rock, six rocks |
+
+Fireball is the cheap staple and the best into a tight pack, chain lightning the best into
+enemies spread over a room, iron shot and meteor swarm the heaviest hitters; between wizards
+the duel numbers (`DuelRules` in `src/entities/duelRules.js`) apply instead.
 
 Every spell belongs to a school of magic, shown beside it in the spellbook:
 
@@ -493,7 +532,9 @@ and hunt through the dungeon on flow-field paths. Classes: grunt, slinger, knigh
 shaman (heals), berserker (enrages), brute and warlock (casts bolts); deeper orcs are tougher
 and champions, which grow more common with depth, drop the most loot. Potions are scarce: a
 few per floor and rare drops. Orc clerics and orc mages appear from depth 3 and 4 and grow in
-number further down, and the warlord waits on the tenth floor; slaying him opens the stairs.
+number further down; their health grows with the depth as the orcs' does (an orc cleric has
+3000 on the third floor and 4750 on the tenth, at most 8000; an orc mage 1300 on the fourth
+and 1900 on the tenth, at most 3000: `miniBossHp` in `src/world/levels.js`), and the warlord waits on the tenth floor; slaying him opens the stairs.
 Each orc cleric also knows one spell from the cleric's list (spirit guardians, spiritual
 weapon or bestow curse) and each orc mage one more evocation (scorching ray, cone of cold,
 thunderwave, meteor swarm or maelstrom), drawn when it spawns (`OrcArcana` in
