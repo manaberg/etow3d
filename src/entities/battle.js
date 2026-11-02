@@ -9,6 +9,7 @@ import { isTouch } from '../core/device.js';
 import { ArmyRenderer } from '../render/armyRenderer.js';
 import { BoltRenderer } from '../render/boltRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
+import { sfx } from '../audio/sfx.js';
 
 // Battle trials (levels.js Trials): one great battle between the wizard and
 // its reflection (mirror.js), each leading a vast army across open country.
@@ -503,6 +504,7 @@ export class Battle {
   beginFight() {
     this.fighting = true;
     this.deploy = 0;
+    sfx.ui('horn');
     this.game.hud.toast('YOUR ' + Races[this.races.player].name + ' AGAINST THE REFLECTION’S ' + Races[this.races.enemy].name + ' :: FIGHT!', '#ffb85a');
   }
 

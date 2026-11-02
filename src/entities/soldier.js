@@ -5,6 +5,7 @@ import { OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc, buildSheep } from '../render/models.js';
 import { UNIT } from '../core/constants.js';
 import { BattleRules } from './battle.js';
+import { sfx } from '../audio/sfx.js';
 
 // A soldier in one of the battle armies (battle.js): an orc, dwarf, human or
 // elf, as its army's race (Races in levels.js) scales its health, speed,
@@ -279,6 +280,8 @@ export class Soldier extends Enemy {
     }
     this.attackCooldown = this.attackMax;
     this.rig.swing();
+    // the din of the lines: one clash in a few is heard (sounds.js `gap`)
+    sfx.at('clash', this);
     const dmg = this.meleeDmg + Math.floor(Math.random() * 10) + (this.hasCharge ? 15 : 5);
     if (target.isWizard) {
       // a wizard's shield turns the blow back on the orc

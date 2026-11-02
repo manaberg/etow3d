@@ -6,6 +6,7 @@ import { SpellBook, SpellById } from './mage.js';
 import { BarSlots, RankRules, ROMAN, rankOf } from './spellbar.js';
 import { actionKeyLabel } from '../core/bindings.js';
 import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
+import { sfx } from '../audio/sfx.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
 // start of a floor (`persistent`) waits until it is picked up. In the trials
@@ -156,6 +157,7 @@ export class Scroll extends Item {
     }
     this.game.stats.scrollcount++;
     this.game.pickupFx(this, 0xfff0c0);
+    sfx.ui('scroll');
     this.game.hud.toast(message, '#f3e6c4');
     this.kill();
   }
@@ -195,6 +197,8 @@ export class Potion extends Item {
     if (this.game.duelLoot) {
       this.game.duelLoot.takePotion(player, this.isBlue);
       this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);
+      // heard where it is drunk: the reflection may get there first
+      sfx.at('potion', player);
       this.kill();
       return;
     }
@@ -214,6 +218,7 @@ export class Potion extends Item {
       this.game.hud.toast('HEALTH POTION :: +' + heal + ' HP', '#ff6a70');
     }
     this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);
+    sfx.at('potion', player);
     this.kill();
   }
 }
@@ -257,12 +262,17 @@ export class GearItem extends Item {
     const type = this.item.type;
     const rarity = Rarities[type.rarity];
     if (!inventory.add(this.item)) {
+      if (!this.waitClear) {
+        sfx.ui('fizzle');
+      }
       this.waitClear = true;
       this.game.hud.toast('BAG FULL :: ' + type.name, '#ff8a70');
       return;
     }
     const worn = inventory.worn().includes(this.item);
     this.game.pickupFx(this, rarity.glow);
+    // the finer the find, the brighter it rings
+    sfx.ui(rarity.tier >= 2 ? 'gearRare' : 'gear');
     this.game.hud.toast((worn ? 'EQUIPPED :: ' : 'FOUND :: ') + type.name, rarity.color);
     this.kill();
   }

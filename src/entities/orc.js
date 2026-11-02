@@ -3,6 +3,7 @@ import { Projectile } from './spells.js';
 import { DungeonLevels, OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc } from '../render/models.js';
 import { Inventory, rollGear } from './gear.js';
+import { sfx } from '../audio/sfx.js';
 
 // Regular dungeon foes: orcs, or a warband of dwarves, humans or elves. The
 // level plan picks a race for the pack and a class for each; the race, depth
@@ -126,6 +127,7 @@ export class Orc extends Enemy {
     // berserkers speed up once badly hurt
     if (this.orcClass === 'berserker' && !this.enraged && this.hp < this.maxHp / 2) {
       this.enraged = true;
+      sfx.at('enrage', this);
       this.desiredVel = Math.round(this.desiredVel * 1.3);
       this.maxSpeed = this.desiredVel;
     }
@@ -230,6 +232,7 @@ export class Orc extends Enemy {
     }
     this.attackCooldown = this.attackMax;
     this.rig.swing();
+    sfx.at('swing', this);
     let landed;
     if (this.hasCharge) {
       landed = player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 10) + 15, 0, this);

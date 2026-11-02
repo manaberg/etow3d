@@ -26,6 +26,7 @@ import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
 import { TouchControls, TOUCH_TURN } from './ui/touch.js';
 import { isTouch } from './core/device.js';
+import { sfx } from './audio/sfx.js';
 
 // camera: radians turned per pixel the mouse is dragged, and per second a
 // turn key is held, at 100% (the controls screen scales both)
@@ -105,6 +106,8 @@ export class Game {
     // the player's health before a trial put it on the duel scale
     this.trialBase = null;
     this.onExit = onExit;
+    // the sound effects (audio/sfx.js), shared by every game of the page
+    this.sfx = sfx;
     this.gfx = new Gfx(container);
     this.fx = this.gfx.fx;
     this.input = new Input(this.gfx.canvas);
@@ -219,8 +222,11 @@ export class Game {
     }
     this.stairs = null;
     this.descendRequested = false;
+    // the stairs' unsealing is heard once
+    this.stairsHeard = false;
     this.state = 'playing';
     this.bannerFrames = 240;
+    sfx.setRoom(this.battleMode ? 'field' : 'dungeon');
     if (stage.kind === 'battle') {
       this.battle = new Battle(this);
       this.battle.start(carry);
@@ -406,6 +412,7 @@ export class Game {
     // a breather on the stairs: full manergy and a little health
     carry.manergy = carry.maxManergy;
     carry.hp += 30;
+    sfx.ui('descend');
     this.stage = Math.min(this.run.length - 1, this.stage + 1);
     this.time = new TimeSlower();
     this.startStage(carry);
@@ -1013,6 +1020,8 @@ export class Game {
   // --------------------------------------------------------------- effects
 
   healFx(target) {
+    // a battle's shamans heal all the time: softly there
+    sfx.at('heal', target, { vol: this.battle ? 0.4 : 1 });
     const c = target.center();
     this.fx.column(c.x, c.y, 30, { color: [0x60ff80, 0xc0ffc0], count: 22, rise: 2.4, life: 0.9, size: 0.8 });
     this.fx.ring(c.x, c.y, { color: 0x60ff80, radius: 50, life: 0.5 });
@@ -1020,6 +1029,7 @@ export class Game {
 
   deathFx(entity, light) {
     const c = entity.center();
+    sfx.at(light || entity.size.x <= 48 ? 'death' : 'deathBig', entity, { vol: light ? 0.6 : 1 });
     if (light) {
       // battles: thousands fall, so a little spray each
       this.fx.burst(c.x, c.y, 1.2, { color: [0x8a1010, 0xd02020], count: 8, speed: 4, life: 0.5, size: 1, gravity: 9, lift: 2 });
@@ -1037,6 +1047,7 @@ export class Game {
   }
 
   skullFx(x, y, radius = 150) {
+    sfx.play('pwkill', { x, y });
     this.fx.burst(x, y, 1.6, { color: [0x9a0a2a, 0xff2050, 0x200008], count: 50, speed: 6, life: 0.8, size: 1.3 });
     this.fx.ring(x, y, { color: 0xff2050, radius, life: 0.5 });
     this.gfx.flash(x, y, 2, 0xff1040, 60, 0.4);
@@ -1056,6 +1067,7 @@ export class Game {
     }
     const c = player.center();
     this.deathFx(player);
+    sfx.ui('playerDeath');
     this.state = 'over';
     this.fx.burst(c.x, c.y, 1.4, { color: 0x6aa8ff, count: 60, speed: 6, life: 1.2, size: 1.2 });
     const where = (this.trial ? 'Slain by your reflection below depth ' : 'Fell on depth ') + this.depth + ' of ' + DungeonLevels.count + ' :: ' + this.stageName();
@@ -1083,6 +1095,7 @@ export class Game {
       return;
     }
     this.state = 'over';
+    sfx.ui('victory');
     this.stats.wincount++;
     this.dropAutosave();
     const god = setting('godMode');
@@ -1115,6 +1128,7 @@ export class Game {
       return;
     }
     this.state = 'intermission';
+    sfx.ui('trialWin');
     const player = this.player;
     const spoils = rollSpoils(player, this.depth);
     this.hud.showTrialEnd({
@@ -1124,6 +1138,7 @@ export class Game {
       choices: spoils.map((id) => ({ id, name: spoilName(player, id) })),
       onPick: (id) => {
         if (id) {
+          sfx.ui('choose');
           this.hud.toast(studySpell(player, id), '#ffd040');
         }
         this.descend();
@@ -1138,6 +1153,7 @@ export class Game {
       return;
     }
     this.state = 'intermission';
+    sfx.ui('trialLose');
     this.hud.showTrialEnd({
       won: false,
       title: 'BATTLE LOST',
@@ -1173,6 +1189,9 @@ export class Game {
   toggleInventory(open = !this.inventoryOpen, tab = 'gear') {
     if (open && (this.state !== 'playing' || this.paused || this.levelPick || !this.player || this.player.dead || !this.player.inventory)) {
       return;
+    }
+    if (open !== this.inventoryOpen) {
+      sfx.ui(open ? 'open' : 'close');
     }
     this.inventoryOpen = open;
     this.hud.showInventory(open, tab);
@@ -1215,6 +1234,7 @@ export class Game {
     } else if (opened.length) {
       this.hud.toast(opened.length === 1 ? 'NEW SPELL SLOT' : opened.length + ' NEW SPELL SLOTS', '#ffd040');
     }
+    sfx.ui('levelUp');
     const c = player.center();
     this.fx.column(c.x, c.y, 26, { color: [0xffd040, 0xfff0c0], count: 40, rise: 3, life: 0.9, size: 0.8 });
     this.fx.ring(c.x, c.y, { color: 0xffd040, radius: 70, life: 0.5 });
@@ -1244,6 +1264,7 @@ export class Game {
       onPick: (id) => {
         this.hud.hideLevelPick();
         this.levelPick = false;
+        sfx.ui('choose');
         player.spellPicks--;
         this.hud.toast(studySpell(player, id), '#ffd040');
         // the click must not turn into a spell when play resumes
@@ -1259,6 +1280,9 @@ export class Game {
     }
     if (paused && this.inventoryOpen) {
       this.toggleInventory(false);
+    }
+    if (paused !== this.paused) {
+      sfx.ui(paused ? 'open' : 'close');
     }
     this.paused = paused;
     this.hud.showPause(paused);
@@ -1289,6 +1313,10 @@ export class Game {
     }
     if (this.bannerFrames > 0) {
       this.bannerFrames--;
+    }
+    if (!this.stairsHeard && this.isStairsOpen()) {
+      this.stairsHeard = true;
+      sfx.ui('stairsOpen');
     }
     if (this.duelMode) {
       if (player) {
@@ -1368,6 +1396,8 @@ export class Game {
       this.acc = 0;
     }
     this.elapsed += dt;
+    // the zones' loops fall silent while the game holds still
+    sfx.hush(this.paused || this.inventoryOpen || this.levelPick || this.state !== 'playing');
     this.render(dt);
   }
 
@@ -1425,6 +1455,8 @@ export class Game {
       focus = this.battle.cam;
     }
     this.updateCursor(time);
+    // sounds are heard from where the camera looks, as far as it sees
+    sfx.listen(focus.x, focus.y, this.gfx.yaw, Math.max(0.75, this.gfx.zoom / 26));
     this.gfx.render(this.paused ? 0 : dt, time, focus.x, focus.y, false);
     this.hud.update(dt);
   }
@@ -1448,6 +1480,8 @@ export class Game {
 
   dispose() {
     cancelAnimationFrame(this.frameHandle);
+    sfx.stopLoops();
+    sfx.hush(false);
     for (const e of this.entities) {
       e.dispose();
     }

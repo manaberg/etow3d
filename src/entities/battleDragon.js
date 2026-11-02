@@ -5,6 +5,7 @@ import { Projectile, Zone } from './spells.js';
 import { BattleRules } from './battle.js';
 import { TEAM_COLORS } from '../render/models.js';
 import { liftHeight } from './arcana.js';
+import { BreathSounds } from '../audio/sounds.js';
 
 // frames the dragon rears before it breathes, and breathes (as in dragon.js)
 const WINDUP = 42;
@@ -215,6 +216,7 @@ export class BattleDragon extends Dragon {
     }
     this.biteCd = 70;
     this.rig.swing();
+    this.voice('bite');
     this.strikeFoe(target, this.spec.bite + Math.floor(Math.random() * this.spec.bite * 0.5), 'physical');
   }
 
@@ -249,6 +251,7 @@ export class BattleDragon extends Dragon {
     const game = this.game;
     const c = this.center();
     this.roarCd = 1200 + Math.random() * 600;
+    this.voice('roar');
     this.rig.gape = 1;
     this.rig.rear = 0.6;
     game.fx.ring(c.x, c.y, { color: this.hue.fx[0], radius: 300, life: 0.6 });
@@ -268,6 +271,7 @@ export class BattleDragon extends Dragon {
   breatheAt(target) {
     const m = this.mouth();
     const aim = target && !target.killed ? target.center() : { x: m.x + Math.sin(this.rig.facing) * 100, y: m.y + Math.cos(this.rig.facing) * 100 };
+    this.voice(BreathSounds[this.hue.breath] || 'breathFire');
     this.game.spawn(BattleBreath, m.x, m.y, {
       dragon: this,
       element: this.hue.breath,
@@ -324,6 +328,7 @@ export class BattleDragon extends Dragon {
     const game = this.game;
     this.tailCd = 220;
     this.rig.sweep();
+    this.voice('tail');
     const c = this.center();
     game.fx.burst(c.x, c.y, 0.5, { color: 0x6a5a48, count: 20, speed: 5, life: 0.5, size: 1.2, flat: true, drag: 3 });
     const reach = this.size.x * 1.3;
@@ -341,6 +346,7 @@ export class BattleDragon extends Dragon {
     const game = this.game;
     this.buffetCd = 420;
     this.rig.beat();
+    this.voice('wing');
     const c = this.center();
     const radius = this.size.x * 1.6;
     game.fx.ring(c.x, c.y, { color: 0xd8d0c0, radius, life: 0.45 });
@@ -404,6 +410,7 @@ export class BattleDragon extends Dragon {
     this.landing = false;
     this.stuck = 0;
     this.rig.fly = 0;
+    this.voice('land');
     const c = this.center();
     game.fx.ring(c.x, c.y, { color: 0xb8a890, radius: this.size.x * 1.3, life: 0.5 });
     game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a68, 0xb8a890], count: 40, speed: 8, life: 0.7, size: 1.6, flat: true, drag: 2 });
@@ -431,6 +438,7 @@ export class BattleDragon extends Dragon {
     game.fx.ring(c.x, c.y, { color: this.hue.fx[0], radius: this.size.x * 2, life: 0.7 });
     game.gfx.flash(c.x, c.y, 3, this.hue.fx[0], 90, 0.6);
     game.gfx.addShake(0.4);
+    this.voice('dragonDeath');
     game.deathFx(this);
     game.hud.toast(this.label + ' IS SLAIN', this.side === 'player' ? '#ff8a70' : '#ffd060');
     this.kill();

@@ -6,6 +6,8 @@ import { buildSheep } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
 import { applyGearPools, elementBonus, gearStat, statOf } from './gear.js';
 import { rankPower } from './spellbar.js';
+import { sfx } from '../audio/sfx.js';
+import { hitSound } from '../audio/sounds.js';
 
 // Damage reflected enemy bolts deal when a shield sends them back.
 const REFLECTED_DAMAGE = { iceshard: 30, stormbolt: 60, acidbolt: 50, stone: 20, missile2: 50, fireball2: 75, ironshot2: 200, arrow: 20, quarrel: 24, runebolt: 50, sunbolt: 50, moonbolt: 50 };
@@ -123,6 +125,14 @@ export class Enemy extends Entity {
     const player = p.team === 'player' ? game.player : game.rival;
     const c = this.center();
     const fx = game.fx;
+    // the sound of the hit (a chain that already passed through lands no other)
+    const sound = hitSound(p.kind);
+    const again = (p.kind === 'chain' && game.navFrame - this.chainedAt < CHAIN_MEMORY) ||
+      (p.kind === 'rootchain' && game.navFrame - this.rootedAt < CHAIN_MEMORY);
+    if (sound && !again) {
+      // a battle's thousands of arrows are heard more softly
+      sfx.play(sound, { x: c.x, y: c.y, vol: game.battle ? 0.5 : 1 });
+    }
     switch (p.kind) {
       case 'missile':
         // each dart hits like the 2D game's single missile, harder with
@@ -292,6 +302,7 @@ export class Enemy extends Entity {
     this.wardHp -= taken;
     if (this.wardHp <= 0) {
       const c = this.center();
+      sfx.play('shatter', c);
       this.game.fx.burst(c.x, c.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff], count: 24, speed: 5, life: 0.5, size: 0.7, gravity: 6 });
     }
     return dmg - taken;
@@ -433,6 +444,7 @@ export class Enemy extends Entity {
     }
     arcanaHit(caster, this, 'gravity', Arcana.gravity.damage);
     const c = this.center();
+    sfx.play('crash', c);
     this.game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a6a, 0xc0b0a0], count: 24, speed: 4, life: 0.6, size: 1.2, flat: true });
     this.game.fx.ring(c.x, c.y, { color: 0xa060ff, radius: 50, life: 0.3 });
     this.game.gfx.addShake(0.15);
@@ -445,6 +457,7 @@ export class Enemy extends Entity {
     }
     if (this.spellTimers.length) {
       const c = this.center();
+      sfx.play('silence', c);
       this.game.fx.burst(c.x, c.y, (this.rig ? this.rig.height : 2) + 0.4, { color: [0x9ac8ff, 0xffffff], count: 12, speed: 2, life: 0.6, size: 0.6 });
     }
   }

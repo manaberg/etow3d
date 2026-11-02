@@ -5,6 +5,11 @@ import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
 import { isTouch, onTouchModeChange } from './core/device.js';
 import { SAVE_VERSION, deleteSave, latestSave, listSaves, onSavesChange, readSave } from './core/saves.js';
+import { sfx } from './audio/sfx.js';
+
+// the sound effects render while the menu shows, and play from the first
+// touch of the page on
+sfx.init();
 
 // The game is one descent: /?mode=survival starts a new one (as in the 2D
 // game), /?mode=mobile a new mobile descent (tunnels and duels, made for

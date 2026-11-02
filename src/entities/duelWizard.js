@@ -8,6 +8,8 @@ import { buildMage } from '../render/models.js';
 import { Kits, outfit } from './gear.js';
 import { TILE, UNIT } from '../core/constants.js';
 import { GLOBAL_COOLDOWN, MANERGY_REGEN, rankCooldown, rankPower } from './spellbar.js';
+import { sfx } from '../audio/sfx.js';
+import { SpendSounds, hitSound } from '../audio/sounds.js';
 
 // An invisible player: it notices them only within `near` px (centre to
 // centre, about a stride apart), and otherwise searches around where it last
@@ -180,6 +182,10 @@ export class DuelWizard extends Enemy {
     if (spell !== 'missile') {
       this.gcd = GLOBAL_COOLDOWN;
     }
+    // the spells heard as they go off (the rest through their bolts and zones)
+    if (SpendSounds[spell]) {
+      sfx.at(SpendSounds[spell], this);
+    }
     if (offensive) {
       this.castLock = this.ai.castLock;
       // attacking breaks invisibility
@@ -308,6 +314,10 @@ export class DuelWizard extends Enemy {
     }
     p.kill();
     DuelRules.applyHit(this, p.kind, game.player);
+    const sound = hitSound(p.kind);
+    if (sound) {
+      sfx.at(sound, this);
+    }
     if (p.kind !== 'root') {
       const c = this.center();
       game.fx.burst(c.x, c.y, 1.4, { color: [0xff4040, 0xffffff], count: 14, speed: 4, life: 0.4, size: 0.8 });
@@ -358,6 +368,7 @@ export class DuelWizard extends Enemy {
       this.cdLeft.pwkill = Math.max(this.cdLeft.pwkill, 60);
     }
     const c = this.center();
+    sfx.play('silence', c);
     this.game.fx.burst(c.x, c.y, 2.8, { color: [0x9ac8ff, 0xffffff], count: 16, speed: 2, life: 0.6, size: 0.6 });
   }
 
@@ -1100,6 +1111,7 @@ export class DuelWizard extends Enemy {
       Math.random() < this.ai.pwkillRate) {
       this.channel = { left: DuelRules.pwkillCast };
       this.rig.gesture('raise');
+      sfx.at('pwCharge', this);
       this.vel.x = 0;
       this.vel.y = 0;
       game.hud.toast('YOUR REFLECTION SPEAKS A WORD OF DEATH', '#c040ff');
