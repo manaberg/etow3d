@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildOrb, buildSpectralBlade } from '../render/models.js';
+import { sfx } from '../audio/sfx.js';
 import { Projectile, Zone, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { rankPower } from './spellbar.js';
@@ -184,6 +185,7 @@ export const ArcanaCast = {
       }
     }
     game.gfx.flash(c.x + Math.cos(aim) * 80, c.y + Math.sin(aim) * 80, 1.5, 0x80d0ff, 30, 0.25);
+    sfx.at('cone', caster);
     caster.rig.swing();
     return true;
   },
@@ -205,6 +207,7 @@ export const ArcanaCast = {
     fx.burst(c.x, c.y, 0.6, { color: [0xc0d8ff, 0xffffff], count: 40, speed: 9, life: 0.35, size: 0.8, flat: true });
     game.gfx.flash(c.x, c.y, 2, 0xa0c0ff, 50, 0.3);
     game.gfx.addShake(0.5);
+    sfx.at('thunder', caster);
     // the staff's foot strikes the floor
     caster.rig.gesture('slam');
     return true;
@@ -270,6 +273,7 @@ export const ArcanaCast = {
     const tc = target.center();
     target.polymorph((target.isWizard ? DuelRules.arcana.polymorph.frames : Arcana.polymorph.frames) * rankPower(caster, 'polymorph'));
     game.fx.burst(tc.x, tc.y, 1.2, { color: [0xff80e0, 0xffffff], count: 40, speed: 5, life: 0.6, size: 1 });
+    sfx.play('polymorph', tc);
     caster.rig.swing();
     return true;
   },
@@ -304,6 +308,7 @@ export const ArcanaCast = {
     fx.bolt(from.x, from.y, ex, ey, { color, life: 0.35, width: 0.12, jag: 0.02, h: from.h, h2: 1.4 });
     fx.bolt(from.x, from.y, ex, ey, { color: 0xe0ffe0, life: 0.25, width: 0.04, jag: 0.0, h: from.h, h2: 1.4 });
     game.gfx.flash(ex, ey, 1.5, color, 40, 0.3);
+    sfx.at('disintegrate', caster);
     if (hit && hit.shielded) {
       fx.ring(ex, ey, { color: 0x60b0ff, radius: 50, life: 0.3 });
     } else if (hit) {
@@ -318,6 +323,7 @@ export const ArcanaCast = {
   weapon(caster) {
     const c = caster.center();
     caster.game.spawn(SpiritualWeapon, c.x, c.y, { owner: caster, timeOwner: caster });
+    sfx.at('weapon', caster);
     caster.rig.gesture('raise');
     return true;
   },
@@ -344,6 +350,7 @@ export const ArcanaCast = {
     }
     fx.column(point.x, point.y, spec.radius, { color: [0xd8d0ff, 0x9a90e0, 0xffffff], count: 50, h: 3, rise: -0.6, life: 1.4, size: 0.8 });
     fx.ring(point.x, point.y, { color: 0xb0a0ff, radius: spec.radius, life: 0.7 });
+    sfx.play('sleep', point);
     caster.rig.swing();
     return true;
   },
@@ -358,6 +365,7 @@ export const ArcanaCast = {
     const c = caster.center();
     game.fx.burst(c.x, c.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff, 0xffffff], count: 36, speed: 4, life: 0.6, size: 0.7 });
     game.fx.ring(c.x, c.y, { color: 0xbfe8ff, radius: 60, life: 0.5 });
+    sfx.at('agathys', caster);
     if (caster === game.player) {
       game.hud.toast('ARMOR OF AGATHYS :: ' + Math.round(caster.wardHp) + ' WARD', '#bfe8ff');
     }
@@ -378,6 +386,7 @@ export const ArcanaCast = {
     fx.ring(tc.x, tc.y, { color: 0x9a30d0, radius: 44, life: 0.5 });
     const from = staffHead(caster, true) || { x: caster.center().x, y: caster.center().y, h: 1.4 };
     fx.bolt(from.x, from.y, tc.x, tc.y, { color: 0x8020c0, life: 0.25, width: 0.03, jag: 0.5, h: from.h, h2: 1.4 });
+    sfx.play('curse', tc);
     caster.rig.swing();
     return true;
   },
@@ -392,6 +401,7 @@ export const ArcanaCast = {
     }
     const c = caster.center();
     game.spawn(FlamingSphere, c.x, c.y, { owner: caster, team: teamOf(caster), timeOwner: caster, drop: staffHead(caster, true) });
+    sfx.at('sphere', caster);
     caster.rig.swing();
     return true;
   },
@@ -411,6 +421,7 @@ export const ArcanaCast = {
       const ec = e.center();
       if (Math.hypot(ec.x - c.x, ec.y - c.y) < radius) {
         fx.burst(ec.x, ec.y, 1.4, { color: [0xffffff, 0x9ac8ff], count: 12, speed: 3, life: 0.35, size: 0.6 });
+        sfx.play('unmake', ec);
         e.kill();
       }
     }
@@ -422,6 +433,7 @@ export const ArcanaCast = {
     fx.ring(c.x, c.y, { color: 0x9ac8ff, radius, life: 0.5 });
     fx.ring(c.x, c.y, { color: 0xffffff, radius: radius * 0.5, from: radius, life: 0.4 });
     game.gfx.flash(c.x, c.y, 2, 0xa0c8ff, 40, 0.25);
+    sfx.at('counter', caster);
     caster.rig.swing();
     return true;
   },
@@ -455,6 +467,7 @@ export const ArcanaCast = {
       fx.ring(p.x, p.y, { color: 0xb080ff, radius: 50, life: 0.4 });
     }
     fx.bolt(a.x, a.y, b.x, b.y, { color: 0xc0a0ff, life: 0.3, width: 0.05, jag: 0.5 });
+    sfx.at('swap', caster);
     return true;
   },
 
@@ -469,6 +482,7 @@ export const ArcanaCast = {
     const fx = caster.game.fx;
     fx.burst(tc.x, tc.y, 2, { color: [0x3a0a5a, 0xb040ff, 0x000000], count: 36, speed: 4, life: 0.8, size: 1.2 });
     caster.game.gfx.flash(tc.x, tc.y, 2, 0x8020ff, 30, 0.3);
+    sfx.play('phantasm', tc);
     caster.rig.swing();
     return true;
   },
@@ -483,6 +497,7 @@ export const ArcanaCast = {
     const fx = caster.game.fx;
     fx.column(point.x, point.y, spec.radius, { color: [0xff80e0, 0x80ffe0, 0xffe060, 0xa080ff], count: 50, rise: 1.6, life: 1, size: 0.8, jitter: 2 });
     fx.ring(point.x, point.y, { color: 0xff80e0, radius: spec.radius, life: 0.6 });
+    sfx.play('confusion', point);
     caster.rig.swing();
     return true;
   },
@@ -510,6 +525,7 @@ export const ArcanaCast = {
     fx.column(point.x, point.y, spec.radius, { color: [0xc080ff, 0x6040ff, 0xffffff], count: 60, rise: 5, life: 0.9, size: 0.7 });
     fx.ring(point.x, point.y, { color: 0xa060ff, radius: spec.radius, life: 0.6 });
     game.gfx.flash(point.x, point.y, 1, 0x8040ff, 40, 0.3);
+    sfx.play('gravity', point);
     caster.rig.swing();
     return true;
   }
@@ -577,6 +593,10 @@ export class Meteor extends Entity {
   }
 
   update(k) {
+    if (this.delay > 0 && this.delay - k <= 0) {
+      // the rock appears, whistling in
+      sfx.play('meteorFall', this.center());
+    }
     this.delay -= k;
     if (this.delay > 0) {
       return;
@@ -602,6 +622,7 @@ export class Meteor extends Entity {
     fx.ring(c.x, c.y, { color: 0xff8030, radius: spec.blast, life: 0.45 });
     game.gfx.flash(c.x, c.y, 2, 0xff6010, 70, 0.4);
     game.gfx.addShake(0.35);
+    sfx.play('meteorImpact', c);
     this.kill();
   }
 
@@ -646,6 +667,7 @@ export class SpiritualWeapon extends Entity {
     if (this.life <= 0 || !owner || owner.killed || owner.dead) {
       const c = this.center();
       game.fx.burst(c.x, c.y, this.height, { color: 0x80e0ff, count: 20, speed: 4, life: 0.5, size: 0.7 });
+      sfx.play('pop', c);
       this.kill();
       return;
     }
@@ -674,6 +696,7 @@ export class SpiritualWeapon extends Entity {
       this.strike = Arcana.weapon.every;
       this.swing = 14;
       game.fx.burst(gx, gy, 1.4, { color: [0x80e0ff, 0xffffff], count: 14, speed: 5, life: 0.35, size: 0.7 });
+      sfx.play('bladeStrike', { x: gx, y: gy });
     }
   }
 
@@ -719,12 +742,21 @@ export class FlamingSphere extends Entity {
     this.view = buildOrb(0xff7a20, 0.42, 5);
     this.game.gfx.add(this.view);
     this.roll = 0;
+    const c = this.center();
+    this.sound = sfx.loop('sphereLoop', c.x, c.y);
   }
 
   fizzle() {
     const c = this.center();
     this.game.fx.burst(c.x, c.y, 0.6, { color: [0xff6010, 0xffc040, 0x403020], count: 24, speed: 4, life: 0.5, size: 0.9, gravity: 3 });
+    sfx.play('fizzle', c);
+    this.sound.stop();
     this.kill();
+  }
+
+  dispose() {
+    this.sound.stop();
+    super.dispose();
   }
 
   // where it rolls: the player's cursor, or the rival's target
@@ -758,11 +790,12 @@ export class FlamingSphere extends Entity {
     this.vel.y = d > 1 ? dy / d * speed : 0;
     this.roll += Math.hypot(this.vel.x, this.vel.y) * k / 60;
     this.move(k);
+    const at = this.center();
+    this.sound.move(at.x, at.y);
     this.burn -= k;
     if (this.burn > 0) {
       return;
     }
-    const at = this.center();
     let hit = false;
     for (const e of hostilesAround(owner, at, spec.radius)) {
       arcanaHit(owner, e, 'sphere', spec.damage);
@@ -771,6 +804,7 @@ export class FlamingSphere extends Entity {
     if (hit) {
       this.burn = spec.every;
       this.game.fx.burst(at.x, at.y, 0.8, { color: [0xff5010, 0xffb030], count: 14, speed: 4, life: 0.4, size: 0.8 });
+      sfx.play('fireHit', { x: at.x, y: at.y, vol: 0.7 });
     }
   }
 

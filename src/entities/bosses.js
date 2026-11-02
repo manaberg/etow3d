@@ -4,6 +4,7 @@ import { ArcanaCast } from './arcana.js';
 import { buildOrc } from '../render/models.js';
 import { DungeonLevels } from '../world/levels.js';
 import { outfit, rollGear } from './gear.js';
+import { sfx } from '../audio/sfx.js';
 
 // Besides its own stones or bolts, an orc cleric knows one spell from the
 // cleric's list and an orc mage one evocation from the arcana (arcana.js),
@@ -149,6 +150,8 @@ export class Clericorc extends Enemy {
     if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
+      // a heavier blow than an orc's
+      sfx.at('swing', this, { rate: 0.75 });
       if (!player.takeMelee(this.meleeDmg * 4 + Math.floor(Math.random() * 20) + 50, 0, this)) {
         this.hurt(this.meleeDmg + Math.floor(Math.random() * 10) + 1);
       }
@@ -263,6 +266,8 @@ export class Mageorc extends Enemy {
     if (this.touches(player) && this.attackCooldown <= 0 && this.spawnFrames <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
+      // a heavier blow than an orc's
+      sfx.at('swing', this, { rate: 0.75 });
       if (!player.takeMelee(this.meleeDmg * 2 + Math.floor(Math.random() * 20) + 25, 0, this)) {
         this.hurt(this.meleeDmg + Math.floor(Math.random() * 10) + 1);
       }
@@ -355,6 +360,8 @@ export class Boss extends Enemy {
     if (this.touches(player) && this.attackCooldown <= 0 && this.sleepFrames <= 0 && !this.lift) {
       this.attackCooldown = this.attackMax;
       this.rig.swing();
+      // a heavier blow than an orc's
+      sfx.at('swing', this, { rate: 0.75 });
       player.takeMelee(this.meleeDmg * 5, 0, this);
       game.gfx.addShake(0.4);
     }
@@ -427,6 +434,7 @@ export class Boss extends Enemy {
       const game = this.game;
       const pc = player.center();
       game.fx.bolt(pc.x, pc.y, this.center().x, this.center().y, { color: 0x8030ff, life: 0.4, width: 0.12, jag: 0.6 });
+      sfx.at('swap', this, { rate: 0.7 });
       // drag the player next to the warlord, onto open floor only
       for (let attempt = 0; attempt < 12; attempt++) {
         const nx = this.pos.x + Math.floor(Math.random() * 192) - 96;

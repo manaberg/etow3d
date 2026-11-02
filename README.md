@@ -72,7 +72,8 @@ These are the default keys. Every action can be moved to another key or mouse bu
 **Controls** on the main menu, the pause screen or the HUD's micro menu (binding a key that is
 taken swaps the two); magic missile and the bar's slots take their keys in the spellbook
 instead (click the key under a slot, then press the new one). Two sliders on the Controls screen also set how fast the camera turns: by mouse drag and by the turn
-keys, from 10% to 200%. Bindings and speeds are saved in the browser. For playtesting, **God mode** on
+keys, from 10% to 200%, and another how loud the sound effects play (0 turns them off; see
+**Sound effects**). Bindings, speeds and the volume are saved in the browser. For playtesting, **God mode** on
 the same screen (under PLAYTESTING) puts a **Retry** button on the death screen: the floor, duel or
 battle you fell on starts over, with the wizard as it came to it (spells, bar, level, gear and
 health). Runs played with it record no score, a fall keeps the run's autosave, and the unit frame reads YOU :: GOD MODE while it is on. `Esc` always pauses and the arrow keys always move.
@@ -573,6 +574,33 @@ health calls two of its chromatic brood and takes to the air. Slaying it wins th
 When a run ends it is posted to the backend (`/gamestates/gamesave`) like the 2D
 game; `GET /api/ladder` and `GET /api/fastest-wins` read the scores back.
 
+## Sound effects
+
+Every spell, bolt, blow, death, pickup and moment of the descent has a sound, and there are no
+audio files: each sound is a recipe (`src/audio/sounds.js`) of oscillators, filtered noise,
+crackle, bells and plucked strings, rendered sample by sample (`src/audio/synth.js`) when the
+page loads, in a Web Worker so the game never waits on it, a few takes of each so repeats
+differ. `src/audio/sfx.js` plays them with the Web Audio API:
+
+- **Placed in the world.** A sound is as loud as it is near the camera's focus and sits left
+  or right of the view as the camera turns; the hearing range grows with the zoom, so what is
+  on screen is heard (a battle watched from high above as well as a duel up close). The
+  wizard's own sounds and the interface's are heard as they are.
+- **Thinned out.** Each sound has a least time between two of it starting and a most at once,
+  and past 40 voices only the louder ones start, so a battle's thousands of arrows and blows
+  become a din rather than a wall of noise.
+- **A room.** Dungeons echo (a synthesised impulse response through a convolver), the
+  battlefield's open grass barely; everything passes a compressor.
+- **Lasting zones loop** (blizzard, cloudkill, maelstrom, spirit guardians, burning ground,
+  a flaming sphere, the warlord's meteor rain) and follow what they belong to; they fall
+  silent while the game holds still (paused, inventory open, a level's pick).
+
+Browsers let a page make sound only after it is touched, so the first key press, click or tap
+starts the audio. What sounds where: bolts leaving their caster (`BoltSounds`) and striking a
+body (`HitSounds`), spells as they are spent (`SpendSounds`), arcana casts in `ArcanaCast`
+(`src/entities/arcana.js`), zones (`ZoneSounds`), dragons' breath by element
+(`BreathSounds`) and the rest beside their effects. Music is still to come.
+
 ## Code layout
 
 ```
@@ -590,6 +618,8 @@ public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
 src/ui/                     HUD, touch controls, minimap, inventory and spellbook, spell icons,
                             controls screen
+src/audio/                  sound effects: the recipes, the synthesiser that renders them (in a
+                            worker) and the Web Audio player
 backend/                    Express + SQLite score server (shared with eotw)
 ```
 

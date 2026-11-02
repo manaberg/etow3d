@@ -14,6 +14,8 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 1200
+    // the game is one bundle (three.js, the game and its synthesised sound
+    // effects' recipes); the sounds themselves render in a worker chunk
+    chunkSizeWarningLimit: 1300
   }
 });

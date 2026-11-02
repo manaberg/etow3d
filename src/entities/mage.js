@@ -5,6 +5,8 @@ import { buildMage, buildSheep, glowMap } from '../render/models.js';
 import { Projectile, Zone, MirrorImage, castMissiles, missileTier, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, castArcana, arcanaHit, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
+import { sfx } from '../audio/sfx.js';
+import { SpendSounds, hitSound } from '../audio/sounds.js';
 import { arcanaFx } from './enemy.js';
 import { Inventory, StatCaps, applyGearPools, gearStat } from './gear.js';
 import { dressRig } from '../render/gearModels.js';
@@ -274,6 +276,10 @@ export class Mage extends Entity {
     this.cd[id] = this.cooldownOf(spell.cd * rankCooldown(this, id));
     this.manergy -= this.castCost(id);
     this.gcd = GLOBAL_COOLDOWN;
+    // the spells heard as they go off (the rest through their bolts and zones)
+    if (SpendSounds[id]) {
+      sfx.at(SpendSounds[id], this);
+    }
   }
 
   // Manergy a cast spends, after gear that makes spells cheaper.
@@ -672,6 +678,7 @@ export class Mage extends Entity {
         this.lift = null;
         arcanaHit(caster, this, 'gravity', Arcana.gravity.damage);
         const c = this.center();
+        sfx.at('crash', this);
         this.game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a6a, 0xc0b0a0], count: 24, speed: 4, life: 0.6, size: 1.2, flat: true });
       }
     }
@@ -791,6 +798,7 @@ export class Mage extends Entity {
         }
       } else {
         fx.burst(mouse.x, mouse.y, 1.2, { color: 0x806090, count: 8, speed: 2, life: 0.3, size: 0.6 });
+        sfx.at('fizzle', this);
       }
     }
     if (this.wants('shield') && this.canCast('shield')) {
@@ -839,6 +847,7 @@ export class Mage extends Entity {
       if (target) {
         this.channel = { target, left: DuelRules.pwkillCast, total: DuelRules.pwkillCast };
         this.rig.gesture('raise');
+        sfx.at('pwCharge', this);
       }
     }
     if (this.wants('tele') && this.canCast('tele')) {
@@ -862,6 +871,7 @@ export class Mage extends Entity {
     const ch = this.channel;
     if (this.isStunned || this.isFeared || this.sheepFrames > 0 || this.helpless || this.dead) {
       this.channel = null;
+      sfx.at('fizzle', this);
       game.hud.toast('POWER WORD KILL :: BROKEN OFF', '#c090ff');
       return;
     }
@@ -879,6 +889,7 @@ export class Mage extends Entity {
     const target = ch.target;
     const t = target.center();
     if (target.killed || target.hp <= 0 || target.invis || !game.world.hasLineOfSight(c.x, c.y, t.x, t.y)) {
+      sfx.at('fizzle', this);
       game.hud.toast('POWER WORD KILL :: THE WORD FINDS NO ONE', '#c090ff');
       return;
     }
@@ -900,6 +911,11 @@ export class Mage extends Entity {
       this.stun();
     } else {
       this.hurt(ENEMY_BOLT_DAMAGE[p.kind] || 20);
+    }
+    // the bolt's own impact (the wizard's grunt is hurt's)
+    const sound = hitSound(p.kind);
+    if (sound && sound !== 'hit') {
+      sfx.play(sound, c);
     }
     this.game.fx.burst(c.x, c.y, 1.4, { color: p.spec.trail || 0xff6040, count: 14, speed: 4, life: 0.4, size: 0.8 });
     p.kill();
@@ -938,6 +954,7 @@ export class Mage extends Entity {
   // shield turned the blow. Through armor of agathys the cold bites back.
   takeMelee(dmg, manergyDrain, attacker) {
     if (this.shielded) {
+      sfx.at('block', this);
       return false;
     }
     if (this.wardHp > 0 && attacker && !attacker.killed && attacker.hurt) {
@@ -969,10 +986,15 @@ export class Mage extends Entity {
       dmg -= soaked;
       if (this.wardHp <= 0) {
         const c = this.center();
+        sfx.at('shatter', this);
         this.game.fx.burst(c.x, c.y, 1.4, { color: [0xe8f8ff, 0x9ad8ff], count: 24, speed: 5, life: 0.5, size: 0.7, gravity: 6 });
       }
     }
     this.hp -= dmg;
+    // a blow worth the name is heard (a lifesteal ray's trickle is not)
+    if (!quiet && dmg >= 4) {
+      sfx.at('hurt', this);
+    }
     if (!quiet) {
       this.rig.hit();
       this.game.gfx.addShake(Math.min(0.6, dmg / 60));

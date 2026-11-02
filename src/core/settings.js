@@ -1,15 +1,17 @@
 // Player settings other than key bindings, set on the controls screen and kept
-// in this browser's localStorage: how fast the camera turns (by mouse, by
-// the turn keys and by a finger on a touch screen) and, on a touch screen,
-// how fast it follows behind the wizard and turns to face its target
-// (0 = never), as a share of the default speed (1 = 100%); and switches.
+// in this browser's localStorage: how loud the sound effects play (0 = off,
+// audio/sfx.js), how fast the camera turns (by mouse, by the turn keys and
+// by a finger on a touch screen) and, on a touch screen, how fast it follows
+// behind the wizard and turns to face its target (0 = never), as a share of
+// the default (1 = 100%); and switches. Sliders are listed under their `group`.
 
 export const Settings = [
-  { id: 'cameraDrag', label: 'Mouse turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
-  { id: 'cameraTurn', label: 'Turn key speed', min: 0.1, max: 2, step: 0.05, value: 1 },
-  { id: 'touchTurn', label: 'Touch turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
-  { id: 'touchFollow', label: 'Touch camera follows behind (0 = off)', min: 0, max: 2, step: 0.05, value: 1 },
-  { id: 'touchFace', label: 'Touch camera faces the target (0 = off)', min: 0, max: 2, step: 0.05, value: 1 }
+  { id: 'sfxVolume', group: 'SOUND', label: 'Sound effects volume (0 = off)', min: 0, max: 1, step: 0.05, value: 0.8 },
+  { id: 'cameraDrag', group: 'CAMERA SPEED', label: 'Mouse turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
+  { id: 'cameraTurn', group: 'CAMERA SPEED', label: 'Turn key speed', min: 0.1, max: 2, step: 0.05, value: 1 },
+  { id: 'touchTurn', group: 'CAMERA SPEED', label: 'Touch turn sensitivity', min: 0.1, max: 2, step: 0.05, value: 1 },
+  { id: 'touchFollow', group: 'CAMERA SPEED', label: 'Touch camera follows behind (0 = off)', min: 0, max: 2, step: 0.05, value: 1 },
+  { id: 'touchFace', group: 'CAMERA SPEED', label: 'Touch camera faces the target (0 = off)', min: 0, max: 2, step: 0.05, value: 1 }
 ];
 
 // On or off, shown as switches on the controls screen. God mode is for

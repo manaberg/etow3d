@@ -19,9 +19,9 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-// The controls screen: whether the touch controls show, the camera's turn
-// speeds as sliders, the playtesting switches (god mode), then every action
-// with its key; click one, then press
+// The controls screen: whether the touch controls show, the sound effects'
+// volume and the camera's turn speeds as sliders, the playtesting switches
+// (god mode), then every action with its key; click one, then press
 // a key or mouse button to rebind it (Escape cancels). The spell keys are
 // set in the spellbook instead, under the bar's slots (ui/spellbook.js).
 // Opened from the main menu, the pause screen and the HUD's micro menu.
@@ -53,9 +53,13 @@ export function openControls({ onClose } = {}) {
   };
   showTouch();
 
-  el('div', 'controls-group', list, 'CAMERA SPEED');
   const sliders = [];
+  let sliderGroup = null;
   for (const s of Settings) {
+    if (s.group !== sliderGroup) {
+      sliderGroup = s.group;
+      el('div', 'controls-group', list, sliderGroup);
+    }
     const row = el('label', 'controls-row', list);
     el('span', 'controls-label', row, s.label);
     const input = el('input', 'controls-slider', row);

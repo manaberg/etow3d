@@ -5,6 +5,8 @@ import { Enemy, Elements, arcanaFx } from './enemy.js';
 import { Projectile, Zone } from './spells.js';
 import { liftHeight } from './arcana.js';
 import { buildDragon } from '../render/models.js';
+import { sfx } from '../audio/sfx.js';
+import { BreathSounds } from '../audio/sounds.js';
 
 // Dragons haunt the floors below the warlord (levels.js). Each has an age and
 // a colour. The age sets its size and strength and what it can do:
@@ -252,9 +254,15 @@ export class Dragon extends Enemy {
     }
   }
 
+  // A dragon sounds as big as it is: the older, the deeper.
+  voice(name, options = {}) {
+    sfx.at(name, this, { ...options, rate: (options.rate || 1) * (1.3 - this.spec.scale * 0.25) });
+  }
+
   roar(player, distance) {
     const game = this.game;
     const c = this.center();
+    this.voice('roar');
     this.rig.gape = 1;
     this.rig.rear = 0.6;
     game.fx.ring(c.x, c.y, { color: this.hue.fx[0], radius: 300, life: 0.6 });
@@ -272,6 +280,7 @@ export class Dragon extends Enemy {
     }
     this.biteCd = 70;
     this.rig.swing();
+    this.voice('bite');
     const dmg = this.spec.bite + Math.floor(Math.random() * this.spec.bite * 0.5);
     if (!player.takeMelee(dmg, 0, this)) {
       // teeth on the shield
@@ -292,6 +301,7 @@ export class Dragon extends Enemy {
         element = 'weakening';
       }
     }
+    this.voice(BreathSounds[element] || 'breathFire');
     game.spawn(DragonBreath, m.x, m.y, {
       dragon: this,
       element,
@@ -350,6 +360,7 @@ export class Dragon extends Enemy {
     const game = this.game;
     this.tailCd = 220;
     this.rig.sweep();
+    this.voice('tail');
     const c = this.center();
     game.fx.burst(c.x, c.y, 0.5, { color: 0x6a5a48, count: 20, speed: 5, life: 0.5, size: 1.2, flat: true, drag: 3 });
     if (player.takeMelee(Math.round(this.spec.bite * 1.3), 0, this)) {
@@ -362,6 +373,7 @@ export class Dragon extends Enemy {
     const game = this.game;
     this.buffetCd = 420;
     this.rig.beat();
+    this.voice('wing');
     const c = this.center();
     const radius = this.size.x * 1.6;
     game.fx.ring(c.x, c.y, { color: 0xd8d0c0, radius, life: 0.45 });
@@ -407,6 +419,7 @@ export class Dragon extends Enemy {
   // ----------------------------------------------------------- flight
 
   takeOff() {
+    this.voice('flaps');
     this.flying = true;
     this.landing = false;
     this.flyFrames = 0;
@@ -459,6 +472,7 @@ export class Dragon extends Enemy {
     this.landing = false;
     this.blind = 0;
     this.rig.fly = 0;
+    this.voice('land');
     const c = this.center();
     game.fx.ring(c.x, c.y, { color: 0xb8a890, radius: this.size.x * 1.3, life: 0.5 });
     game.fx.burst(c.x, c.y, 0.3, { color: [0x8a7a68, 0xb8a890], count: 40, speed: 8, life: 0.7, size: 1.6, flat: true, drag: 2 });
@@ -498,6 +512,7 @@ export class Dragon extends Enemy {
     game.fx.ring(c.x, c.y, { color: this.hue.fx[0], radius: this.size.x * 2, life: 0.7 });
     game.gfx.flash(c.x, c.y, 3, this.hue.fx[0], 90, 0.6);
     game.gfx.addShake(0.7);
+    this.voice('dragonDeath');
     game.deathFx(this);
     if (!this.summoned) {
       game.hud.toast(this.label + ' IS SLAIN', '#ffd060');

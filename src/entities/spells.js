@@ -2,6 +2,8 @@ import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildOrb, buildRock, buildIronshot, buildZone, buildMage, buildArrow } from '../render/models.js';
 import { dressRig } from '../render/gearModels.js';
+import { sfx } from '../audio/sfx.js';
+import { BoltSounds, ZoneSounds } from '../audio/sounds.js';
 
 // Projectile kinds, numbers from the 2D game (speed px/s, life s, box px).
 // `light` is a colour for the dynamic light pool, `trail` a particle colour.
@@ -125,6 +127,11 @@ export class Projectile extends Entity {
     this.originY = this.pos.y + spec.size / 2;
     this.aimAt(this.angle);
     this.buildView();
+    // the sound of it leaving (audio/sounds.js BoltSounds)
+    const sound = BoltSounds[this.kind];
+    if (sound) {
+      sfx.play(sound[0], { x: this.originX, y: this.originY, rate: sound[1] || 1 });
+    }
     // cast by a wizard from where it stands: it leaves from the staff
     const caster = this.timeOwner;
     this.launch = null;
@@ -176,12 +183,15 @@ export class Projectile extends Entity {
     this._seenFrame = undefined;
     const c = this.center();
     this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: 0x80c0ff, count: 10, speed: 4, life: 0.3, size: 0.6 });
+    sfx.play('reflect', c);
     this.buildView();
   }
 
   onWallHit() {
     const c = this.center();
     this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: this.spec.trail || 0xbbbbbb, count: 8, speed: 3, life: 0.35, size: 0.6 });
+    const fiery = this.kind === 'fireball' || this.kind === 'fireball2' || this.kind === 'scorch';
+    sfx.play(fiery ? 'fireHit' : this.spec.pierce ? 'ironHit' : 'boltWall', c);
     this.kill();
   }
 
@@ -264,6 +274,7 @@ export class Projectile extends Entity {
       if (e instanceof Projectile && e !== this && !e.killed && e.team !== this.team && e.spec.simple && this.touches(e)) {
         const c = e.center();
         this.game.fx.burst(c.x, c.y, FLY_HEIGHT, { color: [0xc090ff, 0xffffff, e.spec.trail || 0xbbbbbb], count: 16, speed: 4, life: 0.35, size: 0.6 });
+        sfx.play('pop', c);
         e.kill();
         this.kill();
         return true;
@@ -367,6 +378,20 @@ export class Zone extends Entity {
     }
     this.game.gfx.add(this.view);
     this.maxLife = this.life;
+    // a zone sounds as long as it lasts (audio/sounds.js ZoneSounds)
+    const sound = ZoneSounds[this.kind];
+    const c = this.center();
+    this.sound = sound ? sfx.loop(sound.loop, c.x, c.y) : null;
+    if (sound && sound.start) {
+      sfx.play(sound.start, c);
+    }
+  }
+
+  dispose() {
+    if (this.sound) {
+      this.sound.stop();
+    }
+    super.dispose();
   }
 
   // circle against a body's box
@@ -393,6 +418,10 @@ export class Zone extends Entity {
     } else if (this.drift) {
       this.pos.x += this.drift.x * k / 60;
       this.pos.y += this.drift.y * k / 60;
+    }
+    if (this.sound && (this.follow || this.drift)) {
+      const c = this.center();
+      this.sound.move(c.x, c.y);
     }
     if (game.battle) {
       // battles: only the bodies around the zone, from the battle's grid
@@ -525,6 +554,7 @@ export class MirrorImage extends Entity {
   pop() {
     const c = this.center();
     this.game.fx.burst(c.x, c.y, 1.2, { color: 0xc090ff, count: 30, speed: 5, life: 0.5, size: 0.9 });
+    sfx.play('pop', c);
     this.kill();
   }
 
