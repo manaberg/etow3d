@@ -47,6 +47,8 @@ const ICON_BOOK = SVG('<path d="M6 8 Q13 5 20 9 V34 Q13 30 6 33 Z" fill="#c8a060
 const ICON_BAG = SVG('<path d="M14 10 Q20 4 26 10" stroke="#a87a3a" stroke-width="3" fill="none"/><path d="M9 14 Q9 11 13 11 H27 Q31 11 31 14 L34 32 Q34 35 30 35 H10 Q6 35 6 32 Z" fill="#a8743a"/><path d="M8 18 H32" stroke="#6a4418" stroke-width="2"/><circle cx="20" cy="22" r="2.4" fill="#ffd060"/>');
 const ICON_MAP = SVG('<path d="M5 9 L14 6 L26 10 L35 7 V31 L26 34 L14 30 L5 33 Z" fill="#d8c08a"/><path d="M14 6 V30 M26 10 V34" stroke="#8a6a3a" stroke-width="1.2"/><path d="M9 25 Q14 18 19 22 T30 15" stroke="#b4232f" stroke-width="1.6" fill="none" stroke-dasharray="2 2"/><path d="M28 13 L32 17 M32 13 L28 17" stroke="#b4232f" stroke-width="1.8"/>');
 const ICON_KEYS = SVG('<rect x="4" y="11" width="32" height="20" rx="3" fill="#8a8f9c"/><g fill="#e8ecf2"><rect x="7" y="14" width="5" height="4" rx="1"/><rect x="14" y="14" width="5" height="4" rx="1"/><rect x="21" y="14" width="5" height="4" rx="1"/><rect x="28" y="14" width="5" height="4" rx="1"/><rect x="7" y="20" width="5" height="4" rx="1"/><rect x="14" y="20" width="5" height="4" rx="1"/><rect x="21" y="20" width="5" height="4" rx="1"/><rect x="28" y="20" width="5" height="4" rx="1"/><rect x="11" y="26" width="18" height="3" rx="1"/></g>');
+// a crosshair: auto-aim (lit while it is on)
+const ICON_AIM = SVG('<circle cx="20" cy="20" r="11" stroke="#d8cbb8" stroke-width="2.5" fill="none"/><path d="M20 4 V13 M20 27 V36 M4 20 H13 M27 20 H36" stroke="#d8cbb8" stroke-width="2.5"/><circle cx="20" cy="20" r="3" fill="#e23a3a"/>');
 const ICON_PAUSE = SVG('<circle cx="20" cy="20" r="15" fill="#3a3f4c" stroke="#d8cbb8" stroke-width="2"/><rect x="14" y="12" width="4" height="16" rx="1" fill="#f0e6d6"/><rect x="22" y="12" width="4" height="16" rx="1" fill="#f0e6d6"/>');
 const ICON_LOCK = SVG('<path d="M13 18 V13 Q13 6 20 6 Q27 6 27 13 V18" stroke="#9a907e" stroke-width="3" fill="none"/><rect x="10" y="18" width="20" height="16" rx="2" fill="#7a705e"/><circle cx="20" cy="25" r="2.4" fill="#2a2620"/><rect x="19" y="26" width="2" height="4" fill="#2a2620"/>');
 
@@ -212,6 +214,10 @@ export class Hud {
       () => game.toggleInventory(!(game.inventoryOpen && this.inventoryScreen.tab === 'gear'), 'gear'));
     // touch screens tap the map itself, and reach the controls from the pause screen
     micro(ICON_MAP, () => ['MAP (' + actionKeyLabel('map') + ')', 'The larger map.'], () => this.toggleMap(), 'desktop-only');
+    // a touch screen always aims by itself
+    this.aimButton = micro(ICON_AIM, () => ['AUTO-AIM (' + actionKeyLabel('auto_aim') + ') :: ' + (setting('autoAim') ? 'ON' : 'OFF'),
+      'The wizard aims at the nearest foe, or the one you point at, and the camera turns to face it. Off: aim with the cursor.'],
+    () => game.toggleAutoAim(), 'desktop-only');
     micro(ICON_KEYS, () => ['CONTROLS', 'Movement, camera and every other key.'], () => {
       game.setPaused(true);
       openControls();
@@ -253,9 +259,11 @@ export class Hud {
     this.bannerTitle = el('div', 'banner-title', this.banner);
     this.bannerText = el('div', 'banner-text', this.banner);
     this.prompt = el('div', 'hud-prompt', root);
-    // on a touch screen the stairs' prompt is the button to go down
+    // the stairs' prompt is the button to go down (with a trackpad, a click
+    // is nearer to hand than the key)
+    this.prompt.addEventListener('mousedown', (e) => e.preventDefault());
     this.prompt.addEventListener('click', () => {
-      if (isTouch()) {
+      if (this.prompt.classList.contains('actionable')) {
         game.input.queued.add('descend');
       }
     });
@@ -466,6 +474,7 @@ export class Hud {
     badge(this.bookButton, waiting ? String(waiting) : '', waiting > 0);
     this.bookButton.node.classList.toggle('open', this.game.inventoryOpen && this.inventoryScreen.tab === 'spells');
     this.bagButton.node.classList.toggle('open', this.game.inventoryOpen && this.inventoryScreen.tab === 'gear');
+    this.aimButton.node.classList.toggle('open', !!setting('autoAim'));
   }
 
   showPause(paused) {
@@ -829,17 +838,17 @@ export class Hud {
     this.goalLabel.classList.toggle('open', game.isStairsOpen());
   }
 
-  // Standing on the stairs: whether they are open (on a touch screen the
-  // prompt is the button down), and gone everywhere else, trials included.
+  // Standing on the stairs: whether they are open (the prompt is the button
+  // down), and gone everywhere else, trials included.
   updatePrompt() {
     const game = this.game;
     const stairs = game.stairs;
     const open = game.isStairsOpen();
     const touch = isTouch();
     if (stairs && stairs.playerOn && game.state === 'playing') {
-      setText(this.prompt, open ? (touch ? 'DESCEND' : 'PRESS ' + actionKeyLabel('descend').toUpperCase() + ' TO DESCEND') : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
+      setText(this.prompt, open ? (touch ? 'DESCEND' : 'PRESS ' + actionKeyLabel('descend').toUpperCase() + ' OR CLICK TO DESCEND') : 'SEALED :: SLAY ' + game.getKillsToUnseal() + ' MORE');
       this.prompt.style.opacity = '1';
-      this.prompt.classList.toggle('actionable', touch && open);
+      this.prompt.classList.toggle('actionable', open);
     } else {
       this.prompt.style.opacity = '0';
       this.prompt.classList.remove('actionable');

@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { loadModels } from './render/models.js';
 import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
-import { isTouch, onTouchModeChange } from './core/device.js';
+import { isTouch, onTouchModeChange, pointer } from './core/device.js';
 import { SAVE_VERSION, deleteSave, latestSave, listSaves, onSavesChange, readSave } from './core/saves.js';
 import { sfx } from './audio/sfx.js';
 
@@ -264,6 +264,10 @@ function renderMenuControls() {
     menuControls.appendChild(div);
   };
   row(['up', 'left', 'down', 'right'].map(actionKeyLabel), 'move');
+  if (pointer() === 'trackpad') {
+    row(['2 fingers'], 'swipe to turn and tilt the camera');
+    row(['Pinch'], 'zoom');
+  }
   // the spell bar's ten slots share one line
   const slots = Actions.filter((a) => /^slot\d+$/.test(a.id));
   for (const action of Actions) {
@@ -273,8 +277,13 @@ function renderMenuControls() {
       row([actionKeyLabel(action.id)], action.label.toLowerCase());
     }
   }
-  row(['Wheel'], 'zoom');
+  if (pointer() !== 'trackpad') {
+    row(['Wheel'], 'zoom');
+  }
   row(['Esc'], 'pause');
+  if (pointer() !== 'trackpad') {
+    row(['Trackpad?'], 'Controls, Pointer: Trackpad puts magic missile on Space and turns the camera with two fingers');
+  }
 }
 renderMenuControls();
 onBindingsChange(renderMenuControls);

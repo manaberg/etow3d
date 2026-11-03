@@ -1,8 +1,15 @@
 import { actionFor } from './bindings.js';
-import { recentTouch } from './device.js';
+import { isTouch, pointer, recentTouch } from './device.js';
 
 // px the mouse may wander between press and release for it to be a click
 const CLICK_SLOP = 6;
+// wheel deltas given in lines or pages, in px
+const LINE_PX = 16;
+const PAGE_PX = 400;
+// a pinch zooms by e^(PINCH_RATE px) per px of wheel, at most PINCH_MAX px
+// an event (a mouse's ctrl + wheel notch stays a modest step)
+const PINCH_RATE = 0.01;
+const PINCH_MAX = 25;
 
 // Keyboard and mouse input, mapped to actions through the rebindable bindings
 // (bindings.js). `pressed` is edge-triggered per simulation step: presses
@@ -14,6 +21,12 @@ const CLICK_SLOP = 6;
 // screen (ui/touch.js) the on-screen controls press the same actions, set
 // `stick` and the aim, and tap() stands in for a click; the mouse events a
 // browser makes up after a touch are ignored.
+//
+// The wheel: a mouse's zooms a notch at a time (takeWheel). With a trackpad
+// (device.js pointer) two fingers swiping turn and tilt the camera instead
+// (takeSwipe), along whichever way they mostly go. A pinch zooms either way
+// (takeZoom): browsers send a trackpad's pinch as the wheel with ctrl held,
+// and Safari as gesture events.
 export class Input {
   constructor(element) {
     this.element = element;
@@ -24,6 +37,18 @@ export class Input {
     this.mouse = { x: 0, y: 0, inside: false };
     this.ground = { x: 0, y: 0 };
     this.wheel = 0;
+    // a trackpad's swipe (wheel px) and a pinch (a zoom factor) not yet taken
+    this.swipe = { x: 0, y: 0 };
+    this.zoom = 1;
+    this.gesture = null;
+    // the wheel moved sideways, as a trackpad's fingers do (game.js suggests
+    // picking the trackpad on the controls screen)
+    this.swiped = false;
+    // the ground under the mouse (game.js sets it each frame; null on a
+    // touch screen), and whether the mouse moved over the view since the
+    // last frame read it (ui/touch.js)
+    this.pointer = null;
+    this.moved = false;
     this.look = { x: 0, y: 0 };
     // the on-screen joystick: x right, y down on the screen, length up to 1
     this.stick = { x: 0, y: 0 };
@@ -89,6 +114,7 @@ export class Input {
       this.mouse.x = e.clientX - rect.left;
       this.mouse.y = e.clientY - rect.top;
       this.mouse.inside = true;
+      this.moved = true;
     });
     // a drag may cross the HUD or leave the window: follow it on the window
     this.on(window, 'mousemove', (e) => {
@@ -109,8 +135,50 @@ export class Input {
     this.on(element, 'contextmenu', (e) => e.preventDefault());
     this.on(element, 'wheel', (e) => {
       e.preventDefault();
-      this.wheel += Math.sign(e.deltaY);
+      const px = e.deltaMode === 1 ? LINE_PX : (e.deltaMode === 2 ? PAGE_PX : 1);
+      let dx = e.deltaX * px;
+      let dy = e.deltaY * px;
+      if (e.ctrlKey) {
+        // a pinch (Safari's arrives as gesture events instead)
+        if (!this.gesture) {
+          this.zoom *= Math.exp(Math.max(-PINCH_MAX, Math.min(PINCH_MAX, dy)) * PINCH_RATE);
+        }
+        return;
+      }
+      if (pointer() === 'trackpad') {
+        if (Math.abs(dx) > Math.abs(dy) * 2) {
+          dy = 0;
+        } else if (Math.abs(dy) > Math.abs(dx) * 2) {
+          dx = 0;
+        }
+        this.swipe.x += dx;
+        this.swipe.y += dy;
+        return;
+      }
+      if (dx && !e.shiftKey) {
+        this.swiped = true;
+      }
+      this.wheel += Math.sign(dy);
     }, { passive: false });
+    // Safari's pinch on a trackpad (a touch screen's pinch is ui/touch.js's)
+    this.on(element, 'gesturestart', (e) => {
+      if (isTouch()) {
+        return;
+      }
+      e.preventDefault();
+      this.gesture = { scale: 1 };
+    });
+    this.on(element, 'gesturechange', (e) => {
+      if (isTouch() || !this.gesture || !(e.scale > 0)) {
+        return;
+      }
+      e.preventDefault();
+      this.zoom *= this.gesture.scale / e.scale;
+      this.gesture.scale = e.scale;
+    });
+    this.on(element, 'gestureend', () => {
+      this.gesture = null;
+    });
   }
 
   on(target, type, fn, options) {
@@ -154,6 +222,22 @@ export class Input {
     const w = this.wheel;
     this.wheel = 0;
     return w;
+  }
+
+  // A trackpad's two-finger swipe since the last call (wheel px: x right,
+  // y down, as the page would scroll).
+  takeSwipe() {
+    const swipe = { x: this.swipe.x, y: this.swipe.y };
+    this.swipe.x = 0;
+    this.swipe.y = 0;
+    return swipe;
+  }
+
+  // The zoom factor pinched since the last call (above 1 draws the camera back).
+  takeZoom() {
+    const zoom = this.zoom;
+    this.zoom = 1;
+    return zoom;
   }
 
   // Mouse movement (CSS px) while the camera was dragged, since the last call.

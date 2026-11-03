@@ -3,6 +3,7 @@ import { isTouch, onTouchModeChange } from '../core/device.js';
 import { setting } from '../core/settings.js';
 import { Arcana } from '../entities/arcana.js';
 import { Item } from '../entities/items.js';
+import { BarSlots } from '../entities/spellbar.js';
 import { buildAimGuide } from '../render/models.js';
 
 // how far (CSS px) and how long (ms) a finger may move and stay for a tap
@@ -17,8 +18,10 @@ const STICK_DEAD = 8;
 // reaches the spell's full range (CSS px)
 const AIM_DEAD = 16;
 const AIM_DRAG = 90;
-// the wizard aims by itself at foes in sight this close (sim px)
+// the wizard aims by itself at foes in sight this close (sim px); with
+// auto-aim, the mouse pointing this close to a foe's body picks it
 const AUTO_RANGE = 520;
+const POINT_SLOP = 20;
 // a bolt aimed by hand bends onto a foe this close to its line (radians)
 const SNAP_ANGLE = 0.3;
 // a finger turns the camera this much more than the mouse does per pixel
@@ -105,6 +108,14 @@ const COMPASS = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy=
 //   clicks (an item's name picks it up; in a battle's commander mode it
 //   selects regiments and orders them, battle.js tap);
 // - buttons for the stairs, a battle's orders, and the camera's compass.
+//
+// With a mouse or a trackpad, auto-aim (settings.js, its key in the game)
+// aims the same way, for keyboard play: the wizard aims at the ringed foe
+// by itself and the camera turns to face it, so W closes in, S backs away
+// and A and D circle it. Pointing at a foe (moving the cursor onto it, no
+// click) makes it the target until it falls or goes out of sight. A spell's
+// key casts as a tap on its button would, and a click still clicks at the
+// cursor. Not in a battle's commander mode, where the mouse gives orders.
 export class TouchControls {
   constructor(game) {
     this.game = game;
@@ -118,8 +129,10 @@ export class TouchControls {
     // until a step has read it
     this.aiming = null;
     this.lock = null;
-    // the foe the wizard aims at by itself, and the way it last walked
+    // the foe the wizard aims at by itself, the one pointed at with
+    // auto-aim, and the way it last walked
     this.target = null;
+    this.chosen = null;
     this.facing = { x: 0, y: -1 };
     this.look = { x: 0, y: 0 };
     this.lookedAt = -Infinity;
@@ -214,6 +227,22 @@ export class TouchControls {
       this.input.mouse.inside = false;
       this.layout();
     });
+  }
+
+  // Whether the wizard aims by itself: always with the touch controls; with
+  // a mouse or trackpad while auto-aim is on, but not in a battle's
+  // commander mode.
+  autoAim() {
+    if (isTouch()) {
+      return true;
+    }
+    const battle = this.game.battle;
+    return !!setting('autoAim') && !(battle && battle.commander);
+  }
+
+  // The camera was turned by hand: it leaves the target alone for a moment.
+  turnedByHand() {
+    this.lookedAt = performance.now();
   }
 
   // Whether the game takes the fingers now (no screen over it).
@@ -429,7 +458,7 @@ export class TouchControls {
   followYaw(dt) {
     const game = this.game;
     const player = game.player;
-    if (!isTouch() || !player || player.dead || (game.battle && game.battle.commander) ||
+    if (!this.autoAim() || !player || player.dead || (game.battle && game.battle.commander) ||
       performance.now() - this.lookedAt < FOLLOW_PAUSE) {
       return 0;
     }
@@ -493,10 +522,17 @@ export class TouchControls {
     return { x: d.x / len, y: d.y / len };
   }
 
-  // The way the wizard is heading: the joystick's, else the way it last walked.
+  // The way the wizard is heading: the joystick's (or the move keys'), else
+  // the way it last walked.
   heading() {
-    const s = this.input.stick;
-    return s.x || s.y ? this.screenDir(s.x, s.y) : this.facing;
+    const input = this.input;
+    let x = input.stick.x;
+    let y = input.stick.y;
+    if (input.state('up')) { y -= 1; }
+    if (input.state('down')) { y += 1; }
+    if (input.state('left')) { x -= 1; }
+    if (input.state('right')) { x += 1; }
+    return x || y ? this.screenDir(x, y) : this.facing;
   }
 
   // Aiming looks past pillars, shelves and ribs (only walls hide a foe), so
@@ -515,8 +551,19 @@ export class TouchControls {
   pickTarget() {
     const player = this.game.player;
     const c = player.center();
+    const foes = this.foes();
+    // the foe pointed at (auto-aim with a mouse or trackpad) while it is
+    // still one of this stage's, a little further than AUTO_RANGE and in sight
+    const chosen = this.chosen;
+    if (chosen) {
+      const p = chosen.center();
+      if (foes.includes(chosen) && Math.hypot(p.x - c.x, p.y - c.y) < AUTO_RANGE * 1.2 && this.inSight(c, p)) {
+        return chosen;
+      }
+      this.chosen = null;
+    }
     const near = [];
-    for (const e of this.foes()) {
+    for (const e of foes) {
       const p = e.center();
       const d = Math.hypot(p.x - c.x, p.y - c.y);
       if (d < AUTO_RANGE) {
@@ -538,6 +585,64 @@ export class TouchControls {
       return kept.e;
     }
     return best.e;
+  }
+
+  // Auto-aim with a mouse or trackpad: moving the cursor onto a foe (or
+  // close to its body) in reach and in sight makes it the target.
+  pointAt() {
+    const input = this.input;
+    const g = input.pointer;
+    if (!input.moved || !g || !input.mouse.inside) {
+      return;
+    }
+    input.moved = false;
+    const c = this.game.player.center();
+    let best = null;
+    let bestD = Infinity;
+    for (const e of this.foes()) {
+      if (!e.containsPoint(g.x, g.y, POINT_SLOP)) {
+        continue;
+      }
+      const p = e.center();
+      const d = Math.hypot(p.x - g.x, p.y - g.y);
+      if (d < bestD && Math.hypot(p.x - c.x, p.y - c.y) < AUTO_RANGE && this.inSight(c, p)) {
+        best = e;
+        bestD = d;
+      }
+    }
+    if (best) {
+      this.chosen = best;
+    }
+  }
+
+  // Auto-aim with keys: a spell's key aims as a tap on its button would, so
+  // only blink (the way the wizard heads) and telekinesis (the nearest item)
+  // need more than the target; a click goes to the ground under the mouse
+  // (an item's name). Held until a step has read it. A blink with nowhere
+  // to land, or telekinesis with no item in reach, does nothing.
+  keyAim() {
+    const input = this.input;
+    const player = this.game.player;
+    const hold = (point, target) => {
+      this.lock = { point, target, until: input.steps + 1 };
+      return this.lock;
+    };
+    if (input.queued.has('click') && input.pointer) {
+      return hold({ x: input.pointer.x, y: input.pointer.y }, null);
+    }
+    for (let i = 0; i < player.slotLimit && i < BarSlots.length; i++) {
+      const spell = player.bar[i];
+      const action = BarSlots[i].action;
+      if ((spell !== 'blink' && spell !== 'tele') || !input.queued.has(action)) {
+        continue;
+      }
+      const aim = this.resolve({ aim: AIM[spell], spell, x0: 0, y0: 0, x: 0, y: 0 });
+      if (aim.point) {
+        return hold(aim.point, aim.target);
+      }
+      input.queued.delete(action);
+    }
+    return null;
   }
 
   // Aim assist for a bolt aimed by hand: the foe in sight closest to its
@@ -656,16 +761,21 @@ export class TouchControls {
     this.checkOrientation();
     this.cursorShown = false;
     this.guide.visible = false;
-    if (!isTouch()) {
+    const touch = isTouch();
+    if (!this.autoAim()) {
       this.cancelZone.classList.add('hidden');
+      this.chosen = null;
+      input.moved = false;
       return false;
     }
-    if (!this.playing() && this.fingers.size) {
-      this.releaseAll();
+    if (touch) {
+      if (!this.playing() && this.fingers.size) {
+        this.releaseAll();
+      }
+      this.showStick();
+      this.showBattle();
+      this.showCompass();
     }
-    this.showStick();
-    this.showBattle();
-    this.showCompass();
     const player = game.player;
     this.cancelZone.classList.toggle('hidden', !(this.aiming && !this.aiming.aim.hold && this.dragged(this.aiming)));
     this.cancelZone.classList.toggle('over', !!(this.aiming && this.aiming.cancel));
@@ -675,6 +785,9 @@ export class TouchControls {
     const speed = Math.hypot(player.vel.x, player.vel.y);
     if (speed > 1) {
       this.facing = { x: player.vel.x / speed, y: player.vel.y / speed };
+    }
+    if (!touch) {
+      this.pointAt();
     }
     this.target = this.pickTarget();
     let aim = null;
@@ -687,6 +800,8 @@ export class TouchControls {
       this.lock = null;
       if (this.aiming) {
         aim = this.resolve(this.aiming);
+      } else if (!touch) {
+        aim = this.keyAim();
       }
     }
     let point = aim && aim.point;

@@ -5,6 +5,13 @@
 // real mouse turns them off. Keys work either way. The controls screen can
 // pin one mode instead ('on' or 'off'), kept in this browser's localStorage.
 // The mode shows as the `touch` class on <body>.
+//
+// On a computer the controls screen also says what moves the pointer: a
+// mouse or a laptop's trackpad. A browser cannot tell them apart, so it is
+// the player's choice (the game only suggests it, once, when the wheel moves
+// sideways as a trackpad's two fingers do). Each keeps its own keys
+// (bindings.js), and a trackpad's two-finger swipe turns the camera where
+// a mouse wheel zooms (input.js).
 
 export const TouchModes = [
   { id: 'auto', label: 'Auto' },
@@ -12,7 +19,13 @@ export const TouchModes = [
   { id: 'off', label: 'Off' }
 ];
 
+export const Pointers = [
+  { id: 'mouse', label: 'Mouse' },
+  { id: 'trackpad', label: 'Trackpad' }
+];
+
 const STORAGE_KEY = 'etow3d.touch';
+const POINTER_KEY = 'etow3d.pointer';
 
 // browsers follow a touch with mouse events of their own for a moment
 const MOUSE_AFTER_TOUCH = 800;
@@ -21,6 +34,12 @@ let preference = loadPreference();
 let detected = startsOnTouch();
 let lastTouch = -Infinity;
 const listeners = new Set();
+let pointerKind = loadPointer();
+// whether the player ever picked a pointer (else a trackpad's swipe brings
+// the suggestion to pick one), and whether this page already suggested it
+let pointerChosen = pointerKind !== null;
+let suggested = false;
+const pointerListeners = new Set();
 
 function startsOnTouch() {
   try {
@@ -40,6 +59,54 @@ function loadPreference() {
   } catch {
     return 'auto';
   }
+}
+
+function loadPointer() {
+  try {
+    const saved = localStorage.getItem(POINTER_KEY);
+    return Pointers.some((p) => p.id === saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+// 'mouse' or 'trackpad'.
+export function pointer() {
+  return pointerKind || 'mouse';
+}
+
+export function setPointer(id) {
+  if (!Pointers.some((p) => p.id === id)) {
+    return;
+  }
+  const was = pointer();
+  pointerKind = id;
+  pointerChosen = true;
+  try {
+    localStorage.setItem(POINTER_KEY, id);
+  } catch {
+    // not saved: the choice still holds for this session
+  }
+  if (id !== was) {
+    for (const fn of pointerListeners) {
+      fn(id);
+    }
+  }
+}
+
+export function onPointerChange(fn) {
+  pointerListeners.add(fn);
+  return () => pointerListeners.delete(fn);
+}
+
+// The wheel moved the way a trackpad's fingers do while the game takes a
+// mouse: true the first time on this page, if no pointer was ever picked.
+export function suggestTrackpad() {
+  if (pointerChosen || suggested || pointer() === 'trackpad') {
+    return false;
+  }
+  suggested = true;
+  return true;
 }
 
 export function isTouch() {
