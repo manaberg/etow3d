@@ -554,7 +554,8 @@ model. Loot is rolled as in Diablo (`src/entities/gear.js`):
 Deeper floors favour the rarer kinds. `I` opens the inventory: the five worn slots, a bag of
 twenty, the wizard's resulting stats, and the selected item (its base, properties and set)
 compared with what it would replace; double-click to wear or take off, or drop an item on
-the floor. You start in an apprentice's kit; the 2D game's rings and new gear drop from
+the floor. On a touch screen, tapping an item scrolls the panel to its buttons (Wear, Take
+off, Drop), which are made for a thumb, with Drop kept apart from Wear. You start in an apprentice's kit; the 2D game's rings and new gear drop from
 champions, and the orcs wear gear too (casters now and then a hat or robe, champions often
 a ring or a robe, the orc mage a rare hat, the cleric the High Priest's Mitre), which makes
 them tougher, faster or harder to hurt and drops when they fall. Your reflection wears the Red
