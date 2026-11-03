@@ -1,5 +1,6 @@
 import { Slots, Rarities, Stats, Sets, Gear, formatStat, slotFits, setPiecesWorn } from '../entities/gear.js';
 import { actionKeyLabel } from '../core/bindings.js';
+import { isTouch } from '../core/device.js';
 import { SpellbookPanel } from './spellbook.js';
 
 // The inventory screen: the worn gear in its five slots, the bag, the
@@ -7,6 +8,10 @@ import { SpellbookPanel } from './spellbook.js';
 // with what it would replace. It sits at the right so the wizard stays in
 // view in the middle, wearing each change as it is made. Its second tab is
 // the spellbook (ui/spellbook.js).
+//
+// On a touch screen the panel scrolls (a phone held sideways shows little of
+// it), so a tapped item's buttons are scrolled into view, a redraw keeps the
+// panel where it was, and the buttons are made for a thumb (style.css).
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -96,6 +101,7 @@ export class InventoryScreen {
       if (opening || tab !== this.tab) {
         this.selected = null;
         this.hovered = null;
+        this.renderedTab = null;
         this.spellbook.reset();
       }
       this.tab = tab;
@@ -110,6 +116,7 @@ export class InventoryScreen {
       this.selected = { item, slot: this.slotOf(item) };
     }
     this.render();
+    this.revealActions();
   }
 
   unequip(slot) {
@@ -120,6 +127,16 @@ export class InventoryScreen {
       this.selected = { item, slot: null };
     }
     this.render();
+    this.revealActions();
+  }
+
+  // On a touch screen: scrolls the panel just enough to show the selected
+  // item's buttons, which sit below the bag.
+  revealActions() {
+    const actions = isTouch() && this.details && this.details.querySelector('.inv-actions');
+    if (actions) {
+      actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 
   drop(item) {
@@ -143,6 +160,9 @@ export class InventoryScreen {
   render() {
     const inv = this.inventory;
     const node = this.node;
+    // a redraw of the gear tab (wear, take off, drop) keeps the panel's place
+    const keep = this.renderedTab === 'gear' && this.tab === 'gear' ? node.scrollTop : 0;
+    this.renderedTab = this.tab;
     node.innerHTML = '';
     // the spellbook opens wider, like a book
     node.classList.toggle('book', this.tab === 'spells');
@@ -196,7 +216,10 @@ export class InventoryScreen {
 
     this.details = el('div', 'inv-details', node);
     this.renderDetails();
-    el('div', 'map-line dim inv-help', node, 'CLICK TO SELECT :: DOUBLE CLICK TO WEAR OR TAKE OFF :: ' + actionKeyLabel('inventory') + ' / ESC TO CLOSE');
+    el('div', 'map-line dim inv-help', node, isTouch()
+      ? 'TAP AN ITEM, THEN WEAR, TAKE OFF OR DROP IT'
+      : 'CLICK TO SELECT :: DOUBLE CLICK TO WEAR OR TAKE OFF :: ' + actionKeyLabel('inventory') + ' / ESC TO CLOSE');
+    node.scrollTop = keep;
   }
 
   tile(parent, item, ref) {
@@ -222,6 +245,7 @@ export class InventoryScreen {
         t.classList.toggle('selected', t.item === item);
       }
       this.renderDetails();
+      this.revealActions();
     };
     tile.ondblclick = () => {
       if (ref.slot) {
@@ -230,11 +254,19 @@ export class InventoryScreen {
         this.equip(item);
       }
     };
+    // hovering previews an item (not on a touch screen, where the mouse
+    // events a tap makes up would redraw the buttons under the finger)
     tile.onmouseenter = () => {
+      if (isTouch()) {
+        return;
+      }
       this.hovered = ref;
       this.renderDetails();
     };
     tile.onmouseleave = () => {
+      if (isTouch()) {
+        return;
+      }
       this.hovered = null;
       this.renderDetails();
     };

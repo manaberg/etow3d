@@ -2398,6 +2398,30 @@ body.touch .hud-inventory.book {
   width: min(600px, calc(100vw - 12px));
 }
 
+/* an item's buttons (wear, take off, drop): thumb-sized, and Drop kept to
+   the far end, away from Wear */
+body.touch .inv-actions {
+  gap: 12px;
+  margin-top: 14px;
+  /* scrolled into view with room below (ui/inventory.js revealActions) */
+  scroll-margin-bottom: 14px;
+}
+
+body.touch .hud .inv-actions button {
+  min-width: 120px;
+  min-height: 48px;
+  padding: 12px 20px;
+  font-size: 14px;
+}
+
+body.touch .hud .inv-actions button.secondary {
+  margin-left: auto;
+}
+
+body.touch .inv-help {
+  font-size: 10px;
+}
+
 body.touch .sb-keybind,
 body.touch .sb-key-row {
   display: none;
