@@ -166,7 +166,34 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 On a touch screen the main menu offers the **mobile descent** first (tunnels and duels, no
 battles; see **The game**). The game is played in landscape: held upright, a phone shows a note and
 the game waits until it is turned back. On an iPhone, Safari's **Share, Add to Home Screen** opens it full screen
-(`public/manifest.webmanifest` and the icons in `public/icons/`).
+(`public/manifest.webmanifest` and the icons in `public/icons/`), and offline (below).
+
+### Playing offline
+
+Once the game has loaded on a device it plays there without a network, as an installed app
+(a phone's home-screen app on a plane, say). A service worker (`src/sw.js`) keeps every file
+of the build in the browser's cache, about 4 MB: the page, the bundle, the sound worker, the
+models, the icons and the font, which is kept with the game (`public/fonts/`, Silkscreen
+under the SIL Open Font License) rather than fetched from Google Fonts. The game opens from
+that cache with or without a network, whatever the address (`/`, `/?mode=mobile`), so a
+plane's captive Wi-Fi portal cannot stand in for it. Saves were already kept in the
+browser (**Saved games**); only the score post needs the backend, and it fails quietly.
+
+The main menu says how it stands under its buttons (`src/core/offline.js`): **Saving the game
+on this device for offline play...**, then **Ready to play offline.** with a green lamp. A
+new version, once deployed, saves itself in the background and waits, so a game in progress
+keeps the files it started with; the menu then says **A new version is ready.** with a
+**Reload** button, which brings it in and drops the old one's files. A home-screen app looks
+for a new version whenever it comes back to the front.
+
+On an iPhone: add it to the Home Screen from Safari, then open it **from the Home Screen icon**
+while online and wait for the green lamp. A home-screen app keeps its own storage, apart
+from Safari's tabs, so its saves and its offline copy are its own: play from the icon.
+
+The build writes the worker: a plugin in `vite.config.js` fills `src/sw.js` in with the list
+of the build's files (dotfiles left out, as Firebase Hosting leaves them) and a version made
+from their contents, and writes it to `dist/sw.js`, so any change makes a new version. The
+dev server registers no worker.
 
 ## The game
 
@@ -644,7 +671,8 @@ body (`HitSounds`), spells as they are spent (`SpendSounds`), arcana casts in `A
 index.html, src/main.js     menu and start-up
 src/game.js                 game state, the run's stages, spawning, aggro and navigation helpers
 src/core/                   constants, rebindable input bindings (a set per mouse or trackpad),
-                            touch, mouse or trackpad, time stop, entity base class
+                            touch, mouse or trackpad, offline play, time stop, entity base class
+src/sw.js                   the service worker for offline play (the build fills it in)
 src/world/                  dungeon generator, level plans and trials, floor looks, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
                             and warlord, duel wizard and reflection, battles, projectiles and
@@ -652,6 +680,7 @@ src/entities/               mage (spell book), spell bar, levels and ranks, orcs
 src/render/                 Three.js renderer, dungeon meshes, props, ambience, character
                             models, textures and particle effects
 public/models/              character models (.glb) built in Blender
+public/fonts/               the Silkscreen font and its licence
 tools/blender/              the Blender scripts that build them
 src/ui/                     HUD, touch controls and auto-aim, minimap, inventory and spellbook,
                             spell icons, controls screen
