@@ -13,9 +13,8 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M16 2 L25 26 H7 Z%22 fill=%22%232a4fa8%22/%3E%3Ccircle cx=%2216%22 cy=%2226%22 r=%224%22 fill=%22%23ffb85a%22/%3E%3C/svg%3E" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="preload" href="/fonts/silkscreen-400-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/silkscreen-700-latin.woff2" as="font" type="font/woff2" crossorigin />
 </head>
 <body>
   <div id="viewport"></div>
@@ -33,6 +32,10 @@
         <button type="button" id="menu-new" class="menu-button">New game</button>
         <button type="button" id="menu-load" class="menu-button secondary">Load game</button>
         <button type="button" id="open-controls" class="menu-button secondary">Controls</button>
+      </div>
+      <div class="offline-status hidden" id="offline-status">
+        <span id="offline-text"></span>
+        <button type="button" id="offline-update" class="secondary hidden">Reload</button>
       </div>
       <div class="menu-modes menu-panel hidden" id="menu-new-panel">
         <div class="mode">

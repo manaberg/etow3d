@@ -6,6 +6,7 @@ import { openControls } from './ui/controls.js';
 import { isTouch, onTouchModeChange, pointer } from './core/device.js';
 import { SAVE_VERSION, deleteSave, latestSave, listSaves, onSavesChange, readSave } from './core/saves.js';
 import { sfx } from './audio/sfx.js';
+import { applyUpdate, offlineStatus, onOfflineStatus, startOffline } from './core/offline.js';
 
 // the sound effects render while the menu shows, and play from the first
 // touch of the page on
@@ -238,7 +239,7 @@ const TOUCH_GUIDE = [
   ['Loot', 'tap an item\'s name on the floor; scrolls and potions are picked up by walking over them'],
   ['Map', 'tap the map to enlarge it; the buttons at the top open the spellbook, the bag and the pause screen'],
   ['Battles', 'COMMAND to lead the army: tap your soldiers, then tap ground to march or a foe to attack'],
-  ['iPhone', 'Share, then Add to Home Screen, to play full screen']
+  ['iPhone', 'Share, then Add to Home Screen, to play full screen; open it from there once online, and it plays offline once the menu says so']
 ];
 function renderMenuControls() {
   menuControls.textContent = '';
@@ -299,6 +300,30 @@ function renderModeButtons() {
 renderModeButtons();
 onTouchModeChange(renderModeButtons);
 document.getElementById('open-controls').addEventListener('click', () => openControls());
+
+// Offline play (core/offline.js): how it stands, under the menu's buttons. A
+// new version waits for the player to reload into it here, where no game
+// is in progress.
+const offlineBox = document.getElementById('offline-status');
+const offlineText = document.getElementById('offline-text');
+const offlineUpdate = document.getElementById('offline-update');
+const OFFLINE_TEXT = {
+  saving: 'Saving the game on this device for offline play...',
+  ready: 'Ready to play offline.',
+  update: 'A new version is ready.',
+  failed: 'Could not save the game for offline play; it still plays online.'
+};
+function renderOffline(state) {
+  const text = OFFLINE_TEXT[state];
+  offlineBox.classList.toggle('hidden', !text);
+  offlineBox.dataset.state = state;
+  offlineText.textContent = text || '';
+  offlineUpdate.classList.toggle('hidden', state !== 'update');
+}
+offlineUpdate.addEventListener('click', applyUpdate);
+onOfflineStatus(renderOffline);
+renderOffline(offlineStatus());
+startOffline();
 
 // a new run; the page's address stays the menu's, so reloading it offers to
 // continue rather than starting another
