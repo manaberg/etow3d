@@ -19,19 +19,22 @@ import { Kits, Inventory, outfit, rollGear, applyGearPools } from './entities/ge
 import { DuelLoot } from './entities/duelLoot.js';
 import { spawnReflection, rollSpoils, rollLevelPicks, spoilName } from './entities/mirror.js';
 import { actionKeyLabel } from './core/bindings.js';
-import { setting } from './core/settings.js';
+import { setting, setToggle } from './core/settings.js';
 import { autosaveId, deleteSave, newRunId, newSaveId, writeSave } from './core/saves.js';
 import { Battle } from './entities/battle.js';
 import { Soldier } from './entities/soldier.js';
 import { Hud } from './ui/hud.js';
 import { TouchControls, TOUCH_TURN } from './ui/touch.js';
-import { isTouch } from './core/device.js';
+import { isTouch, suggestTrackpad } from './core/device.js';
 import { sfx } from './audio/sfx.js';
 
-// camera: radians turned per pixel the mouse is dragged, and per second a
-// turn key is held, at 100% (the controls screen scales both)
+// camera: radians turned per pixel the mouse is dragged (or a trackpad's two
+// fingers swipe), and per second a turn key is held, at 100% (the controls
+// screen scales them); zoom steps (a wheel notch each) per second a zoom key
+// is held, after the one its press makes
 const CAMERA_DRAG = 0.003;
 const CAMERA_TURN = 1.4;
+const ZOOM_KEYS = 6;
 
 // Power word kill: damage to the target (at least its own pwkillDamage) and to
 // every orc within the splash radius around it.
@@ -1367,16 +1370,28 @@ export class Game {
       this.hud.lootNames = !this.hud.lootNames;
       this.hud.toast(this.hud.lootNames ? 'ITEM NAMES SHOWN' : 'ITEM NAMES ONLY UNDER THE CURSOR', '#f3e6c4');
     }
-    this.gfx.zoomBy(this.input.takeWheel());
-    this.turnCamera(dt);
-    // a touch screen aims by itself or by finger (ui/touch.js); else the
-    // ground under the mouse is the aim
-    if (!this.touch.update() && (this.input.mouse.inside || this.input.mouse.x || this.input.mouse.y)) {
-      const g = this.gfx.pickGround(this.input.mouse);
-      if (g) {
-        this.input.ground.x = g.x;
-        this.input.ground.y = g.y;
+    if (this.input.consume('auto_aim')) {
+      this.toggleAutoAim();
+    }
+    if (this.input.swiped) {
+      this.input.swiped = false;
+      if (suggestTrackpad()) {
+        this.hud.toast('ON A TRACKPAD? PICK IT IN CONTROLS :: POINTER (SWIPE TO TURN, MAGIC MISSILE ON SPACE)', '#9fe0ff');
       }
+    }
+    this.zoomCamera(dt);
+    this.turnCamera(dt);
+    // the ground under the mouse; a touch screen, or auto-aim, aims by
+    // itself (ui/touch.js), else that is the aim
+    const mouse = this.input.mouse;
+    if (isTouch()) {
+      this.input.pointer = null;
+    } else if (mouse.inside || mouse.x || mouse.y) {
+      this.input.pointer = this.gfx.pickGround(mouse) || this.input.pointer;
+    }
+    if (!this.touch.update() && this.input.pointer) {
+      this.input.ground.x = this.input.pointer.x;
+      this.input.ground.y = this.input.pointer.y;
     }
     if (!this.paused && !this.inventoryOpen && !this.levelPick && this.state === 'playing') {
       this.acc += dt;
@@ -1412,19 +1427,55 @@ export class Game {
     const turn = CAMERA_TURN * setting('cameraTurn');
     const finger = this.touch.takeLook();
     const touchDrag = CAMERA_DRAG * TOUCH_TURN * setting('touchTurn');
+    const swipe = input.takeSwipe();
+    // the fingers turn the view the way they go, as a drag does: with
+    // natural scrolling, fingers going right scroll the page left
+    const swipeTurn = CAMERA_DRAG * setting('swipeTurn') * (setting('swipeInvert') ? -1 : 1);
     // commander mode: a left-button drag selects regiments instead
     let yaw = this.battle && this.battle.drag ? 0 : -look.x * drag;
     let pitch = this.battle && this.battle.drag ? 0 : look.y * drag * 0.7;
     yaw -= finger.x * touchDrag;
     pitch += finger.y * touchDrag * 0.7;
-    // and on a touch screen it follows behind the walking wizard
-    yaw += this.touch.followYaw(dt);
+    yaw += swipe.x * swipeTurn;
+    pitch -= swipe.y * swipeTurn * 0.7;
     if (input.held.has('camera_left')) { yaw += turn * dt; }
     if (input.held.has('camera_right')) { yaw -= turn * dt; }
+    // turned by hand: the camera leaves the target alone for a moment
+    if (yaw || pitch) {
+      this.touch.turnedByHand();
+    }
+    // and on a touch screen, or with auto-aim, it turns to face the target
+    // (and follows behind the walking wizard on a touch screen)
+    yaw += this.touch.followYaw(dt);
     this.gfx.rotate(yaw, pitch);
     if (input.consume('camera_reset')) {
       this.gfx.resetView();
     }
+  }
+
+  // The wheel or a pinch, and the zoom keys: a notch on the press, then
+  // smoothly while held.
+  zoomCamera(dt) {
+    const input = this.input;
+    let steps = input.takeWheel();
+    if (input.consume('zoom_in')) { steps -= 1; }
+    if (input.consume('zoom_out')) { steps += 1; }
+    if (input.held.has('zoom_in')) { steps -= ZOOM_KEYS * dt; }
+    if (input.held.has('zoom_out')) { steps += ZOOM_KEYS * dt; }
+    if (steps) {
+      this.gfx.zoomBy(steps);
+    }
+    const pinch = input.takeZoom();
+    if (pinch !== 1) {
+      this.gfx.zoomScale(pinch);
+    }
+  }
+
+  // Auto-aim on or off, from its key or the HUD's button.
+  toggleAutoAim() {
+    const on = !setting('autoAim');
+    setToggle('autoAim', on);
+    this.hud.toast(on ? 'AUTO-AIM :: AT THE NEAREST FOE, OR THE ONE YOU POINT AT' : 'AUTO-AIM OFF :: AIM WITH THE CURSOR', '#9fe0ff');
   }
 
   render(dt) {
@@ -1474,8 +1525,8 @@ export class Game {
     const s = hostile || item || own ? 1.6 + Math.sin(time * 8) * 0.1 : 1;
     ring.scale.set(s, s, s);
     ring.rotation.z = time;
-    // on a touch screen it marks what the wizard aims at
-    this.cursor.visible = (touch ? this.touch.cursorShown : this.input.mouse.inside) && this.state === 'playing';
+    // on a touch screen, or with auto-aim, it marks what the wizard aims at
+    this.cursor.visible = (this.touch.autoAim() ? this.touch.cursorShown : this.input.mouse.inside) && this.state === 'playing';
   }
 
   dispose() {

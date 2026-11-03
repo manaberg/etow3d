@@ -68,10 +68,10 @@ which that account may not do, hence the script.
 
 ## Controls
 
-These are the default keys. Every action can be moved to another key or mouse button from
+These are the default keys with a mouse (a laptop's trackpad has its own, below). Every action can be moved to another key or mouse button from
 **Controls** on the main menu, the pause screen or the HUD's micro menu (binding a key that is
 taken swaps the two); magic missile and the bar's slots take their keys in the spellbook
-instead (click the key under a slot, then press the new one). Two sliders on the Controls screen also set how fast the camera turns: by mouse drag and by the turn
+instead (click the key under a slot, then press the new one). Sliders on the Controls screen also set how fast the camera turns: by mouse drag, by a trackpad's swipe and by the turn
 keys, from 10% to 200%, and another how loud the sound effects play (0 turns them off; see
 **Sound effects**). Bindings, speeds and the volume are saved in the browser. For playtesting, **God mode** on
 the same screen (under PLAYTESTING) puts a **Retry** button on the death screen: the floor, duel or
@@ -85,6 +85,8 @@ health). Runs played with it record no score, a fall keeps the run's autosave, a
 | `LMB` (hold and drag) | turn the camera around the mage (left / right) and tilt it (up / down); it stays where you leave it |
 | `Z` / `X` | turn the camera left / right |
 | `V` | swing the camera back to the starting view, looking north |
+| `=` / `-` | zoom in / out (a notch a press, smoothly while held) |
+| `T` | auto-aim on or off (see **Laptop trackpad** below; also the crosshair in the HUD's micro menu) |
 | `RMB` (hold) | magic missile: darts that curve in on the foe nearest the cursor, one at first and up to three with magic missile scrolls (also shoot down stones, warlock bolts and, in the trials, the reflection's missiles) |
 | `Q` `E` `F` `R` `2` `4` `1` `3` `C` `5` | the spells on your bar, slots 1 to 10 (see **Spellbook and bar** below) |
 | `B` | spellbook: choose which spells sit on the bar and which keys cast them (the game waits while it is open) |
@@ -95,10 +97,44 @@ health). Runs played with it record no score, a fall keeps the run's autosave, a
 | `Space` | descend the stairs |
 | `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion even at full health: its 35 health may go past the maximum); gear only by clicking. In the trials all loot is picked up by walking over it |
 | `G` | survival: show item names on the floor, or only the one under the cursor |
-| Mouse wheel | zoom |
+| Mouse wheel | zoom (a pinch, or `Ctrl` + wheel, zooms as well) |
 | `M` | larger map |
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
 | `Esc` / `P` | pause |
+
+### Laptop trackpad
+
+A trackpad cannot comfortably hold the right button down while it aims, and its two-finger
+scroll would zoom in jumps, so **Controls, Pointer** can be set to **Trackpad** (a browser
+cannot tell a trackpad from a mouse, so it is the player's choice; when the wheel moves
+sideways, as two fingers do, the game suggests it once with a toast, and the main menu's key
+list says where). The mouse and the trackpad keep a set of keys each, so switching
+never loses either (`src/core/bindings.js`, `src/core/device.js`). Picking the trackpad also
+turns auto-aim on (and the mouse turns it off); either can be switched afterwards.
+
+| Trackpad | Action |
+| --- | --- |
+| `Space` (hold) | magic missile, under the left thumb while the fingers stay on `W` `A` `S` `D` and the spell keys |
+| Two fingers, swipe | turn the camera (sideways) and tilt it (up and down), the way the fingers go with natural scrolling, as a drag does; a swipe that mostly goes one way only turns or only tilts. Its own speed slider, and a switch to turn it the other way |
+| Pinch | zoom (Safari's pinch gestures too); `=` / `-` zoom where a trackpad has no pinch |
+| `Enter`, or click the prompt | descend the stairs (and start a battle at once). On a computer the stairs' prompt is always a button |
+| Click, click and drag | as with a mouse: an item's name, the camera, commander mode's selection; a two-finger click is the right click that orders regiments |
+
+**Auto-aim** (`T`, the crosshair button in the micro menu, or the switch on the Controls
+screen) plays as the touch controls do (`src/ui/touch.js`), for keyboard play: the wizard
+aims by itself at the nearest foe in sight, marked by the cursor ring, and the camera turns to
+face it, so `W` closes in, `S` backs away and `A` / `D` circle it (the touch screen's "camera
+faces the target" slider sets how fast, or turns it off; turning the camera by hand leaves it
+be for a moment). Pointing at another foe, just moving the cursor onto it, makes it the target
+until it falls or goes out of sight. Magic missile, bolts and spells cast at a foe go at the
+ringed foe; spells cast at a spot land on it; blink jumps the way the move keys point (else
+the way the wizard last walked), as far as open floor allows; telekinesis takes the nearest
+item. A click still clicks where the cursor is. In a battle's commander mode the mouse aims
+and orders as usual, and `K` marches to the cursor either way.
+
+Laptops often rest the trackpad while keys are held, which a game played with both cannot
+have: if the cursor or taps stop while you hold keys, set Windows' Touchpad sensitivity to
+Most sensitive, or turn off Linux's Disable while typing (the Controls screen says so).
 
 ### Touch screens
 
@@ -606,8 +642,8 @@ body (`HitSounds`), spells as they are spent (`SpendSounds`), arcana casts in `A
 ```
 index.html, src/main.js     menu and start-up
 src/game.js                 game state, the run's stages, spawning, aggro and navigation helpers
-src/core/                   constants, rebindable input bindings, touch or mouse, time stop,
-                            entity base class
+src/core/                   constants, rebindable input bindings (a set per mouse or trackpad),
+                            touch, mouse or trackpad, time stop, entity base class
 src/world/                  dungeon generator, level plans and trials, floor looks, pathfinder, collision
 src/entities/               mage (spell book), spell bar, levels and ranks, orcs, mini-bosses
                             and warlord, duel wizard and reflection, battles, projectiles and
@@ -616,8 +652,8 @@ src/render/                 Three.js renderer, dungeon meshes, props, ambience, 
                             models, textures and particle effects
 public/models/              character models (.glb) built in Blender
 tools/blender/              the Blender scripts that build them
-src/ui/                     HUD, touch controls, minimap, inventory and spellbook, spell icons,
-                            controls screen
+src/ui/                     HUD, touch controls and auto-aim, minimap, inventory and spellbook,
+                            spell icons, controls screen
 src/audio/                  sound effects: the recipes, the synthesiser that renders them (in a
                             worker) and the Web Audio player
 backend/                    Express + SQLite score server (shared with eotw)

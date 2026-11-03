@@ -529,8 +529,9 @@ export class Battle {
       game.hud.toast(this.selectionName(chosen) + ' :: FOLLOW ME', '#7fb2ff');
     }
     if (input.pressed('order_hold')) {
-      // march to the cursor and hold, keeping the regiments' layout
-      this.marchTo(chosen, input.ground);
+      // march to the cursor and hold, keeping the regiments' layout (the
+      // ground under the mouse, even while auto-aim aims elsewhere)
+      this.marchTo(chosen, input.pointer || input.ground);
       game.hud.toast(this.selectionName(chosen) + ' :: MARCH AND HOLD', '#7fb2ff');
     }
   }

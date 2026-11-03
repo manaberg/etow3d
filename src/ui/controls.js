@@ -1,6 +1,15 @@
 import { Actions, RESERVED, bind, bindingOf, keyLabel, resetBindings, onBindingsChange } from '../core/bindings.js';
 import { Settings, Toggles, setting, setSetting, setToggle, resetSettings } from '../core/settings.js';
-import { TouchModes, touchMode, setTouchMode } from '../core/device.js';
+import { Pointers, TouchModes, pointer, setPointer, touchMode, setTouchMode } from '../core/device.js';
+
+// what each pointer does, under its switch; laptops often rest the trackpad
+// while keys are down, which a game played with both cannot have
+const POINTER_NOTES = {
+  mouse: 'The wheel zooms, hold the right button for magic missile, drag with the left to turn the camera. Each pointer keeps its own keys.',
+  trackpad: 'Two fingers swipe to turn and tilt the camera, pinch to zoom. Magic missile on Space, the stairs on Enter or a click on their prompt. ' +
+    'Auto-aim aims at the nearest foe, or the one you point at, and turns the camera to face it. Each pointer keeps its own keys.'
+};
+const TRACKPAD_TIP = 'Cursor or taps stop while you hold keys? The trackpad rests while you type: on Windows set Touchpad sensitivity to Most sensitive; on Linux turn off Disable while typing.';
 
 // the actions the spellbook binds
 const SPELL_KEY = /^(missile|slot\d+)$/;
@@ -19,9 +28,10 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-// The controls screen: whether the touch controls show, the sound effects'
-// volume and the camera's turn speeds as sliders, the playtesting switches
-// (god mode), then every action with its key; click one, then press
+// The controls screen: whether the touch controls show, the pointer (a mouse
+// or a trackpad, each with its own keys) with the aiming switches, the sound
+// effects' volume and the camera's turn speeds as sliders, the playtesting
+// switches (god mode), then every action with its key; click one, then press
 // a key or mouse button to rebind it (Escape cancels). The spell keys are
 // set in the spellbook instead, under the bar's slots (ui/spellbook.js).
 // Opened from the main menu, the pause screen and the HUD's micro menu.
@@ -53,6 +63,59 @@ export function openControls({ onClose } = {}) {
   };
   showTouch();
 
+  // the switches (settings.js Toggles) under their group's heading
+  const switches = [];
+  const addSwitches = (group) => {
+    for (const t of Toggles.filter((x) => x.group === group)) {
+      const row = el('div', 'controls-row', list);
+      el('span', 'controls-label', row, t.label);
+      const button = el('button', 'secondary controls-key', row, '');
+      button.type = 'button';
+      const show = () => {
+        button.textContent = setting(t.id) ? 'On' : 'Off';
+        button.classList.toggle('capturing', !!setting(t.id));
+      };
+      button.onclick = (e) => {
+        e.stopPropagation();
+        setToggle(t.id, !setting(t.id));
+        show();
+      };
+      show();
+      switches.push(show);
+    }
+  };
+
+  // the pointer: picking one brings its keys, and its usual aim (auto-aim
+  // with a trackpad, the cursor with a mouse)
+  el('div', 'controls-group', list, 'POINTER');
+  const pointerRow = el('div', 'controls-row', list);
+  el('span', 'controls-label', pointerRow, 'Mouse or trackpad');
+  const pointerButton = el('button', 'secondary controls-key', pointerRow, '');
+  pointerButton.type = 'button';
+  const pointerNote = el('div', 'controls-note dim', list, '');
+  const pointerTip = el('div', 'controls-note dim', list, TRACKPAD_TIP);
+  const showPointer = () => {
+    pointerButton.textContent = Pointers.find((p) => p.id === pointer()).label;
+    pointerNote.textContent = POINTER_NOTES[pointer()];
+    pointerTip.classList.toggle('hidden', pointer() !== 'trackpad');
+  };
+  pointerButton.onclick = (e) => {
+    e.stopPropagation();
+    stopCapture();
+    const i = Pointers.findIndex((p) => p.id === pointer());
+    const next = Pointers[(i + 1) % Pointers.length].id;
+    setPointer(next);
+    setToggle('autoAim', next === 'trackpad');
+    showPointer();
+    for (const show of switches) {
+      show();
+    }
+    status.textContent = Pointers[(i + 1) % Pointers.length].label + ' keys: magic missile on ' + keyLabel(bindingOf('missile')) +
+      ', the stairs on ' + keyLabel(bindingOf('descend')) + '. Auto-aim ' + (setting('autoAim') ? 'on.' : 'off.');
+  };
+  showPointer();
+  addSwitches('POINTER');
+
   const sliders = [];
   let sliderGroup = null;
   for (const s of Settings) {
@@ -81,24 +144,7 @@ export function openControls({ onClose } = {}) {
   }
 
   el('div', 'controls-group', list, 'PLAYTESTING');
-  const switches = [];
-  for (const t of Toggles) {
-    const row = el('div', 'controls-row', list);
-    el('span', 'controls-label', row, t.label);
-    const button = el('button', 'secondary controls-key', row, '');
-    button.type = 'button';
-    const show = () => {
-      button.textContent = setting(t.id) ? 'On' : 'Off';
-      button.classList.toggle('capturing', !!setting(t.id));
-    };
-    button.onclick = (e) => {
-      e.stopPropagation();
-      setToggle(t.id, !setting(t.id));
-      show();
-    };
-    show();
-    switches.push(show);
-  }
+  addSwitches('PLAYTESTING');
 
   const rows = [];
   let group = null;
@@ -130,14 +176,16 @@ export function openControls({ onClose } = {}) {
   reset.type = 'button';
   reset.onclick = () => {
     stopCapture();
+    // the pointer stays: it is the machine's, and its keys are what reset
     resetBindings();
     resetSettings();
+    setToggle('autoAim', pointer() === 'trackpad');
     setTouchMode('auto');
     showTouch();
     for (const show of [...sliders, ...switches]) {
       show();
     }
-    status.textContent = 'Defaults restored.';
+    status.textContent = 'Defaults restored (' + Pointers.find((p) => p.id === pointer()).label.toLowerCase() + ' keys).';
   };
   const done = el('button', null, buttons, 'Done');
   done.type = 'button';

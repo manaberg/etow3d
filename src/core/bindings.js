@@ -1,3 +1,5 @@
+import { pointer, onPointerChange } from './device.js';
+
 // Key and mouse bindings, rebindable from the controls screen (the spell keys
 // from the spellbook, on the bar's slots) and kept in this
 // browser's localStorage. A binding is a KeyboardEvent.code ('KeyQ', 'Digit1',
@@ -5,6 +7,12 @@
 // so any action can sit on any key or button. Escape always pauses and the
 // arrow keys always move; neither can be rebound. Movement is relative to the
 // camera, which turns (hold the left button and drag, or the turn keys).
+//
+// A mouse and a trackpad (core/device.js pointer) keep a set of keys each,
+// so switching between them never loses either. A trackpad's defaults
+// (`pad`) take magic missile off the right button, which a trackpad cannot
+// comfortably hold down while it aims: it goes on Space, under the left
+// thumb, and the stairs move to Enter (or a click on their prompt).
 
 // Every action in the order the controls screen lists them. Movement keeps
 // the 2D game's keys; spells sit on the bar's slots instead of a key each.
@@ -17,7 +25,11 @@ export const Actions = [
   { id: 'camera_left', label: 'Turn camera left', group: 'Camera', key: 'KeyZ' },
   { id: 'camera_right', label: 'Turn camera right', group: 'Camera', key: 'KeyX' },
   { id: 'camera_reset', label: 'Camera back to north', group: 'Camera', key: 'KeyV' },
-  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse2' },
+  { id: 'zoom_in', label: 'Zoom in', group: 'Camera', key: 'Equal' },
+  { id: 'zoom_out', label: 'Zoom out', group: 'Camera', key: 'Minus' },
+  // the wizard aims by itself, as on a touch screen (ui/touch.js)
+  { id: 'auto_aim', label: 'Auto-aim on / off', group: 'Camera', key: 'KeyT' },
+  { id: 'missile', label: 'Magic missile (hold)', group: 'Spells', key: 'Mouse2', pad: 'Space' },
   // the spell bar (entities/spellbar.js BarSlots): whatever spell is prepared
   // in each slot, nearest to WASD first
   { id: 'slot1', label: 'Spell slot 1', group: 'Spells', key: 'KeyQ' },
@@ -35,7 +47,7 @@ export const Actions = [
   { id: 'order_charge', label: 'Selected: charge', group: 'Battle', key: 'KeyJ' },
   { id: 'order_hold', label: 'Selected: march to cursor and hold', group: 'Battle', key: 'KeyK' },
   { id: 'order_follow', label: 'Selected: follow me', group: 'Battle', key: 'KeyL' },
-  { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space' },
+  { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space', pad: 'Enter' },
   { id: 'map', label: 'Larger map', group: 'Game', key: 'KeyM' },
   { id: 'loot_names', label: 'Item names on the floor (toggle)', group: 'Game', key: 'KeyG' },
   { id: 'inventory', label: 'Inventory', group: 'Game', key: 'KeyI' },
@@ -57,7 +69,9 @@ export const RESERVED = ['Escape'];
 // bindings are left behind once. v4: the left button turns the camera, the
 // missile moved to the right button and the bar to Q E F R 2 4 1 3 C 5; v2
 // bindings carry over without those (v3 was a layout that was soon undone).
+// A trackpad's keys are kept apart from the mouse's.
 const STORAGE_KEY = 'etow3d.bindings.v4';
+const PAD_KEY = 'etow3d.bindings.trackpad';
 const OLD_KEY = 'etow3d.bindings.v2';
 const MOVED = ['camera_drag', 'missile', 'slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9', 'slot10'];
 
@@ -66,10 +80,23 @@ let byCode = index();
 let version = 0;
 const listeners = new Set();
 
+function trackpad() {
+  return pointer() === 'trackpad';
+}
+
+function storageKey() {
+  return trackpad() ? PAD_KEY : STORAGE_KEY;
+}
+
+// The default key of an action for the pointer in use.
+function defaultKey(action) {
+  return trackpad() && action.pad ? action.pad : action.key;
+}
+
 function defaults() {
   const out = {};
   for (const a of Actions) {
-    out[a.id] = a.key;
+    out[a.id] = defaultKey(a);
   }
   return out;
 }
@@ -80,13 +107,14 @@ function defaults() {
 function load() {
   const out = defaults();
   try {
-    let saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (!saved) {
+    let saved = JSON.parse(localStorage.getItem(storageKey()) || 'null');
+    if (!saved && !trackpad()) {
       saved = JSON.parse(localStorage.getItem(OLD_KEY) || '{}');
       for (const id of MOVED) {
         delete saved[id];
       }
     }
+    saved = saved || {};
     const taken = new Set();
     for (const id in saved) {
       if (id in out && typeof saved[id] === 'string' && !RESERVED.includes(saved[id])) {
@@ -107,7 +135,7 @@ function load() {
 
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bindings));
+    localStorage.setItem(storageKey(), JSON.stringify(bindings));
   } catch {
     // not saved: the bindings still hold for this session
   }
@@ -172,11 +200,21 @@ export function resetBindings() {
 export function resetActions(ids) {
   for (const id of ids) {
     const action = Actions.find((a) => a.id === id);
-    if (action && bindings[id] !== action.key) {
-      bind(id, action.key);
+    if (action && bindings[id] !== defaultKey(action)) {
+      bind(id, defaultKey(action));
     }
   }
 }
+
+// The other pointer's keys take over when the player switches.
+onPointerChange(() => {
+  bindings = load();
+  byCode = index();
+  version++;
+  for (const fn of listeners) {
+    fn();
+  }
+});
 
 export function actionLabel(id) {
   const action = Actions.find((a) => a.id === id);

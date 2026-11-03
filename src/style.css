@@ -1150,6 +1150,26 @@ body.spell-dragging .action-btn:not(.locked):not(.missile) {
   transition: opacity 0.2s;
 }
 
+/* open stairs: the prompt is a button down (a click is nearer to hand on a
+   trackpad than the key) */
+.hud-prompt.actionable {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 20px;
+  white-space: nowrap;
+  background: rgba(16, 52, 80, 0.7);
+  border: 1px solid rgba(159, 224, 255, 0.6);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.hud-prompt.actionable:hover {
+  color: #fff;
+  border-color: #9fe0ff;
+}
+
 .hud-toasts {
   position: absolute;
   bottom: 190px;
