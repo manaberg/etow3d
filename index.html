@@ -23,7 +23,7 @@
   <div id="menu" class="screen">
     <div class="card menu-card">
       <h1>END OF THE WORLDS <span>3D</span></h1>
-      <p class="tagline">A wizard's descent through twenty floors of orcs and dragons, and past their own reflection on the way down.</p>
+      <p class="tagline">A wizard's descent through twenty floors of orcs and dragons, ten duels against rival wizards, and a battle of armies.</p>
       <div class="menu-main" id="menu-main">
         <button type="button" id="menu-continue" class="menu-button hidden">
           <span>Continue</span>
@@ -38,19 +38,28 @@
         <button type="button" id="offline-update" class="secondary hidden">Reload</button>
       </div>
       <div class="menu-modes menu-panel hidden" id="menu-new-panel">
-        <div class="mode">
+        <div class="mode wide">
           <h3>The descent</h3>
-          <p>Twenty dungeon floors, from The Upper Halls to the great golden wyrm. Every two or three floors the stairs lead to a trial instead: your reflection, a wizard of your level with as many spells as you but its own, fought in a duel or in a great battle between two armies. Your spells, bar, level and gear go with you all the way down.</p>
-          <div class="stage-kinds">
-            <div><strong>Dungeon</strong>Orcs, warbands, the warlord and the dragons' lairs.</div>
-            <div><strong>Duel</strong>You against your reflection in a hall of mirrors.</div>
-            <div><strong>Battle</strong>Your army against your reflection's, dragons and all.</div>
-          </div>
+          <p>Twenty dungeon floors, from The Upper Halls to the great golden wyrm: orcs, warbands, the warlord and the dragons' lairs. Learn your spells from scrolls and every level you gain, find gear, and carry it all down the stairs.</p>
           <div class="buttons">
             <button type="button" id="descend">Descend</button>
             <button type="button" id="descend-mobile" class="secondary">Mobile descent</button>
           </div>
-          <p class="mode-note"><strong>Mobile descent</strong> is made for touch screens: the same twenty floors, each laid out as one long tunnel from where you start to the stairs, with rubble, pillars, pools and rivers in the way, and only duels between them, no battles.</p>
+          <p class="mode-note"><strong>Mobile descent</strong> is made for touch screens: the same twenty floors, each laid out as one long tunnel from where you start to the stairs, with rubble, pillars, pools and rivers in the way.</p>
+        </div>
+        <div class="mode">
+          <h3>Duels</h3>
+          <p>Ten duels against a rival wizard. Choose one spell for the first and one more before each after; your rival brings as many of its own, drawn at random. Magic missile waits as long as fireball here.</p>
+          <div class="buttons">
+            <button type="button" id="duel" class="secondary">Duel</button>
+          </div>
+        </div>
+        <div class="mode">
+          <h3>Battle</h3>
+          <p>One great battle: you and your reflection, ten random spells each, lead two armies of over a thousand, dragons and all, across open country.</p>
+          <div class="buttons">
+            <button type="button" id="battle" class="secondary">Battle</button>
+          </div>
         </div>
         <div class="buttons">
           <button type="button" class="secondary menu-back">Back</button>
@@ -58,32 +67,32 @@
       </div>
       <div class="menu-saves menu-panel hidden" id="menu-load-panel">
         <h3>Load game</h3>
-        <p class="dim">The game saves itself at the top of every stairs and when you quit; Save game on the pause screen keeps a save of its own. A floor cannot be saved halfway: loading a save made on one starts that depth on a newly laid out floor, with your wizard as it was saved, and a save made in a trial starts the trial over.</p>
+        <p class="dim">The game saves itself at the top of every stairs and when you quit; Save game on the pause screen keeps a save of its own. A floor cannot be saved halfway: loading a save made on one starts that depth on a newly laid out floor, with your wizard as it was saved. A save of the duels starts its duel over, with the spells you chose; a battle is never saved.</p>
         <div class="save-list" id="save-list"></div>
         <div class="buttons">
           <button type="button" class="secondary menu-back">Back</button>
         </div>
       </div>
       <details class="mode-guide">
-        <summary>How the descent works</summary>
+        <summary>How the game works</summary>
         <section>
-          <h4>The dungeon floors</h4>
+          <h4>The descent</h4>
           <p>Descend twenty floors: ten of an orc-held dungeon from The Upper Halls to the Throne of the Warlord, then ten more, ever harder, down through the dragons' lairs to The Golden Hoard. Each floor is a freshly generated maze laid out and dressed after its name, stranger the deeper you go: caves and crooked tunnels in the Warrens, bookshelf aisles and flooded pools in the Sunken Library, a river of molten iron through the Iron Forges, round fighting pits in the Blood Pits, rivers of lava in the Burning Deep, giant ribcages in the Boneyard of Kings. Water, lava and chasms stop you and the orcs on foot, but not bolts or sight: cross on the bridges, or blink over. Its rooms are packed with orc packs that guard them until they notice you, then rally and hunt you down. From the first floor down, warbands of humans, then dwarves and elves, come hunting the dungeon's treasure too: each pack is one race, fighting with its own missiles and strengths, and all of them hunt you. The stairs, in the room the floor names as you arrive, unseal once 40% of the floor is slain.</p>
           <p>You start with only magic missile, a single dart, and learn the rest from scrolls into your spellbook: the 2D game's fifteen spells plus twenty D&amp;D spells, from scorching ray and cone of cold to sleep, counterspell, maelstrom and reverse gravity, any of which can turn up on any floor. Only the spells on your bar can be cast: three slots at first (Q, E and F), more as kills level you up, ten in all, along the action bar at the bottom of the screen; B opens the spellbook to choose them and the keys that cast them. A scroll for a spell you already know raises its rank (I to III), even if it is not on your bar, and magic missile scrolls add a second and a third dart (each a little slower to cast). Potions heal or raise your maximum manergy, and hats, robes, staffs and rings (I opens the inventory) change your stats and your look: magic, rare, set and unique gear rolls its own properties, from elemental damage to health per kill. Scrolls and potions are picked up by walking over them; gear shows its name on the floor and is picked up by clicking the name (G shows or hides the names). Orcs wear gear too and drop it when they fall. Everything carries down the stairs. Potions are scarce. Champion orcs and orc clerics and mages grow more common the deeper you go. The warlord waits on the tenth floor; slaying him opens the stairs to the deep.</p>
           <p>Below the warlord the foes grow tougher faster, and dragons lair in the largest rooms: wyrmlings from depth 11, then young, adult and ancient dragons. Each colour breathes its own weapon and shrugs off its own element: <strong>red</strong> breathes fire (immune to fire, weak to cold), <strong>white</strong> frost that slows (immune to cold, weak to fire), <strong>blue</strong> a line of lightning that stuns (immune to lightning, weak to poison), <strong>green</strong> a poison cloud (immune to poison, weak to fire) and <strong>black</strong> a line of acid that pools (immune to necrotic, weak to radiant and lightning). Every dragon bites and flies over walls to reach you; adults also sweep their tails at whoever stands behind them and roar you into a panic; ancients beat their wings to hurl you back, cast a spell of their colour and shake off roots. A dragon rears and its mouth glows before it breathes: step out of the cone or raise your shield. On the twentieth floor the great golden wyrm breathes fire and weakening gas by turns and calls its brood as it weakens. Slay it to win.</p>
-          <h4>The trials</h4>
-          <p>The first trial follows floor 2 or 3, then one comes every two or three floors, about half of them duels and half battles; every run rolls its own order. In a trial you face your <strong>reflection</strong>: a wizard of your level, with your health, manergy, speed, armour and magic missile darts, and as many spells as you have on your bar, but its own, drawn at random from the spellbook and at the ranks of your spells. You fight with exactly the spells you brought down.</p>
-          <p>Trials follow the duel rules. Both wizards start whole, on the duel scale (your health times seven for the fight), and the share you have left when it ends carries on down the stairs. Every spell but magic missile starts a one-second global cooldown before the next, and power word kill takes a second to speak, standing still; a root, fear or polymorph breaks it off. Trials give no experience; win one and you take one of three spoils instead: a new spell, another magic missile dart, or a rank for a spell you know. Your reflection is easy to read on the upper floors and grows sharper below the warlord.</p>
+          <h4>The duels</h4>
+          <p>Ten duels against a <strong>rival wizard</strong>, one level at a time. Before the first you choose one spell from the spellbook; before each one after, one more, and the ones you chose stay on your bar. Your rival brings as many spells as the level, its own, drawn at random, and sharpens as the levels go: easy for the first three, then normal, then hard from the seventh. Win a duel to go on to the next; lose one and fight it again, against new spells, or choose your newest spell again first. Win the tenth to win the duels.</p>
+          <p>Both wizards start whole, in an apprentice's kit, on the duel scale (health times seven), with magic missile, a single dart that here waits as long as fireball, so it cannot be spammed. Every other spell starts a one-second global cooldown before the next, and power word kill takes a second to speak, standing still; a root, fear or polymorph breaks it off. Your duels are saved at every level: Continue picks them up again.</p>
           <h4>The mobile descent</h4>
-          <p>Made for playing on a phone: the same twenty floors, foes, spells and loot, but every floor is one long tunnel of rooms leading from where you start, at the bottom, to the stairs at the far end, so there is only forward and back. Rubble, pillars, pools and rivers of lava stand in the way, each floor in its own style. The trials between floors are all duels; there are no battles.</p>
-          <h4>Duels</h4>
-          <p>Most duels are fought in a small dungeon of six rooms, the wizards starting in the two farthest apart; walls block sight and bolts, so you can hide, flank and ambush, and your reflection hunts you through the corridors. Some are fought in an open arena, face to face. Potions keep appearing around the map, and whoever reaches one first drinks it. Your reflection reads your bolts in flight, dodges, shields and learns how you move.</p>
-          <h4>Battles</h4>
-          <p>You and your reflection each lead a vast army across open country, grassland ringed by cliffs with rock outcrops between the armies. Your army is blue, its army red. Battles grow as you descend: the first are skirmishes of a few hundred a side, and every floor adds more until the deepest battles field about 5,000 a side. Older dragons join as you go deeper, as in the dungeon. Where a machine cannot keep up with the biggest battles, they run in slow motion.</p>
+          <p>Made for playing on a phone: the same twenty floors, foes, spells and loot, but every floor is one long tunnel of rooms leading from where you start, at the bottom, to the stairs at the far end, so there is only forward and back. Rubble, pillars, pools and rivers of lava stand in the way, each floor in its own style.</p>
+          <h4>Where duels are fought</h4>
+          <p>Most duels are fought in a small dungeon of six rooms, the wizards starting in the two farthest apart; walls block sight and bolts, so you can hide, flank and ambush, and your rival hunts you through the corridors. Some are fought in an open arena, face to face. Potions keep appearing around the map, and whoever reaches one first drinks it. Your rival reads your bolts in flight, dodges, shields and learns how you move.</p>
+          <h4>The battle</h4>
+          <p>You and your reflection each lead a vast army across open country, grassland ringed by cliffs with rock outcrops between the armies. Your army is blue, its army red. Each of you brings ten random spells and every magic missile dart, and each army counts about 1,200 soldiers. Where a machine cannot keep up with a battle, it runs in slow motion.</p>
           <p>Both armies are random: each is a different race, and each mixes its regiment types at random (some battles bring a host of archers, others a wall of brutes, sometimes a type stays home). But both are bought with the same number of points, so they are equal in strength: a dwarf costs more than an orc, a brute almost three grunts, and a costly army is a smaller one. All four races field the same seven classes under their own names and gear, but fight differently: <strong>orcs</strong> are the balanced horde; <strong>dwarves</strong> are slow but take 30% more killing, and their crossbows hit harder; <strong>humans</strong> are a little tougher, harder hitting and longer ranged than orcs; <strong>elves</strong> are quick and shoot a quarter further and straighter, but are frail.</p>
           <p><strong>Dragons</strong> fight on both sides: one for about every 650 soldiers, the same ages for both armies (wyrmlings to ancients) in random colours. They fly over the lines to reach a foe, breathe through whole regiments, and the older ones sweep with their tails, beat their wings, roar foes into flight and cast their colour's spell. Soldiers on foot cannot reach a dragon in the air, but archers and spells can. Your dragons are a regiment like any other.</p>
           <p>Armies are split into regiments by unit type, each with its own banner: infantry, missile troops, knights, shock troops, mystics and dragons. Your army deploys along the bottom of the field facing the reflection's at the top, and you get twenty-five seconds to rearrange it before the horns sound (Space attacks at once). Tab switches between <strong>commander mode</strong> and <strong>spell mode</strong>. The battle opens in commander mode: your wizard stands still, WASD pans the camera and the wheel zooms far out; left-click a soldier to select its regiment (shift-click adds, drag a box to select several), right-click the ground to march the selection there and hold it, or right-click an enemy regiment (or the reflection) to send the selection against it. In spell mode you are the wizard again. In either mode the regiment cards at the bottom select (shift-click adds), backquote selects all, and J, K and L order the selection to charge, march to the cursor and hold, or follow you.</p>
-          <p>The battle is won when the reflection falls or its army, dragons included, is destroyed. If your army is destroyed you escape down the stairs without the spoils; if you fall, the run is over.</p>
+          <p>The battle is won when the reflection falls or its army, dragons included, is destroyed, and lost when your army is destroyed or you fall.</p>
         </section>
       </details>
       <div class="controls" id="menu-controls"></div>

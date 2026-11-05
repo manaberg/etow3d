@@ -3,6 +3,9 @@ import { rankPower } from './spellbar.js';
 // Shared duel balance: both duelists use the same numbers.
 export const DuelRules = {
   hp: 700,
+  // in the duels (the duel mode) magic missile waits as long as fireball
+  // (mage.js SpellBook), so it cannot be spammed (spells.js missileCooldown)
+  missileCooldown: 48,
   stunFrames: 120,
   fearFrames: 120,
   // power word kill is spoken over this many frames, standing still (either
@@ -90,7 +93,7 @@ export const DuelRules = {
     return this.spellSchools[spell] || null;
   },
 
-  // duel trials (see duelLoot.js): frames until the first potion, frames
+  // duels (see duelLoot.js): frames until the first potion, frames
   // between drops, how many may lie around at once, and what they give
   loot: {
     firstPotion: 600,

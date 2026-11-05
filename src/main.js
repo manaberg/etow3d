@@ -5,6 +5,7 @@ import { Actions, actionKeyLabel, onBindingsChange } from './core/bindings.js';
 import { openControls } from './ui/controls.js';
 import { isTouch, onTouchModeChange, pointer } from './core/device.js';
 import { SAVE_VERSION, deleteSave, latestSave, listSaves, onSavesChange, readSave } from './core/saves.js';
+import { DuelLevels } from './world/levels.js';
 import { sfx } from './audio/sfx.js';
 import { applyUpdate, offlineStatus, onOfflineStatus, startOffline } from './core/offline.js';
 
@@ -12,12 +13,13 @@ import { applyUpdate, offlineStatus, onOfflineStatus, startOffline } from './cor
 // touch of the page on
 sfx.init();
 
-// The game is one descent: /?mode=survival starts a new one (as in the 2D
-// game), /?mode=mobile a new mobile descent (tunnels and duels, made for
-// touch screens), and without either the main menu is shown: continue the
-// latest save, start a new game or load a save (core/saves.js).
+// Four ways to play: /?mode=survival starts a new descent (as in the 2D
+// game), /?mode=mobile a new mobile descent (tunnel floors, made for touch
+// screens), /?mode=duel the duels and /?mode=battle a battle; without a
+// mode the main menu is shown: continue the latest save, start a new game or
+// load a save (core/saves.js).
 function modeInUrl() {
-  const m = /[?&]mode=(survival|mobile)/i.exec(window.location.search || '');
+  const m = /[?&]mode=(survival|mobile|duel|battle)/i.exec(window.location.search || '');
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -50,7 +52,8 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-// A new run in `mode` ('survival' or 'mobile'), or the run of a `save`.
+// A new run in `mode` ('survival' or 'descent', 'mobile', 'duel' or
+// 'battle'), or the run of a `save`.
 function start({ mode, save = null }) {
   menu.classList.add('hidden');
   if (game) {
@@ -59,12 +62,12 @@ function start({ mode, save = null }) {
   game = new Game({
     container,
     hudRoot,
-    mobile: mode === 'mobile',
+    mode: mode === 'survival' ? 'descent' : mode,
     save,
     onExit(action) {
       if (action === 'restart') {
-        // a new run of the same descent
-        start({ mode: game.mobile ? 'mobile' : 'survival' });
+        // a new run of the same kind
+        start({ mode: game.mode });
       } else {
         game.dispose();
         game = null;
@@ -107,8 +110,25 @@ function showMenu(view) {
   menu.scrollTop = 0;
 }
 
+// A save's title: its floor, or its duel. A save made in a trial between
+// two floors (before the duels and the battle had modes of their own) goes
+// on from the floor below.
 function saveTitle(save) {
-  return (save.kind === 'dungeon' ? 'DEPTH ' : 'BELOW DEPTH ') + save.depth + ' :: ' + save.name;
+  if (save.mode === 'duel') {
+    return 'DUEL ' + save.duelLevel + ' OF ' + DuelLevels.count + ' :: ' + save.spells + (save.spells === 1 ? ' SPELL CHOSEN' : ' SPELLS CHOSEN');
+  }
+  if (save.kind && save.kind !== 'dungeon') {
+    return 'DEPTH ' + (save.depth + 1);
+  }
+  return 'DEPTH ' + save.depth + ' :: ' + save.name;
+}
+
+// Where a save is from.
+function saveMode(save) {
+  if (save.mode === 'duel') {
+    return 'THE DUELS';
+  }
+  return save.mobile ? 'MOBILE DESCENT' : 'THE DESCENT';
 }
 
 function playTime(seconds) {
@@ -144,7 +164,7 @@ function renderContinue() {
   continueButton.classList.toggle('hidden', !latest);
   newButton.classList.toggle('secondary', !!latest);
   if (latest) {
-    continueInfo.textContent = saveTitle(latest) + ' :: LEVEL ' + latest.level;
+    continueInfo.textContent = saveTitle(latest) + (latest.mode === 'duel' ? '' : ' :: LEVEL ' + latest.level);
   }
 }
 continueButton.addEventListener('click', () => {
@@ -188,7 +208,7 @@ function renderSaves(status) {
     title.append(saveTitle(save));
     const loadable = save.version === SAVE_VERSION;
     const meta = loadable
-      ? ['LEVEL ' + save.level, save.mobile ? 'MOBILE DESCENT' : 'THE DESCENT', playTime(save.timePlayed) + ' PLAYED', savedWhen(save.savedAt)]
+      ? [...(save.mode === 'duel' ? [] : ['LEVEL ' + save.level]), saveMode(save), playTime(save.timePlayed) + ' PLAYED', savedWhen(save.savedAt)]
       : ['MADE BY AN OLDER VERSION OF THE GAME', savedWhen(save.savedAt)];
     el('div', 'save-meta', info, meta.join(' :: '));
     const actions = el('div', 'save-actions', row);
@@ -327,7 +347,7 @@ startOffline();
 
 // a new run; the page's address stays the menu's, so reloading it offers to
 // continue rather than starting another
-for (const [button, mode] of [[descendButton, 'survival'], [mobileButton, 'mobile']]) {
+for (const [button, mode] of [[descendButton, 'survival'], [mobileButton, 'mobile'], [document.getElementById('duel'), 'duel'], [document.getElementById('battle'), 'battle']]) {
   button.addEventListener('click', () => modelsReady.then(() => start({ mode })));
 }
 

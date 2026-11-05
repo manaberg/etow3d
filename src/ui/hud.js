@@ -1,7 +1,7 @@
 import { SpellById } from '../entities/mage.js';
 import { BarSlots, GLOBAL_COOLDOWN, WizardLevels, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
 import { InventoryScreen } from './inventory.js';
-import { DungeonLevels, Races } from '../world/levels.js';
+import { DungeonLevels, DuelLevels, Races } from '../world/levels.js';
 import { Orc } from '../entities/orc.js';
 import { Clericorc, Mageorc, Boss } from '../entities/bosses.js';
 import { Dragon } from '../entities/dragon.js';
@@ -9,11 +9,13 @@ import { Elements } from '../entities/enemy.js';
 import { DuelWizard } from '../entities/duelWizard.js';
 import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
+import { showDuelPick } from './duelPick.js';
+import { rivalSpellNames } from '../entities/mirror.js';
 import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
 import { isTouch } from '../core/device.js';
 import { setting } from '../core/settings.js';
 import { DuelRules } from '../entities/duelRules.js';
-import { missileTier } from '../entities/spells.js';
+import { missileCooldown } from '../entities/spells.js';
 import { spellIcon } from './spellIcons.js';
 import { circleName, cooldownFor, costLabel, dragSource, dropTarget, seconds } from './spellbook.js';
 
@@ -116,7 +118,8 @@ export class Hud {
     const top = el('div', 'hud-top', root);
     this.title = el('div', 'hud-title', top);
 
-    // unit frames: the wizard, and in trials its reflection beside it
+    // unit frames: the wizard, and in the duels and the battle its rival
+    // beside it
     const frames = el('div', 'hud-frames', root);
     const me = this.makeFrame(frames, 'player', HAT('#2a4fa8', '#ffb85a'));
     this.playerFrame = me;
@@ -137,6 +140,7 @@ export class Hud {
     this.dock = dock;
     this.hint = el('div', 'hud-hint', dock, 'Gain a level or find scrolls to learn spells.');
     const strip = el('div', 'xp-strip', dock);
+    this.xpStrip = strip;
     this.xpBar = { fill: el('div', 'xp-fill', strip), text: el('span', 'xp-text', strip) };
     const bar = el('div', 'action-bar', dock);
     this.spellRows = [null, ...BarSlots].map((slot, i) => {
@@ -277,6 +281,7 @@ export class Hud {
     const resume = el('button', null, pauseButtons, 'Resume');
     resume.onclick = () => game.setPaused(false);
     const save = el('button', 'secondary', pauseButtons, 'Save game');
+    this.pauseSaveButton = save;
     save.onclick = () => {
       const kept = game.saveRun(false);
       setText(this.pauseSave, kept ? 'GAME SAVED :: ' + game.stageName() : 'NOT SAVED :: browser storage is full or blocked.');
@@ -289,7 +294,7 @@ export class Hud {
     // when it cannot be kept, a second press leaves without it
     this.quitButton = el('button', 'secondary', pauseButtons, '');
     this.quitButton.onclick = () => {
-      if (game.saveRun(true) || this.quitUnsaved) {
+      if (game.battleMode || game.saveRun(true) || this.quitUnsaved) {
         game.onExit && game.onExit('menu');
         return;
       }
@@ -303,6 +308,7 @@ export class Hud {
     this.inventoryScreen = new InventoryScreen(root, game);
     this.endScreen = el('div', 'screen hidden', root);
     this.levelScreen = el('div', 'screen hidden', root);
+    this.duelPickScreen = el('div', 'screen hidden', root);
     this.applyMode();
   }
 
@@ -312,6 +318,8 @@ export class Hud {
     const game = this.game;
     const floor = !game.duelMode;
     this.root.classList.toggle('battle', !!game.battleMode);
+    // experience is the descent's
+    this.xpStrip.style.display = game.duelMode ? 'none' : '';
     this.root.classList.toggle('duel', !!game.duelMode);
     this.rivalBox.style.display = game.duelMode ? '' : 'none';
     this.battleBox.style.display = game.battleMode ? '' : 'none';
@@ -482,11 +490,17 @@ export class Hud {
     this.pauseHint.textContent = isTouch() ? 'The game waits.' : 'Press ESC or ' + actionKeyLabel('pause') + ' to resume.';
     // what a save keeps (Game.saveRun)
     this.quitUnsaved = false;
-    setText(this.quitButton, 'Save and quit');
+    const game = this.game;
+    setText(this.quitButton, game.battleMode ? 'Quit' : 'Save and quit');
+    this.pauseSaveButton.classList.toggle('hidden', game.battleMode);
     this.pauseSave.classList.remove('saved', 'failed');
-    setText(this.pauseSave, this.game.trial
-      ? 'A save keeps your wizard as it came to this trial: loading it starts the trial over.'
-      : 'A save keeps your wizard as it is now: loading it starts this depth on a newly laid out floor.');
+    let what = 'A save keeps your wizard as it is now: loading it starts this depth on a newly laid out floor.';
+    if (game.mode === 'duel') {
+      what = 'A save keeps your duels at this level, with the spells you chose: loading it starts this duel over.';
+    } else if (game.battleMode) {
+      what = 'A battle cannot be saved: quitting leaves it.';
+    }
+    setText(this.pauseSave, what);
   }
 
   // The run is over. `onRetry` (god mode) offers to start the stage over;
@@ -519,12 +533,10 @@ export class Hud {
     el('p', 'dim', card, unsaved || (saved ? 'Score recorded :: ' + saved.replace(/^Saved\s*/, '') : 'Score not recorded (no score server running).'));
     const buttons = el('div', 'buttons', card);
     if (onRetry) {
-      const game = this.game;
-      const what = game.battle ? 'battle' : (game.trial ? 'duel' : 'floor');
-      const retry = el('button', null, buttons, 'Retry this ' + what);
+      const retry = el('button', null, buttons, 'Retry this ' + (this.game.battle ? 'battle' : 'floor'));
       retry.onclick = () => onRetry();
     }
-    const again = el('button', onRetry ? 'secondary' : null, buttons, 'Descend again');
+    const again = el('button', onRetry ? 'secondary' : null, buttons, this.game.battleMode ? 'Fight another battle' : 'Descend again');
     again.onclick = () => this.game.onExit && this.game.onExit('restart');
     const menu = el('button', 'secondary', buttons, 'Main menu');
     menu.onclick = () => this.game.onExit && this.game.onExit('menu');
@@ -542,8 +554,13 @@ export class Hud {
       this.fpsFrames = 0;
       this.fpsTime = 0;
     }
-    const where = 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count + (game.trial ? ' :: ' + game.stageName() : '');
-    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + (game.mobile ? 'MOBILE DESCENT  ::  ' : '') + where + '  ::  SCORE: ' + game.stats.killcount + '  ::  FPS: ' + this.fps);
+    let where = (game.mobile ? 'MOBILE DESCENT  ::  ' : '') + 'DEPTH ' + game.depth + ' / ' + DungeonLevels.count + '  ::  SCORE: ' + game.stats.killcount;
+    if (game.mode === 'duel') {
+      where = 'DUELS  ::  DUEL ' + game.duelLevel + ' / ' + DuelLevels.count + '  ::  ' + game.stageName();
+    } else if (game.battleMode) {
+      where = 'BATTLE  ::  ' + game.stageName();
+    }
+    setText(this.title, 'END OF THE WORLDS 3D ( PRE-ALPHA )  ::  ' + where + '  ::  FPS: ' + this.fps);
     if (!player) {
       return;
     }
@@ -624,7 +641,9 @@ export class Hud {
         r.icon.innerHTML = ICON_LOCK;
       }
       setText(r.key, state === 'locked' ? '' : actionKeyLabel(r.action));
-      setText(r.count, state === 'locked' ? 'LV' + BarSlots[r.index].level : '');
+      // a slot opens with a wizard level, or in the duels with the duel
+      // after this one
+      setText(r.count, state === 'locked' ? (this.game.mode === 'duel' ? 'DUEL ' + (r.index + 1) : 'LV' + BarSlots[r.index].level) : '');
       setText(r.rank, '');
       setText(r.time, '');
       r.sweepShown = '';
@@ -649,7 +668,7 @@ export class Hud {
     const own = left;
     // magic missile's cooldown grows with its darts
     // (or, just put on the bar, the longer wait before it can be cast)
-    const base = id === 'missile' ? missileTier(player).cd : player.cooldownOf(spell.cd * rankCooldown(player, id));
+    const base = id === 'missile' ? player.cooldownOf(missileCooldown(player)) : player.cooldownOf(spell.cd * rankCooldown(player, id));
     const full = left > base ? Math.max(left, player.cdFull[id] || 0) : base;
     let frac = full > 0 ? 1 - left / full : 1;
     // every spell but magic missile waits out the global cooldown (longer
@@ -691,7 +710,7 @@ export class Hud {
     if (!rival) {
       return;
     }
-    setText(this.rivalName, 'YOUR REFLECTION');
+    setText(this.rivalName, this.game.mode === 'duel' ? 'RIVAL WIZARD' : 'YOUR REFLECTION');
     setText(this.rivalTag, String(rival.level));
     this.rivalTag.title = 'Level ' + rival.level + ' (' + rival.difficulty + ')';
     this.rivalHp.fill.style.width = Math.max(0, rival.hp / rival.maxHp * 100) + '%';
@@ -781,9 +800,9 @@ export class Hud {
     this.levelScreen.innerHTML = '';
   }
 
-  // A trial is over: what happened and, if it was won, the spoils to choose
-  // from (mirror.js). `onPick` gets the chosen spoil's id, or null.
-  showTrialEnd({ won, title, text, choices, onPick }) {
+  // A duel or the battle is over: what happened, and what next (`buttons`:
+  // { label, secondary, onClick }).
+  showOutcome({ won, title, text, buttons }) {
     const screen = this.endScreen;
     screen.innerHTML = '';
     screen.classList.remove('hidden');
@@ -792,18 +811,25 @@ export class Hud {
     const card = el('div', 'card end' + (won ? ' win' : ''), screen);
     el('h2', null, card, title);
     el('p', null, card, text);
-    if (choices.length) {
-      el('p', null, card, 'Take your reflection\'s spoils: a spell, a dart or a rank.');
-      const buttons = el('div', 'buttons draft', card);
-      for (const c of choices) {
-        const b = el('button', null, buttons, c.name);
-        b.onclick = () => onPick(c.id);
-      }
-    } else {
-      const buttons = el('div', 'buttons', card);
-      const b = el('button', null, buttons, 'Descend');
-      b.onclick = () => onPick(null);
+    const row = el('div', 'buttons', card);
+    for (const b of buttons) {
+      const button = el('button', b.secondary ? 'secondary' : null, row, b.label);
+      button.type = 'button';
+      button.onclick = () => b.onClick();
     }
+  }
+
+  // The duels: the level's new spell to choose (ui/duelPick.js).
+  showDuelPick({ level, chosen, onPick, onQuit }) {
+    this.hideTip();
+    this.micro.classList.add('hidden');
+    showDuelPick(this.duelPickScreen, { player: this.game.player, level, chosen, onPick, onQuit });
+  }
+
+  hideDuelPick() {
+    this.duelPickScreen.classList.add('hidden');
+    this.duelPickScreen.innerHTML = '';
+    this.micro.classList.remove('hidden');
   }
 
   updateMap() {
@@ -839,7 +865,7 @@ export class Hud {
   }
 
   // Standing on the stairs: whether they are open (the prompt is the button
-  // down), and gone everywhere else, trials included.
+  // down), and gone everywhere else.
   updatePrompt() {
     const game = this.game;
     const stairs = game.stairs;
@@ -874,14 +900,14 @@ export class Hud {
       this.banner.style.opacity = '0';
       return;
     }
-    setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + game.stageName());
     const plan = DungeonLevels.getPlan(game.depth);
     let text;
-    if (game.trial) {
-      const rival = game.rival;
-      const spells = rival && rival.known ? rival.known.size : 0;
-      text = 'YOUR REFLECTION :: LEVEL ' + (rival ? rival.level : '') + ' :: ' + spells + (spells === 1 ? ' SPELL' : ' SPELLS') + ' OF ITS OWN :: SLAY IT TO GO ON';
+    if (game.mode === 'duel') {
+      setText(this.bannerTitle, 'DUEL ' + game.duelLevel + ' OF ' + DuelLevels.count + ' :: ' + game.stageName());
+      const names = game.rival ? rivalSpellNames(game.rival) : [];
+      text = 'YOUR RIVAL :: ' + (names.length ? names.join(', ') : 'MAGIC MISSILE ONLY') + ' :: SLAY IT TO GO ON';
     } else {
+      setText(this.bannerTitle, 'DEPTH ' + game.depth + ' :: ' + game.stageName());
       // every floor names the room where its stairs wait (world/looks.js)
       const stairsRoom = game.world.look.rooms.throne || 'THRONE ROOM';
       text = (game.mobile ? 'FOLLOW THE TUNNEL TO THE STAIRS IN THE ' : 'FIND THE STAIRS IN THE ') + stairsRoom;

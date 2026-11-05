@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity } from '../core/entity.js';
 import { UNIT } from '../core/constants.js';
 import { buildMage, buildSheep, glowMap } from '../render/models.js';
-import { Projectile, Zone, MirrorImage, castMissiles, missileTier, staffHead } from './spells.js';
+import { Projectile, Zone, MirrorImage, castMissiles, missileCooldown, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, castArcana, arcanaHit, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
 import { sfx } from '../audio/sfx.js';
@@ -446,7 +446,7 @@ export class Mage extends Entity {
     return opened;
   }
 
-  // Experience (none in the trials): each level adds a little health and
+  // Experience (none in the duels and the battle): each level adds a little health and
   // manergy, a spell to choose and may open a slot on the bar (spellbar.js
   // WizardLevels).
   gainXp(amount) {
@@ -702,7 +702,7 @@ export class Mage extends Entity {
       // the darts home in on the foe under (or near) the cursor, else on the spot
       const target = game.hoveredHostile() || game.hostileNear(mouse, 120) || { x: mouse.x, y: mouse.y };
       castMissiles(game, this, 'player', aim, target);
-      this.cd.missile = this.cooldownOf(missileTier(this).cd);
+      this.cd.missile = this.cooldownOf(missileCooldown(this));
       stats.micount++;
       this.rig.swing();
     }
