@@ -265,8 +265,18 @@ button.danger {
   opacity: 0.75;
 }
 
+/* the new game's modes: the descent across the top, the duels and the
+   battle side by side below it (one above the other on a narrow screen) */
 .menu-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   margin-bottom: 18px;
+}
+
+.menu-modes > .mode.wide,
+.menu-modes > .buttons {
+  grid-column: 1 / -1;
 }
 
 .menu-panel > .buttons {
@@ -456,28 +466,6 @@ body.touch .mode .mode-note {
   color: var(--text);
 }
 
-/* the three kinds of level on the way down */
-.stage-kinds {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin: 0 0 14px;
-}
-
-.stage-kinds div {
-  padding: 10px 12px;
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  color: var(--dim);
-}
-
-.stage-kinds strong {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--text);
-  font-size: 14px;
-}
-
 .controls {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -490,7 +478,7 @@ body.touch .mode .mode-note {
 }
 
 @media (max-width: 640px) {
-  .stage-kinds {
+  .menu-modes {
     grid-template-columns: 1fr;
   }
 
@@ -1791,6 +1779,58 @@ button.controls-key.capturing {
   color: #cfe4ff;
   background: rgba(74, 160, 255, 0.25);
   border: 1px solid rgba(74, 160, 255, 0.5);
+}
+
+/* the duels' spell choice (ui/duelPick.js): every spell not yet chosen,
+   what the selected one does, and Fight */
+.card.duel-pick {
+  width: min(880px, 100%);
+}
+
+.duel-pick-have {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+  font-size: 11px;
+}
+
+.duel-pick-mine {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ffd060;
+}
+
+.duel-pick-mine .spell-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.duel-pick-list {
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+  text-align: left;
+}
+
+.hud .duel-pick-list button.sb-entry {
+  cursor: pointer;
+}
+
+.duel-pick-details {
+  min-height: 92px;
+  text-align: left;
+}
+
+body.touch .hud .duel-pick-list button.sb-entry {
+  min-height: 46px;
+}
+
+body.touch .card.duel-pick .buttons button {
+  min-height: 46px;
+  padding: 12px 22px;
 }
 
 .sb-details-head {

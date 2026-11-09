@@ -1,6 +1,7 @@
 // Saved games, kept in this browser's localStorage: every run's autosave
-// (rewritten at the start of each stage, and when the game is left or the
-// page hidden) and the saves made from the pause screen. Each save is kept
+// (rewritten at the start of each floor or duel, and when the game is left
+// or the page hidden) and the saves made from the pause screen; a battle is
+// never saved. Each save is kept
 // under a key of its own, and an index of their summaries lists them on the
 // main menu without reading them all. Storage may be missing, blocked or
 // full: every call copes, and writeSave says whether the save was kept.
@@ -59,15 +60,36 @@ export function latestSave() {
 // build that cannot load it.
 export function readSave(id) {
   try {
-    const data = JSON.parse(localStorage.getItem(SAVE_KEY + id) || 'null');
-    if (!data || data.version !== SAVE_VERSION || !Array.isArray(data.run) ||
-      !Number.isInteger(data.stage) || !data.run[data.stage] || typeof data.stats !== 'object') {
-      return null;
-    }
-    return data;
+    return normalize(JSON.parse(localStorage.getItem(SAVE_KEY + id) || 'null'));
   } catch {
     return null;
   }
+}
+
+// A save as Game takes it: { mode, ... }, the descent's (and the mobile
+// descent's) with the depth and the wizard, the duels' with the level and the
+// bar of spells chosen. Saves made before the duels and the battle had modes
+// of their own are of a descent with trials between its floors (`run`, the
+// stages, and `stage`, the one it is on): they go on from the floor they were
+// made on, or from the floor below the trial they were made in.
+function normalize(data) {
+  if (!data || data.version !== SAVE_VERSION || !data.stats || typeof data.stats !== 'object') {
+    return null;
+  }
+  if (!data.mode && Array.isArray(data.run)) {
+    const stage = Number.isInteger(data.stage) && data.run[data.stage];
+    if (!stage || !Number.isInteger(stage.depth)) {
+      return null;
+    }
+    return { ...data, mode: data.mobile ? 'mobile' : 'descent', depth: stage.kind === 'dungeon' ? stage.depth : stage.depth + 1 };
+  }
+  if ((data.mode === 'descent' || data.mode === 'mobile') && Number.isInteger(data.depth)) {
+    return data;
+  }
+  if (data.mode === 'duel' && Number.isInteger(data.duelLevel) && Array.isArray(data.duelBar)) {
+    return data;
+  }
+  return null;
 }
 
 // Keeps a save under `id` (replacing one of the same id): `summary` is what

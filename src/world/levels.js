@@ -119,56 +119,22 @@ export const DungeonLevels = {
   }
 };
 
-// Trials. Now and then the stairs lead not to the next floor but to a trial
-// against the wizard's reflection (mirror.js): a wizard of the player's level
-// with as many spells on its bar, drawn at random from the circles reached.
-// A duel is fought in a small dungeon of six rooms or, now and then, an open
-// arena; a battle on an open field, each wizard leading an army
-// (battle.js). The first trial follows floor 2 or 3, the next ones come every
-// two or three floors, and they are half duels and half battles (the mobile
-// descent has no battles, only duels). A trial is
-// fought on the duel scale: the wizard's health is multiplied by `hpScale`
-// for the fight (a level 1 wizard has a duellist's 700) and the share left
-// carries on down the stairs.
-export const Trials = {
-  first: [2, 3],
-  every: [2, 3],
+// The duels (the duel mode, Game.startDuel): `count` levels, each a duel
+// against a rival wizard. Level N is fought with N spells: the player
+// chooses one more before each level, keeping the ones chosen before, and the
+// rival brings as many of its own, drawn at random (mirror.js spawnRival).
+// It sharpens as the levels go. A duel is fought in a small dungeon of six
+// rooms or, now and then, an open arena, on the duel scale: both wizards'
+// health is the player's multiplied by `hpScale` (a level 1 wizard's 100 is
+// a duellist's 700).
+export const DuelLevels = {
+  count: 10,
   arenaChance: 1 / 3,
   hpScale: 7,
-  names: { duel: 'THE HALL OF MIRRORS', arena: 'THE MIRROR ARENA', battle: 'THE MIRRORED FIELD' },
+  names: { dungeon: 'THE DUELLING HALLS', arena: 'THE ARENA' },
 
-  // The run: the dungeon floors in order, with the trials between them. A
-  // trial keeps the depth of the floor above it (its circles, its foes).
-  // Without `battles` every trial is a duel.
-  schedule({ battles = true } = {}) {
-    const after = [];
-    for (let depth = randInt(...this.first); depth < DungeonLevels.count; depth += randInt(...this.every)) {
-      after.push(depth);
-    }
-    const kinds = after.map((_, i) => (i % 2 === 0 || !battles ? 'duel' : 'battle'));
-    for (let i = kinds.length - 1; i > 0; i--) {
-      const j = randInt(0, i);
-      [kinds[i], kinds[j]] = [kinds[j], kinds[i]];
-    }
-    const run = [];
-    for (let depth = 1; depth <= DungeonLevels.count; depth++) {
-      run.push({ kind: 'dungeon', depth });
-      const i = after.indexOf(depth);
-      if (i >= 0) {
-        run.push({ kind: kinds[i], depth, arena: kinds[i] === 'duel' && Math.random() < this.arenaChance });
-      }
-    }
-    return run;
-  },
-
-  name(stage) {
-    return stage.arena ? this.names.arena : this.names[stage.kind];
-  },
-
-  // the reflection fights at full duel strength, so it starts gentle on the
-  // upper floors and sharpens below the warlord
-  difficulty(depth) {
-    return depth <= 5 ? 'easy' : (depth <= 12 ? 'normal' : 'hard');
+  difficulty(level) {
+    return level <= 3 ? 'easy' : (level <= 6 ? 'normal' : 'hard');
   }
 };
 

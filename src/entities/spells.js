@@ -4,6 +4,7 @@ import { buildOrb, buildRock, buildIronshot, buildZone, buildMage, buildArrow } 
 import { dressRig } from '../render/gearModels.js';
 import { sfx } from '../audio/sfx.js';
 import { BoltSounds, ZoneSounds } from '../audio/sounds.js';
+import { DuelRules } from './duelRules.js';
 
 // Projectile kinds, numbers from the 2D game (speed px/s, life s, box px).
 // `light` is a colour for the dynamic light pool, `trail` a particle colour.
@@ -71,6 +72,12 @@ export const MAX_MISSILE_TIER = 3;
 
 export function missileTier(caster) {
   return MissileTiers[Math.max(1, Math.min(MAX_MISSILE_TIER, caster.missileTier || 1))];
+}
+
+// Magic missile's cooldown in frames: its tier's, but in the duels as long as
+// fireball's (DuelRules.missileCooldown), for either wizard.
+export function missileCooldown(caster) {
+  return caster.game && caster.game.mode === 'duel' ? DuelRules.missileCooldown : missileTier(caster).cd;
 }
 
 // Every wizard level past the first makes each dart hit `perLevel` harder

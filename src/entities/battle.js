@@ -11,8 +11,9 @@ import { BoltRenderer } from '../render/boltRenderer.js';
 import { TEAM_COLORS } from '../render/models.js';
 import { sfx } from '../audio/sfx.js';
 
-// Battle trials (levels.js Trials): one great battle between the wizard and
-// its reflection (mirror.js), each leading a vast army across open country.
+// The battle (the battle mode): one great battle between the wizard and its
+// reflection (mirror.js spawnRival), each with ten random spells and leading
+// a vast army across open country.
 // Both armies are drawn at random, race and all, but from the same budget of
 // points (`classCost` and `raceCost` below), so a horde of cheap grunts meets
 // a smaller host of brutes and knights, and both sides field the same number
@@ -20,13 +21,17 @@ import { sfx } from '../audio/sfx.js';
 // split into regiments by unit type (infantry, slingers, knights, shock
 // troops, mystics, dragons) that the player commands one by one or together:
 // charge, march to a point and hold it, or follow the wizard. The battle is
-// won when the reflection falls or its army is wiped out; when the player's
-// army is wiped out the wizard goes on down the stairs without the spoils,
-// and when the wizard falls the run is over. Wizards follow the duel rules
+// won when the reflection falls or its army is wiped out, and lost when the
+// player's army is wiped out or the wizard falls. Wizards follow the duel rules
 // (damage between them, the global cooldown); soldiers take the dungeon
 // damage, so a fireball wrecks a regiment.
 export const BattleRules = {
-  // Battles grow with the descent: about `armyStart` soldiers a side (in an
+  // The battle is fought as if below floor `modeDepth`: its armies' size and
+  // its dragons' ages are that floor's. Each wizard brings `spells` random
+  // spells (Game.startDuelists).
+  modeDepth: 10,
+  spells: 10,
+  // Battles grow with depth: about `armyStart` soldiers a side (in an
   // army of average cost) in a battle below the first floor, growing by the
   // same share every floor to `army` a side in a battle below floor
   // `armyFullDepth`. ?army=N on the URL sets another largest size for
@@ -310,9 +315,8 @@ export class Battle {
     return { side, regiments, width: widest, depth: back + 160, wizardBack: back + 60 };
   }
 
-  // Lays out the field, the two armies and the two wizards: the player (with
-  // `carry`, everything brought down the stairs) and its reflection.
-  start(carry) {
+  // Lays out the field, the two armies and the two wizards.
+  start() {
     const game = this.game;
     const races = this.races;
     // both armies are bought with the points of an average army of this size
@@ -356,7 +360,7 @@ export class Battle {
     const wizardPlayer = this.deployArmy(plans.player, mid.y + half, mid.x, -1);
     const wizardEnemy = this.deployArmy(plans.enemy, mid.y - half, mid.x, 1);
 
-    game.startTrialDuelists(wizardPlayer.x - 24, wizardPlayer.y - 24, wizardEnemy.x - 24, wizardEnemy.y - 24, carry);
+    game.startDuelists(wizardPlayer.x - 24, wizardPlayer.y - 24, wizardEnemy.x - 24, wizardEnemy.y - 24);
 
     this.selected = new Set(this.regiments.player.map((r) => r.id));
     this.commander = true;
@@ -1198,11 +1202,7 @@ export class Battle {
       return;
     }
     this.over = true;
-    if (winner === 'player') {
-      this.game.winTrial(why);
-    } else {
-      this.game.loseTrial(why);
-    }
+    this.game.endBattle(winner === 'player', why);
   }
 
   dispose() {

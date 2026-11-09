@@ -9,7 +9,7 @@ import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
 import { sfx } from '../audio/sfx.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
-// start of a floor (`persistent`) waits until it is picked up. In the trials
+// start of a floor (`persistent`) waits until it is picked up. In the duels
 // loot is picked up by walking over it. On dungeon floors scrolls
 // and potions (`autoPickup`) are too, but gear only when it is clicked: its
 // name shows on the floor (ui/hud.js drawLootLabels), and clicking the name
@@ -103,7 +103,7 @@ export function scrollPool() {
 }
 
 // Learns a spell, ranks up one already known, or (`id` 'missile') adds a
-// magic missile dart, and says so. Scrolls and the trials' spoils (mirror.js).
+// magic missile dart, and says so. Scrolls and the level picks (mirror.js).
 export function studySpell(player, id) {
   if (id === 'missile') {
     player.rankUp('missile');
@@ -193,7 +193,7 @@ export class Potion extends Item {
   }
 
   pickUp(player) {
-    // in a duel trial the duel's potions (duelLoot.js), which either wizard can drink
+    // in a duel the duel's potions (duelLoot.js), which either wizard can drink
     if (this.game.duelLoot) {
       this.game.duelLoot.takePotion(player, this.isBlue);
       this.game.pickupFx(this, this.isBlue ? 0x3a7aff : 0xff2a3a);

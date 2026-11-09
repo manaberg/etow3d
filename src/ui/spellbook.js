@@ -1,7 +1,7 @@
 import { SpellBook, SpellById } from '../entities/mage.js';
 import { BarSlots, WizardLevels, RankRules, ROMAN, rankOf, rankCooldown } from '../entities/spellbar.js';
 import { DuelRules } from '../entities/duelRules.js';
-import { missileTier } from '../entities/spells.js';
+import { missileCooldown } from '../entities/spells.js';
 import { RESERVED, actionKeyLabel, actionLabel, bind, bindingOf, keyLabel, resetActions } from '../core/bindings.js';
 import { spellIcon } from './spellIcons.js';
 import { isTouch } from '../core/device.js';
@@ -37,7 +37,7 @@ function el(tag, className, parent, text) {
   return node;
 }
 
-function schoolTag(parent, id) {
+export function schoolTag(parent, id) {
   const school = DuelRules.schools[DuelRules.schoolOf(id)];
   const tag = el('span', 'spell-school', parent, school ? school.tag : '');
   if (school) {
@@ -76,7 +76,7 @@ export function rankText(spell, rank) {
 // A spell's cooldown for `caster` in frames, ranks and gear counted.
 export function cooldownFor(caster, id) {
   if (id === 'missile') {
-    return missileTier(caster).cd;
+    return caster.cooldownOf(missileCooldown(caster));
   }
   const spell = SpellById[id];
   return spell.cd ? caster.cooldownOf(spell.cd * rankCooldown(caster, id)) : 0;

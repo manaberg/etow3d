@@ -3,9 +3,9 @@ import { SpellBook } from './mage.js';
 import { DuelRules } from './duelRules.js';
 import { TILE } from '../core/constants.js';
 
-// Duel trials: potions keep appearing around the map, and whichever wizard
+// Duels: potions keep appearing around the map, and whichever wizard
 // reaches one first drinks it (a red one heals, a blue one restores manergy).
-// No scrolls: the trials are fought with the spells the wizard brought down.
+// No scrolls: a duel is fought with the spells each wizard brought to it.
 
 // The duel spell book: the rival's spell id, the player's spellbook flag and
 // the tier 2 flag that comes with it.

@@ -1,5 +1,5 @@
 import { Enemy } from './enemy.js';
-import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileTier, staffHead } from './spells.js';
+import { Projectile, Zone, MirrorImage, BoltKinds, castMissiles, missileCooldown, staffHead } from './spells.js';
 import { DuelRules } from './duelRules.js';
 import { Arcana, ArcanaCast, FlamingSphere, Meteor, arcanaZoneDamage, liftHeight, pullToward } from './arcana.js';
 import { arcanaFx } from './enemy.js';
@@ -42,7 +42,7 @@ function rivalSpellBook() {
 // How long the rival holds its lifesteal ray once it starts it (frames).
 const RAY_BURST = 60;
 
-// The rival wizard: the player's reflection in the trials (mirror.js). It
+// The rival wizard of the duels and the battle (mirror.js spawnRival). It
 // reads every bolt in flight, scores sixteen escape directions a short horizon
 // ahead, shields or blinks out of hits it cannot dodge, and learns how far to
 // lead its shots from where the player actually went. Duels are fought in a
@@ -177,7 +177,7 @@ export class DuelWizard extends Enemy {
   }
 
   spend(spell, offensive) {
-    this.cdLeft[spell] = spell === 'missile' ? missileTier(this).cd : this.spellBook[spell].cd * rankCooldown(this, spell);
+    this.cdLeft[spell] = spell === 'missile' ? missileCooldown(this) : this.spellBook[spell].cd * rankCooldown(this, spell);
     this.manergy -= this.spellBook[spell].cost;
     if (spell !== 'missile') {
       this.gcd = GLOBAL_COOLDOWN;
@@ -709,7 +709,7 @@ export class DuelWizard extends Enemy {
     return false;
   }
 
-  // Duel trials: is a potion worth running for right now?
+  // Duels: is a potion worth running for right now?
   chooseLoot(player) {
     this.lootGoal = null;
     this.lootValue = 0;
