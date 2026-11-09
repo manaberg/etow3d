@@ -61,12 +61,39 @@ function icon(type) {
       `<rect x="7" y="32" width="26" height="3" fill="${t}"/><rect x="13" y="18" width="14" height="2.5" fill="${t}"/>`;
   } else if (type.slot === 'staff') {
     const g = hex(look.gem);
-    body = `<line x1="9" y1="35" x2="27" y2="11" stroke="${hex(look.wood)}" stroke-width="3.2" stroke-linecap="round"/>` +
+    const w = hex(look.wood);
+    body = `<line x1="9" y1="35" x2="27" y2="11" stroke="${w}" stroke-width="3.2" stroke-linecap="round"/>` +
       `<circle cx="29" cy="9" r="7" fill="${g}" opacity="0.3"/><circle cx="29" cy="9" r="3.6" fill="${g}"/>`;
+    // the heads that read differently at this size
+    switch (look.style) {
+      case 'moon':
+        body += `<path d="M23 3 A8 8 0 1 0 36 13" fill="none" stroke="${w}" stroke-width="2.2"/>`;
+        break;
+      case 'cage':
+        body += `<circle cx="29" cy="9" r="6" fill="none" stroke="${w}" stroke-width="1.4"/><line x1="29" y1="3" x2="29" y2="15" stroke="${w}" stroke-width="1.2"/>`;
+        break;
+      case 'antler':
+        body += `<path d="M27 11 L22 3 M27 11 L36 5 M24 6 L20 6 M33 7 L35 2" stroke="${w}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+        break;
+      case 'serpent':
+        body += `<path d="M14 29 Q20 26 17 22 Q14 18 21 16 Q27 14 25 10" stroke="${w}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+        break;
+      case 'fork':
+        body += `<path d="M27 11 L23 3 M27 11 L35 6" stroke="${w}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+        break;
+      default:
+    }
   } else {
     const g = hex(look.gem);
-    body = `<circle cx="20" cy="23" r="9" fill="none" stroke="${hex(look.band)}" stroke-width="3.5"/>` +
-      `<circle cx="20" cy="12" r="6" fill="${g}" opacity="0.3"/><path d="M20 7 L24 12 L20 17 L16 12 Z" fill="${g}"/>`;
+    const b = hex(look.band);
+    body = `<circle cx="20" cy="23" r="9" fill="none" stroke="${b}" stroke-width="${look.style === 'band' ? 5 : 3.5}"/>`;
+    if (look.style === 'twin') {
+      body += `<circle cx="20" cy="12" r="7" fill="${g}" opacity="0.3"/><path d="M15 8 L18 12 L15 16 L12 12 Z M25 8 L28 12 L25 16 L22 12 Z" fill="${g}"/>`;
+    } else if (look.style === 'signet') {
+      body += `<rect x="13" y="8" width="14" height="8" rx="2" fill="${b}"/><rect x="16" y="10" width="8" height="4" rx="1" fill="${g}"/>`;
+    } else if (look.style !== 'band') {
+      body += `<circle cx="20" cy="12" r="6" fill="${g}" opacity="0.3"/><path d="M20 7 L24 12 L20 17 L16 12 Z" fill="${g}"/>`;
+    }
   }
   return `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">${body}</svg>`;
 }

@@ -49,7 +49,10 @@ export const Actions = [
   { id: 'order_follow', label: 'Selected: follow me', group: 'Battle', key: 'KeyL' },
   { id: 'descend', label: 'Descend the stairs', group: 'Game', key: 'Space', pad: 'Enter' },
   { id: 'map', label: 'Larger map', group: 'Game', key: 'KeyM' },
-  { id: 'loot_names', label: 'Item names on the floor (toggle)', group: 'Game', key: 'KeyG' },
+  // the names of the items on the floor show only while this is held
+  // (ui/hud.js drawLootLabels), or always once switched on
+  { id: 'loot_show', label: 'Show item names (hold)', group: 'Game', key: 'ControlLeft' },
+  { id: 'loot_names', label: 'Item names always shown (toggle)', group: 'Game', key: 'KeyG' },
   { id: 'inventory', label: 'Inventory', group: 'Game', key: 'KeyI' },
   { id: 'spellbook', label: 'Spellbook', group: 'Game', key: 'KeyB' },
   { id: 'pause', label: 'Pause', group: 'Game', key: 'KeyP' }
@@ -262,4 +265,15 @@ export function keyLabel(code) {
 
 export function actionKeyLabel(action) {
   return keyLabel(bindings[action]);
+}
+
+// The same, naming a left-hand modifier without its side when the right-hand
+// one presses it too (core/input.js): 'Ctrl' rather than 'L-Ctrl'.
+export function actionKeyName(action) {
+  const code = bindings[action];
+  const right = code && code.endsWith('Left') ? code.slice(0, -4) + 'Right' : null;
+  if (right && NAMES[right] && !byCode[right]) {
+    return keyLabel(code).slice(2);
+  }
+  return keyLabel(code);
 }

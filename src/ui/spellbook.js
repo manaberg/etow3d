@@ -5,6 +5,7 @@ import { missileCooldown } from '../entities/spells.js';
 import { RESERVED, actionKeyLabel, actionLabel, bind, bindingOf, keyLabel, resetActions } from '../core/bindings.js';
 import { spellIcon } from './spellIcons.js';
 import { isTouch } from '../core/device.js';
+import { formatStat } from '../entities/gear.js';
 
 // What the book calls bar slot `i`: its key, or on a touch screen (no keys)
 // its number.
@@ -519,6 +520,16 @@ export class SpellbookPanel {
       const line = el('div', 'sb-rank-line' + (r <= rank ? ' reached' : ''), ranks, 'RANK ' + ROMAN[r] + ' :: ' + rankText(spell, r));
       if (r === rank) {
         line.classList.add('current');
+      }
+    }
+    // what the wizard's gear does for it (gear.js SpellStats), outside the duels
+    const gear = ['power', 'cd', 'cost'].map((kind) => [kind + '.' + spell.id, player.spellGear ? player.spellGear(kind, spell.id) : 0])
+      .filter(([, value]) => value);
+    if (gear.length) {
+      const lines = el('div', 'inv-lines', box);
+      el('div', 'hud-heading', lines, 'FROM YOUR GEAR');
+      for (const [key, value] of gear) {
+        el('div', 'inv-stat good', lines, formatStat(key, value));
       }
     }
     if (spell.id === 'missile') {

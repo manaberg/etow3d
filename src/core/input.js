@@ -11,6 +11,17 @@ const PAGE_PX = 400;
 const PINCH_RATE = 0.01;
 const PINCH_MAX = 25;
 
+// The modifier keys. One bound to an action (the item names, on Ctrl) is
+// pressed with its own flag set, so its press is not taken for a browser
+// shortcut; and the right-hand one presses whatever the left-hand one is
+// bound to, unless it is bound to something of its own.
+const MODIFIERS = new Set(['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight']);
+const LEFT_HAND = { ControlRight: 'ControlLeft', AltRight: 'AltLeft', ShiftRight: 'ShiftLeft', MetaRight: 'MetaLeft' };
+
+function codeOf(e) {
+  return LEFT_HAND[e.code] && !actionFor(e.code) ? LEFT_HAND[e.code] : e.code;
+}
+
 // Keyboard and mouse input, mapped to actions through the rebindable bindings
 // (bindings.js). `pressed` is edge-triggered per simulation step: presses
 // queue up until a step consumes them, so nothing is lost when a render frame
@@ -21,6 +32,12 @@ const PINCH_MAX = 25;
 // screen (ui/touch.js) the on-screen controls press the same actions, set
 // `stick` and the aim, and tap() stands in for a click; the mouse events a
 // browser makes up after a touch are ignored.
+//
+// Keys pressed with Ctrl or Cmd are left to the browser (its shortcuts),
+// except while Ctrl is held as a key of the game's own (the item names): then
+// the game keeps playing, so the wizard walks and casts with the names
+// shown. (Ctrl with W still closes the tab in most browsers, which no page
+// can stop; main.js asks first while the names are held.)
 //
 // The wheel: a mouse's zooms a notch at a time (takeWheel). With a trackpad
 // (device.js pointer) two fingers swiping turn and tilt the camera instead
@@ -58,9 +75,17 @@ export class Input {
     this.leftTravel = null;
     this.listeners = [];
 
+    // the modifiers held as keys of the game's own
+    this.heldModifiers = new Set();
     this.on(window, 'keydown', (e) => {
-      const action = actionFor(e.code);
-      if (!action || e.metaKey || e.ctrlKey) {
+      const code = codeOf(e);
+      const action = actionFor(code);
+      if (!action) {
+        return;
+      }
+      if (MODIFIERS.has(code)) {
+        this.heldModifiers.add(code);
+      } else if (e.metaKey || (e.ctrlKey && !this.ctrlHeld())) {
         return;
       }
       // keep bound keys from scrolling the page or opening quick find
@@ -71,12 +96,17 @@ export class Input {
       this.held.add(action);
     });
     this.on(window, 'keyup', (e) => {
-      const action = actionFor(e.code);
+      const code = codeOf(e);
+      this.heldModifiers.delete(code);
+      const action = actionFor(code);
       if (action) {
         this.held.delete(action);
       }
     });
-    this.on(window, 'blur', () => this.held.clear());
+    this.on(window, 'blur', () => {
+      this.held.clear();
+      this.heldModifiers.clear();
+    });
     this.on(element, 'mousedown', (e) => {
       if (recentTouch()) {
         return;
@@ -199,6 +229,11 @@ export class Input {
     this.mouse.y = y;
     this.mouse.inside = true;
     this.queued.add('click');
+  }
+
+  // Ctrl is held as a key of the game's own.
+  ctrlHeld() {
+    return this.heldModifiers.has('ControlLeft') || this.heldModifiers.has('ControlRight');
   }
 
   state(action) {

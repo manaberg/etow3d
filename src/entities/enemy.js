@@ -142,26 +142,28 @@ export class Enemy extends Entity {
         p.kill();
         break;
       case 'fireball': {
-        this.hurt(110, 'fire');
+        // gear made for the spell strengthens the orb and its blast
+        const power = rankPower(player, 'fireball');
+        this.hurt(110 * power, 'fire');
         p.kill();
         this.explode(c);
         // in battles the blast catches the whole regiment around the hit
         const caught = game.battle ? game.battle.near(this, this.fireSplash + 60, p.team === 'player' ? 'enemy' : 'player') : game.orcs();
         for (const other of caught) {
           if (other !== this && other.alive && other.distanceTo(this) < this.fireSplash) {
-            other.hurt(101, 'fire');
+            other.hurt(101 * power, 'fire');
           }
         }
         break;
       }
       case 'ironshot':
-        this.hurt(100 * k, 'physical');
+        this.hurt(100 * k * rankPower(player, 'ironshot'), 'physical');
         if (Math.random() < 0.5) {
           fx.burst(c.x, c.y, 1.4, { color: [0xd0d8e0, 0xff3020], count: 6, speed: 5, life: 0.3, size: 0.5 });
         }
         break;
       case 'lightning':
-        this.hurt(LIGHTNING.strike, 'lightning');
+        this.hurt(LIGHTNING.strike * rankPower(player, 'lightning'), 'lightning');
         p.kill();
         this.chainedAt = game.navFrame;
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.25, width: 0.07 });
@@ -173,7 +175,7 @@ export class Enemy extends Entity {
           return;
         }
         this.chainedAt = game.navFrame;
-        this.hurt(player && player.hasLg2 ? LIGHTNING.strike : LIGHTNING.jump, 'lightning');
+        this.hurt((player && player.hasLg2 ? LIGHTNING.strike : LIGHTNING.jump) * rankPower(player, 'lightning'), 'lightning');
         fx.bolt(p.originX, p.originY, c.x, c.y, { color: 0xa0e8ff, life: 0.2, width: 0.05 });
         p.kill();
         break;
@@ -252,7 +254,7 @@ export class Enemy extends Entity {
 
   inZone(zone, k) {
     if (zone.kind === 'blizzard') {
-      this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k * this.gearBoost('cold'), 'cold');
+      this.hp -= this.resisted((zone.tier ? 1 : 0.5) * k * rankPower(zone.timeOwner, 'blizzard') * this.gearBoost('cold'), 'cold');
     } else if (zone.kind === 'guardians') {
       this.hp -= this.resisted(Arcana.guardians.dps / 60 * k * rankPower(zone.timeOwner, 'guardians') * this.gearBoost('radiant'), 'radiant');
     } else if (zone.kind === 'cloud' && zone.timeOwner) {

@@ -94,15 +94,28 @@ export function rankOf(caster, id) {
   return (caster && caster.ranks && caster.ranks[id]) || 1;
 }
 
-// Multiplier on a spell's main number.
-export function rankPower(caster, id) {
-  if (!caster || id === 'missile' || RankRules.tierFlags[id] || RankRules.quickAtTwo.includes(id)) {
-    return 1;
-  }
-  return rankOf(caster, id) >= 2 ? 1 + RankRules.power : 1;
+// Gear made for one spell (gear.js SpellStats): the share it adds to the
+// spell's main number ('power'), or takes off its cooldown ('cd') or its
+// cost ('cost'). Only a body with `spellGear` wears any (the player's
+// wizard, outside the duels).
+export function spellGear(caster, kind, id) {
+  return caster && caster.spellGear ? caster.spellGear(kind, id) : 0;
 }
 
-// Multiplier on a spell's cooldown.
+// Multiplier on a spell's main number: its rank II, and gear for the spell
+// (which also strengthens the spells whose rank II is a tier of its own).
+export function rankPower(caster, id) {
+  if (!caster) {
+    return 1;
+  }
+  const gear = 1 + spellGear(caster, 'power', id);
+  if (id === 'missile' || RankRules.tierFlags[id] || RankRules.quickAtTwo.includes(id)) {
+    return gear;
+  }
+  return (rankOf(caster, id) >= 2 ? 1 + RankRules.power : 1) * gear;
+}
+
+// Multiplier on a spell's cooldown: its ranks, and gear for the spell.
 export function rankCooldown(caster, id) {
   if (!caster || id === 'missile') {
     return 1;
@@ -112,5 +125,5 @@ export function rankCooldown(caster, id) {
   if (rank >= 2 && RankRules.quickAtTwo.includes(id)) {
     m *= 1 - RankRules.cooldownCut;
   }
-  return m;
+  return m * (1 - spellGear(caster, 'cd', id));
 }

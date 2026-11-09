@@ -151,12 +151,64 @@ function buildStaff(look, material) {
       glowScale = 1.5;
       break;
     }
+    case 'moon': {
+      // a crescent standing on the shaft, its gem held in the hollow
+      const moon = mesh(geo('staff.moon', () => new THREE.TorusGeometry(0.2, 0.035, 6, 16, Math.PI * 1.35)), wood, 0, top + 0.22, 0);
+      moon.rotation.z = -Math.PI * 0.18 - Math.PI / 2;
+      g.add(moon);
+      g.add(mesh(geo('staff.moongem', () => new THREE.OctahedronGeometry(0.07)), gem, 0, top + 0.22, 0));
+      glowScale = 1;
+      break;
+    }
+    case 'cage': {
+      // four ribs bowed round a bright stone
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        const rib = mesh(geo('staff.rib', () => new THREE.TorusGeometry(0.15, 0.016, 4, 10, Math.PI)), wood, 0, top + 0.18, 0);
+        rib.rotation.set(0, a, Math.PI / 2);
+        g.add(rib);
+      }
+      g.add(mesh(geo('staff.cagegem', () => new THREE.IcosahedronGeometry(0.075, 0)), gem, 0, top + 0.18, 0));
+      g.add(mesh(geo('staff.cagecap', () => new THREE.SphereGeometry(0.04, 6, 4)), wood, 0, top + 0.34, 0));
+      glowScale = 1;
+      break;
+    }
+    case 'antler': {
+      // branching tines, a gem where they part
+      for (const side of [-1, 1]) {
+        const beam = mesh(geo('staff.tine', () => new THREE.CylinderGeometry(0.015, 0.03, 0.42, 5)), wood, side * 0.1, top + 0.2, 0);
+        beam.rotation.z = -side * 0.55;
+        g.add(beam);
+        const tine = mesh(geo('staff.tine2', () => new THREE.CylinderGeometry(0.012, 0.022, 0.22, 5)), wood, side * 0.1, top + 0.34, 0);
+        tine.rotation.z = side * 0.25;
+        g.add(tine);
+      }
+      g.add(mesh(geo('staff.antlergem', () => new THREE.IcosahedronGeometry(0.06, 0)), gem, 0, top + 0.08, 0));
+      glowScale = 0.8;
+      break;
+    }
+    case 'serpent': {
+      // a snake coiled up the head of the shaft, a burning eye in its jaws
+      const coil = mesh(geo('staff.coil', () => new THREE.TorusKnotGeometry(0.08, 0.025, 32, 5, 2, 5)), wood, 0, top + 0.06, 0);
+      coil.rotation.x = Math.PI / 2;
+      coil.scale.set(1, 1, 1.8);
+      g.add(coil);
+      const head = mesh(geo('staff.snakehead', () => new THREE.ConeGeometry(0.06, 0.18, 6)), wood, 0.04, top + 0.27, 0);
+      head.rotation.z = -1.1;
+      g.add(head);
+      g.add(mesh(geo('staff.snakeeye', () => new THREE.SphereGeometry(0.04, 6, 5)), gem, 0.12, top + 0.31, 0));
+      glowScale = 0.9;
+      break;
+    }
     default:
       g.add(mesh(geo('staff.cup', () => new THREE.CylinderGeometry(0.09, 0.04, 0.12, 7)), wood, 0, top - 0.02, 0));
       g.add(mesh(geo('staff.orb', () => new THREE.IcosahedronGeometry(0.12, 1)), gem, 0, top + 0.1, 0));
   }
   const glow = glowSprite(look.gem, glowScale);
-  glow.position.y = top + (look.style === 'skull' ? 0.12 : 0.2);
+  glow.position.y = top + (look.style === 'skull' ? 0.12 : look.style === 'antler' ? 0.1 : look.style === 'serpent' ? 0.3 : 0.2);
+  if (look.style === 'serpent') {
+    glow.position.x = 0.12;
+  }
   g.add(glow);
   g.userData.gem = look.gem;
   // the head spells leave from (models.js MageRig.holdStaff)
@@ -166,14 +218,30 @@ function buildStaff(look, material) {
 }
 
 // A ring around a finger; the gem's glow keeps it visible from the camera.
+// Its `style`: a gem (the default), two gems side by side ('twin'), a flat
+// seal ('signet') or a bare, thicker band ('band', glowing its metal's
+// colour instead).
 function buildWornRing(look, scale) {
   const g = new THREE.Group();
   const band = new THREE.MeshStandardMaterial({ color: look.band, metalness: 0.85, roughness: 0.3 });
-  const torus = mesh(geo('worn.ring', () => new THREE.TorusGeometry(0.1, 0.022, 6, 14)), band);
+  const bare = look.style === 'band';
+  const torus = mesh(bare ? geo('worn.band', () => new THREE.TorusGeometry(0.1, 0.034, 6, 14)) : geo('worn.ring', () => new THREE.TorusGeometry(0.1, 0.022, 6, 14)), band);
   torus.rotation.x = Math.PI / 2;
   g.add(torus);
-  g.add(mesh(geo('worn.gem', () => new THREE.OctahedronGeometry(0.035)), new THREE.MeshBasicMaterial({ color: look.gem }), 0, 0, 0.11));
-  const glow = glowSprite(look.gem, 0.45, 0.9);
+  const stone = new THREE.MeshBasicMaterial({ color: look.gem });
+  if (look.style === 'twin') {
+    const gem = geo('worn.gem.small', () => new THREE.OctahedronGeometry(0.028));
+    g.add(mesh(gem, stone, -0.035, 0, 0.11), mesh(gem, stone, 0.035, 0, 0.11));
+  } else if (look.style === 'signet') {
+    const seal = mesh(geo('worn.seal', () => new THREE.CylinderGeometry(0.045, 0.045, 0.02, 10)), band, 0, 0, 0.12);
+    seal.rotation.x = Math.PI / 2;
+    g.add(seal);
+    g.add(mesh(geo('worn.sealgem', () => new THREE.CylinderGeometry(0.03, 0.03, 0.012, 10)), stone, 0, 0, 0.132));
+    g.children[g.children.length - 1].rotation.x = Math.PI / 2;
+  } else if (!bare) {
+    g.add(mesh(geo('worn.gem', () => new THREE.OctahedronGeometry(0.035)), stone, 0, 0, 0.11));
+  }
+  const glow = glowSprite(bare ? look.band : look.gem, bare ? 0.3 : 0.45, 0.9);
   glow.position.z = 0.12;
   g.add(glow);
   g.scale.setScalar(scale);

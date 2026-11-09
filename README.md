@@ -96,8 +96,9 @@ health). Runs played with it record no score, a fall keeps the run's autosave, a
 | `` ` `` | battle: select all regiments (or click the regiment cards) |
 | `J` / `K` / `L` | battle: selected regiments charge / march to the cursor and hold / follow you |
 | `Space` | descend the stairs |
-| `LMB` on an item's name | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); click a name (without dragging) to walk over and pick it up. Scrolls and potions are also picked up by walking over them (a health potion even at full health: its 35 health may go past the maximum); gear only by clicking. In the duels a potion is drunk by walking over it |
-| `G` | survival: show item names on the floor, or only the one under the cursor |
+| `Ctrl` (hold) | survival: every item on screen shows its name on the floor, as in Diablo (tags that would overlap stack upwards); let go and only the item under the cursor shows its name. Either `Ctrl` works; the game keeps playing while it is held, so the wizard walks and casts with the names shown. (`Ctrl` + `W` still closes the tab in most browsers, which no page can stop: while the names are held the browser asks first, and the run is autosaved either way) |
+| `LMB` on an item's name | survival: click a name (without dragging) to walk over and pick the item up. Scrolls and potions are also picked up by walking over them (a health potion even at full health: its 35 health may go past the maximum); gear only by clicking. In the duels a potion is drunk by walking over it |
+| `G` | survival: item names always shown, or (again) only while `Ctrl` is held |
 | Mouse wheel | zoom (a pinch, or `Ctrl` + wheel, zooms as well) |
 | `M` | larger map |
 | `I` | inventory (wear, swap and drop gear; the game waits while it is open) |
@@ -159,7 +160,7 @@ touch turns them on, moving a real mouse turns them off, and keys work either wa
 | Walking, no target | the camera swings round behind the wizard, towards the way the joystick points (faster the more sideways, so the thumb steers), but not while backing away. Two sliders on the Controls screen set how fast the camera faces the target and follows behind, or turn either off |
 | Drag elsewhere / pinch | turn the camera by hand (its own slider; the camera then stays put for a moment before following again) / zoom. A small screen starts each floor and duel with the camera further back than a desktop does (34 against 26; pinching out goes to 48 instead of 40), the fog pushed back as far, so the floors look as they do on a desktop |
 | Compass (top) | shows north; tap to turn the camera back to it |
-| Tap an item's name | survival: walk over and pick it up |
+| Tap an item's name | survival: an item shows its name only while the wizard stands on it or right beside it; tap the name to pick it up |
 | Tap the map | larger map |
 | DESCEND | the stairs' prompt becomes the button down |
 | Battles | the buttons under the micro menu switch COMMAND / SPELLS mode, select all regiments (or none), and order the selection to charge or follow; ATTACK NOW starts the fight early. In commander mode the joystick pans the camera, a tap on a soldier of yours selects (or lets go) its regiment, and with regiments selected a tap on a foe sends them against it and a tap on open ground marches them there. The regiment cards run along the bottom |
@@ -569,36 +570,70 @@ Every spell belongs to a school of magic, shown beside it in the spellbook:
 **Gear.** Wizards wear a hat, a robe, a staff and two rings, and what is worn shows on the
 model. Loot is rolled as in Diablo (`src/entities/gear.js`):
 
-- **Bases.** Five kinds of hat (pointed hats, wide brims, cowls, mitres, circlets), four of
-  robe, five of staff and rings, each in three grades found from floors 1, 6 and 12
+- **Bases.** Eleven kinds of hat (pointed hats, wide brims, cowls, mitres, circlets, feathered
+  hats, fur hoods, witch hats, stargazer's hats, iron circlets, dreamer's hoods), nine of robe,
+  fifteen of staff and sixteen of ring, each in three grades found from floors 1, 6 and 12
   (POINTED HAT, CONJURER'S HAT, ARCHON'S HAT), with a property of its own that grows with
-  the grade.
+  the grade. Staffs come with orbs, crystals, forks, skulls, suns, crescent moons, caged
+  stones, antlers and coiled serpents on top; rings as plain bands, gem rings (garnet to star
+  ruby for fire, aquamarine to star sapphire for cold, topaz, emerald, onyx, pearl, amethyst,
+  quartz, moonstone, coral), twin stones, signets, and iron and bone bands. Some bases are
+  made for one spell, drawn when they are found: a FIREBALL WAND, HASTE ROD or BLINK SIGNET
+  makes that spell stronger (staffs) or quicker (rings).
 - **Rarity.** Common gear (white) is the base alone. Magic gear (blue) adds a prefix and/or a
   suffix, named after them: BLAZING CONJURER'S HAT OF THE FOX. Rare gear (yellow) has three
   to five affixes under a random name such as GLOOM VISAGE. Each affix comes in grades that
   deeper floors unlock (OF THE JACKAL, FOX, WOLF, TIGER, MAMMOTH for health), and the first
-  one tints the item (rare gear glows in it). Rings are always magic or better.
+  one tints the item (rare gear glows in it). A plain ring is always magic or better.
 - **Properties.** Health, manergy and their regeneration, movement, armour, cooldowns,
   cheaper spells, spell damage and damage by element (fire, cold, lightning, poison,
-  necrotic, radiant, force, iron), missile damage, cheaper fireballs and lightning,
+  necrotic, radiant, psychic, force, iron), missile damage, cheaper fireballs and lightning,
   lifesteal, mending, longer shields, health or manergy per kill, more experience, stronger
   potions, better items found, and shorter roots, fear and polymorph.
-- **Sets** (green): seven, from the Wanderer's Garb (from floor 1) to the Archmage's Regalia
-  (floor 10), each two to four named pieces whose bonuses grow with every different piece
+- **Gear for one spell.** A property can be made for one spell (`SpellStats`): more of what
+  its rank II grows (damage, duration, reach, healing: +40% FIREBALL DAMAGE, +50% HASTE
+  DURATION), a shorter cooldown (-35% BLINK COOLDOWN) or a smaller cost (-30% SLEEP COST),
+  up to +100%, -50% and -60%. Rolled gear finds them as suffixes (OF FIREBALLS, OF
+  SLUMBER), most often on staffs and rings, and seven times in ten for a spell you know.
+  The spellbook shows what your gear does for each spell. Like gear's elements, they leave
+  the duels alone.
+- **Sets** (green): fourteen, from the Wanderer's Garb and the Shepherd's Flock (from floor
+  1 and 2) through the Twin Stars (two rings), the Pyromancer's Conclave, the Viper's Nest,
+  the Chronomancer's Hours and the Mindbreaker's Triad to the Dragonslayer's Panoply
+  (floor 14), each two to four named pieces whose bonuses grow with every different piece
   worn. The inventory lists a set's pieces and bonuses, the earned ones lit.
-- **Uniques** (orange): twenty-one named items with fixed properties and a story, some with a
-  price (JESTER'S FOLLY: more experience and better finds for less health).
+- **Uniques** (orange): over a hundred named items with fixed properties and a story,
+  thirty staffs and nearly forty rings among them, many built around one spell (THE PHOENIX
+  QUILL for fireball, BAND OF THE BLINKING EYE, THE PALE SHEPHERD for polymorph, METEORFALL),
+  some with a price (JESTER'S FOLLY: more experience and better finds for less health;
+  BLOODPACT: spell damage and lifesteal for health).
 
-Deeper floors favour the rarer kinds. `I` opens the inventory: the five worn slots, a bag of
+**Drops** (`LootRules` in `src/entities/gear.js`). Fewer items drop, but finer ones: one or
+two a floor at first, six to eleven in the middle floors and ten to nineteen on the deep
+ones (slaying most of each floor), of which a set piece or unique is about one in twenty on
+the first two floors, one in four by the middle ones and over a third deep down. A run
+finds some seventy set pieces and uniques among some two hundred items, where it used to
+find as many among nearly seven hundred, mostly blue and yellow, from a catalogue a third
+the size. Magic gear grows only a little more common going down; rares, set pieces and
+uniques grow much more.
+Orcs drop gear now and then (champions never plainer than magic) and drop what they wear;
+the rings laid on a floor are luckier; orc clerics now and then leave a treasure, dragons a
+hoard (the old ones never plainer than rare), and the warlord his horns, a set piece or
+unique and a rare. Staffs turn up a little more often than the other kinds. Set pieces and
+uniques you already own turn up far less often, and those made for spells you know more
+often than those for spells you do not.
+
+`I` opens the inventory: the five worn slots, a bag of
 twenty, the wizard's resulting stats, and the selected item (its base, properties and set)
 compared with what it would replace; double-click to wear or take off, or drop an item on
 the floor. On a touch screen, tapping an item scrolls the panel to its buttons (Wear, Take
-off, Drop), which are made for a thumb, with Drop kept apart from Wear. You start in an apprentice's kit; the 2D game's rings and new gear drop from
-champions, and the orcs wear gear too (casters now and then a hat or robe, champions often
-a ring or a robe, the orc mage a rare hat, the cleric the High Priest's Mitre), which makes
-them tougher, faster or harder to hurt and drops when they fall. Your rival wears the Red
-Order's crimson kit but has your stats. The catalogue is `Gear` in
-`src/entities/gear.js`; the pieces are modelled in `src/render/gearModels.js`.
+off, Drop), which are made for a thumb, with Drop kept apart from Wear. You start in an
+apprentice's kit; the 2D game's five rings still turn up among the floors' rings, and the
+orcs wear gear too (casters now and then a hat or robe, champions now and then a ring or a
+robe, the orc mage a rare hat, the cleric the High Priest's Mitre), which makes them
+tougher, faster or harder to hurt and drops when they fall. Your rival wears the Red Order's
+crimson kit but has your stats. The catalogue is `Gear` in `src/entities/gear.js`; the
+pieces are modelled in `src/render/gearModels.js`.
 
 The orcs share the dungeon with warbands of humans (from the first floor), dwarves (from the
 second) and elves (from the third), drawn per floor by the plan's `races` weights. Each pack

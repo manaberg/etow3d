@@ -92,6 +92,17 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', autosave);
 
+// Ctrl shows the names of the items on the floor (core/bindings.js), and in
+// most browsers Ctrl with W closes the tab, Ctrl with R reloads it, which no
+// page can stop: while the names are held in a game, the browser asks first.
+// (The run would be kept either way, by the autosave above.)
+window.addEventListener('beforeunload', (e) => {
+  if (game && game.state === 'playing' && game.input.ctrlHeld()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
 // ------------------------------------------------------------ the main menu
 
 // Its views: the main buttons, the new game's two descents, and the saves.

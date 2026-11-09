@@ -5,7 +5,7 @@ import { buildGearLoot } from '../render/gearModels.js';
 import { SpellBook, SpellById } from './mage.js';
 import { BarSlots, RankRules, ROMAN, rankOf } from './spellbar.js';
 import { actionKeyLabel } from '../core/bindings.js';
-import { Rarities, ClassicRings, makeItem, outfit } from './gear.js';
+import { Rarities, ClassicRings, LootRules, makeItem, outfit, rollGear } from './gear.js';
 import { sfx } from '../audio/sfx.js';
 
 // Loot on the floor. Dropped loot fades after a while; loot placed at the
@@ -238,6 +238,7 @@ export class GearItem extends Item {
   init() {
     this.view = buildGearLoot(this.item.type, Rarities[this.item.type.rarity].glow);
     this.game.gfx.add(this.view);
+    this.game.hud.hintLootNames();
   }
 
   update(k) {
@@ -278,8 +279,10 @@ export class GearItem extends Item {
   }
 }
 
-// The 2D game's ring loot: one of its five rings, preferring one the player
-// has not got yet.
+// A ring laid on the floor or left by a dragon: never plain, more often a
+// set piece or unique than other loot (LootRules.ringLuck), and now and then,
+// instead of a plain magic ring, one of the 2D game's five (one the wizard
+// has not got yet, if any).
 export class Ring extends GearItem {
   defaults() {
     super.defaults();
@@ -287,10 +290,14 @@ export class Ring extends GearItem {
   }
 
   init() {
-    const owned = new Set((this.game.player && this.game.player.inventory ? this.game.player.inventory.all() : []).map((i) => i.type.id));
-    const missing = ClassicRings.filter((id) => !owned.has(id));
-    const pool = missing.length > 0 ? missing : ClassicRings;
-    this.item = makeItem(pool[Math.floor(Math.random() * pool.length)]);
+    const game = this.game;
+    const loot = game.lootFor();
+    this.item = rollGear(game.depth || 1, { ...loot, slots: ['ring'], minRarity: 'magic', luck: LootRules.ringLuck });
+    if (this.item.type.rarity === 'magic' && Math.random() < 0.25) {
+      const owned = loot.owned || new Set();
+      const missing = ClassicRings.filter((id) => !owned.has(id));
+      this.item = makeItem(pick(missing.length > 0 ? missing : ClassicRings));
+    }
     super.init();
   }
 }
