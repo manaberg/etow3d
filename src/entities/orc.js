@@ -2,7 +2,7 @@ import { Enemy } from './enemy.js';
 import { Projectile } from './spells.js';
 import { DungeonLevels, OrcClasses, Races, raceLook } from '../world/levels.js';
 import { buildOrc } from '../render/models.js';
-import { Inventory, rollGear } from './gear.js';
+import { Inventory, LootRules, rollGear } from './gear.js';
 import { sfx } from '../audio/sfx.js';
 
 // Regular dungeon foes: orcs, or a warband of dwarves, humans or elves. The
@@ -80,16 +80,19 @@ export class Orc extends Enemy {
   // and deeper down anyone may have found a ring.
   rollGear() {
     const wear = [];
+    const rules = LootRules.wear;
+    // made for the mage's spells as its own finds are (game.lootFor)
+    const { spells, owned } = this.game.lootFor();
     const caster = this.orcClass === 'shaman' || this.orcClass === 'warlock';
-    if (caster && Math.random() < 0.15 + this.depth * 0.03) {
-      wear.push(rollGear(this.depth, { slots: [Math.random() < 0.5 ? 'hat' : 'robe'] }));
+    if (caster && Math.random() < rules.caster + this.depth * rules.casterPerFloor) {
+      wear.push(rollGear(this.depth, { slots: [Math.random() < 0.5 ? 'hat' : 'robe'], spells, owned }));
     }
     if (this.isChampion) {
-      if (Math.random() < 0.6) {
-        wear.push(rollGear(this.depth, { slots: [Math.random() < 0.6 ? 'ring' : 'robe'], minRarity: 'magic' }));
+      if (Math.random() < rules.champion) {
+        wear.push(rollGear(this.depth, { slots: [Math.random() < 0.6 ? 'ring' : 'robe'], minRarity: 'magic', spells, owned }));
       }
-    } else if (Math.random() < this.depth * 0.006) {
-      wear.push(rollGear(this.depth, { slots: ['ring'] }));
+    } else if (Math.random() < this.depth * rules.ringPerFloor) {
+      wear.push(rollGear(this.depth, { slots: ['ring'], spells, owned }));
     }
     if (wear.length) {
       this.inventory = new Inventory(this);

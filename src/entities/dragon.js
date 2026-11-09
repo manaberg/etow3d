@@ -4,6 +4,7 @@ import { UNIT } from '../core/constants.js';
 import { Enemy, Elements, arcanaFx } from './enemy.js';
 import { Projectile, Zone } from './spells.js';
 import { liftHeight } from './arcana.js';
+import { LootRules } from './gear.js';
 import { buildDragon } from '../render/models.js';
 import { sfx } from '../audio/sfx.js';
 import { BreathSounds } from '../audio/sounds.js';
@@ -492,7 +493,7 @@ export class Dragon extends Enemy {
     game.stats.bosscount++;
     game.onEnemySlain(this);
     const loot = this.spec.loot;
-    // a hoard: scrolls, potions and a ring for the older ones
+    // a hoard: scrolls and potions
     for (let i = 0; i < Math.ceil(loot / 2); i++) {
       if (Math.random() < 0.5) {
         game.dropScroll(this, i * 20);
@@ -503,8 +504,12 @@ export class Dragon extends Enemy {
       p.pos.x += (Math.random() - 0.5) * this.size.x;
       p.pos.y += (Math.random() - 0.5) * this.size.y;
     }
-    if (loot >= 3) {
-      game.dropRing(this);
+    // and gear from the hoard: the older the dragon, the more and the finer
+    // (gear.js LootRules.hoard)
+    const hoard = LootRules.hoard[this.age] || 0;
+    const pieces = Math.floor(hoard) + (Math.random() < hoard % 1 ? 1 : 0);
+    for (let i = 0; i < pieces; i++) {
+      game.dropTreasure(this, loot >= 3 ? 'rare' : 'magic');
     }
     const c = this.center();
     const big = this.spec.scale;

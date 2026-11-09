@@ -6,8 +6,8 @@ import { DungeonLevels, DuelLevels } from './world/levels.js';
 import { floorLook } from './world/looks.js';
 import { Gfx } from './render/renderer.js';
 import { buildCursor } from './render/models.js';
-import { Mage, SpellById } from './entities/mage.js';
-import { BarSlots, WizardLevels } from './entities/spellbar.js';
+import { Mage, SpellBook, SpellById } from './entities/mage.js';
+import { BarSlots, WizardLevels, rankPower } from './entities/spellbar.js';
 import { Orc } from './entities/orc.js';
 import { Clericorc, Mageorc, Boss } from './entities/bosses.js';
 import { Dragon, DragonAges } from './entities/dragon.js';
@@ -15,10 +15,10 @@ import { DuelWizard } from './entities/duelWizard.js';
 import { DuelRules } from './entities/duelRules.js';
 import { Zone, MirrorImage, Projectile } from './entities/spells.js';
 import { Item, Scroll, Potion, Ring, GearItem, Stairs, studySpell } from './entities/items.js';
-import { Kits, Inventory, outfit, rollGear, applyGearPools } from './entities/gear.js';
+import { Kits, Inventory, LootRules, outfit, rollGear, applyGearPools } from './entities/gear.js';
 import { DuelLoot } from './entities/duelLoot.js';
 import { spawnRival, randomDuelSpells, rollLevelPicks, spoilName } from './entities/mirror.js';
-import { actionKeyLabel } from './core/bindings.js';
+import { actionKeyLabel, actionKeyName } from './core/bindings.js';
 import { setting, setToggle } from './core/settings.js';
 import { autosaveId, deleteSave, newRunId, newSaveId, writeSave } from './core/saves.js';
 import { Battle, BattleRules } from './entities/battle.js';
@@ -763,11 +763,33 @@ export class Game {
     }
     // now and then a piece of gear (whatever it wore drops as well, orc.js);
     // the mage's magic find makes gear a little more common and finer
-    const magicFind = this.player ? this.player.bonus('magicFind') : 0;
-    const gearChance = (orc.isChampion ? 0.15 : 0.01 + this.depth * 0.003) * (1 + magicFind / 2);
+    const loot = this.lootFor();
+    const rules = LootRules.drop;
+    const gearChance = (orc.isChampion ? rules.champion : rules.base + this.depth * rules.perFloor) * (1 + loot.magicFind / 2);
     if (Math.random() < gearChance) {
-      this.dropGear(orc, rollGear(this.depth, { minRarity: orc.isChampion ? 'magic' : undefined, magicFind }));
+      this.dropGear(orc, rollGear(this.depth, { ...loot, minRarity: orc.isChampion ? 'magic' : undefined }));
     }
+  }
+
+  // What steers the gear the mage finds (gear.js rollGear): its magic find,
+  // the spells it knows (gear made for a spell is most often made for one
+  // of them) and the set pieces and uniques it owns (found again less often).
+  lootFor() {
+    const player = this.player;
+    if (!player || this.duelMode) {
+      return { magicFind: 0 };
+    }
+    return {
+      magicFind: player.bonus('magicFind'),
+      spells: SpellBook.filter((s) => player.knowsSpell(s.id)).map((s) => s.id),
+      owned: new Set(player.inventory ? player.inventory.all().map((i) => i.type.id) : [])
+    };
+  }
+
+  // A mini-boss's or dragon's treasure: a piece of gear never plainer than
+  // `minRarity`, and luckier than an orc's.
+  dropTreasure(from, minRarity = 'magic') {
+    return this.dropGear(from, rollGear(this.depth, { ...this.lootFor(), minRarity, luck: LootRules.treasureLuck }));
   }
 
   // An item (gear.js) on the floor somewhere around a body.
@@ -972,6 +994,8 @@ export class Game {
   powerWordKill(target) {
     const tier2 = !!(this.player && this.player.hasPwk2);
     const spec = tier2 ? PWKILL.tier2 : PWKILL.tier1;
+    // gear made for the word makes it hit harder (spellbar.js rankPower)
+    const power = rankPower(this.player, 'pwkill');
     const c = target.center();
     this.skullFx(c.x, c.y, spec.radius);
     if (target instanceof MirrorImage) {
@@ -981,14 +1005,14 @@ export class Game {
     const pool = this.battle ? this.battle.units('enemy') : this.orcs();
     for (const orc of pool) {
       if (orc !== target && !orc.killed && orc.distanceTo(target) < spec.radius) {
-        orc.hurt(spec.splash, 'necrotic');
+        orc.hurt(spec.splash * power, 'necrotic');
       }
     }
     if (target instanceof DuelWizard) {
       DuelRules.applyHit(target, 'pwkill', this.player);
       return;
     }
-    target.hurt(Math.max(target.pwkillDamage, spec.target), 'necrotic');
+    target.hurt(Math.max(target.pwkillDamage, spec.target) * power, 'necrotic');
   }
 
   // --------------------------------------------------------------- awareness & navigation
@@ -1505,7 +1529,8 @@ export class Game {
     }
     if (this.input.consume('loot_names')) {
       this.hud.lootNames = !this.hud.lootNames;
-      this.hud.toast(this.hud.lootNames ? 'ITEM NAMES SHOWN' : 'ITEM NAMES ONLY UNDER THE CURSOR', '#f3e6c4');
+      this.hud.toast(this.hud.lootNames ? 'ITEM NAMES ALWAYS SHOWN' :
+        'ITEM NAMES WHILE ' + actionKeyName('loot_show').toUpperCase() + ' IS HELD', '#f3e6c4');
     }
     if (this.input.consume('auto_aim')) {
       this.toggleAutoAim();

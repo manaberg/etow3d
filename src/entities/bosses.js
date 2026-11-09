@@ -3,7 +3,7 @@ import { Projectile, Zone } from './spells.js';
 import { ArcanaCast } from './arcana.js';
 import { buildOrc } from '../render/models.js';
 import { DungeonLevels } from '../world/levels.js';
-import { outfit, rollGear } from './gear.js';
+import { LootRules, makeItem, outfit, rollGear } from './gear.js';
 import { sfx } from '../audio/sfx.js';
 
 // Besides its own stones or bolts, an orc cleric knows one spell from the
@@ -169,7 +169,10 @@ export class Clericorc extends Enemy {
     if (Math.random() < 0.5) {
       game.dropScroll(this);
     }
-    game.dropRing(this);
+    // now and then a treasure (game.dropTreasure)
+    if (Math.random() < LootRules.miniBoss) {
+      game.dropTreasure(this);
+    }
     game.onEnemySlain(this);
     this.dropGear();
     game.deathFx(this);
@@ -207,7 +210,7 @@ export class Mageorc extends Enemy {
     this.view = this.rig.root;
     this.game.gfx.add(this.view);
     // a rare hat or better, worn until it is taken
-    outfit(this, []).add(rollGear(this.game.depth, { slots: ['hat'], minRarity: 'rare' }));
+    outfit(this, []).add(rollGear(this.game.depth, { ...this.game.lootFor(), slots: ['hat'], minRarity: 'rare' }));
   }
 
   update(k) {
@@ -285,7 +288,6 @@ export class Mageorc extends Enemy {
     if (Math.random() < 0.5) {
       game.dropScroll(this);
     }
-    game.dropRing(this);
     game.onEnemySlain(this);
     this.dropGear();
     game.deathFx(this);
@@ -462,6 +464,10 @@ export class Boss extends Enemy {
     const game = this.game;
     game.stats.killcount++;
     game.stats.bosscount++;
+    // his horns, a set piece or unique, and a rare treasure or better
+    game.dropGear(this, makeItem('warlords_horns'));
+    game.dropTreasure(this, 'set');
+    game.dropTreasure(this, 'rare');
     game.onEnemySlain(this);
     game.deathFx(this);
     this.kill();

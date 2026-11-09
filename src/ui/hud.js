@@ -11,7 +11,7 @@ import { Minimap } from './minimap.js';
 import { openControls } from './controls.js';
 import { showDuelPick } from './duelPick.js';
 import { rivalSpellNames } from '../entities/mirror.js';
-import { actionKeyLabel, bindingsVersion } from '../core/bindings.js';
+import { actionKeyLabel, actionKeyName, bindingsVersion } from '../core/bindings.js';
 import { isTouch } from '../core/device.js';
 import { setting } from '../core/settings.js';
 import { DuelRules } from '../entities/duelRules.js';
@@ -21,6 +21,9 @@ import { circleName, cooldownFor, costLabel, dragSource, dropTarget, seconds } f
 
 // height of an item's name tag on the floor (CSS px)
 const LOOT_TAG_H = 17;
+// on a touch screen an item's name shows while the wizard stands this close
+// to it (sim px, centre to centre: on it or right beside it)
+const LOOT_NEAR = 110;
 
 function el(tag, className, parent, text) {
   const node = document.createElement(tag);
@@ -109,9 +112,11 @@ export class Hud {
     this.castBar = el('div', 'hud-castbar hidden', root);
     this.castFill = el('div', 'hud-castbar-fill', this.castBar);
     el('div', 'hud-castbar-text', this.castBar, 'POWER WORD KILL');
-    // item names on the floor (drawLootLabels), toggled by a key
-    this.lootNames = true;
+    // item names on the floor (drawLootLabels): shown while a key is held,
+    // or always once switched on by another
+    this.lootNames = false;
     this.itemTags = [];
+    this.lootHinted = false;
     this.vignette = el('div', 'hud-vignette', root);
     this.tint = el('div', 'hud-tint', root);
 
@@ -1027,29 +1032,35 @@ export class Hud {
     this.drawLootLabels(ctx, w, h);
   }
 
-  // Survival: item names on the floor, the way Diablo shows them. Every item
-  // on screen gets a dark tag in its rarity's colour (or only the one under
-  // the cursor, with the names toggled off); tags that would overlap stack
+  // Survival: item names on the floor, the way Diablo shows them. With a
+  // mouse every item on screen gets a dark tag in its rarity's colour while
+  // the names key is held (Ctrl) or the names are switched on (G), and
+  // otherwise only the item under the cursor does; on a touch screen the
+  // items the wizard stands by (LOOT_NEAR) do. Tags that would overlap stack
   // upwards, nearest the bottom of the screen first, so each one can be
-  // read and clicked. The hovered tag lights up, and clicking it sends the
-  // wizard to pick the item up (game.pointedItem keeps the boxes).
+  // read and clicked. The hovered tag lights up, and clicking (or tapping)
+  // it sends the wizard to pick the item up (game.pointedItem keeps the
+  // boxes).
   drawLootLabels(ctx, w, h) {
     const game = this.game;
     const player = game.player;
+    this.itemTags = [];
     if (game.duelMode || !player || game.state !== 'playing') {
       return;
     }
-    const under = game.hoveredItem();
+    const touch = isTouch();
+    const all = !touch && (this.lootNames || game.input.state('loot_show'));
+    const under = touch ? null : game.hoveredItem();
     const pc = player.center();
     const tags = [];
     for (const e of game.entities) {
       if (e.killed || typeof e.labelColor !== 'function' || !e.view || !e.view.visible) {
         continue;
       }
-      if (!this.lootNames && e !== under) {
+      const c = e.center();
+      if (touch ? Math.hypot(c.x - pc.x, c.y - pc.y) > LOOT_NEAR : !all && e !== under) {
         continue;
       }
-      const c = e.center();
       if (Math.abs(c.x - pc.x) > 1400 || Math.abs(c.y - pc.y) > 1400) {
         continue;
       }
@@ -1086,6 +1097,17 @@ export class Hud {
       ctx.fillText(t.text, (t.x0 + t.x1) / 2, t.y1 - 5);
     }
     this.itemTags = placed;
+  }
+
+  // The first piece of gear of a game says how to read the names on the
+  // floor (once).
+  hintLootNames() {
+    if (this.lootHinted || this.game.duelMode) {
+      return;
+    }
+    this.lootHinted = true;
+    this.toast(isTouch() ? 'STAND BY AN ITEM TO SEE ITS NAME :: TAP THE NAME TO PICK IT UP' :
+      'HOLD ' + actionKeyName('loot_show').toUpperCase() + ' TO SEE THE NAMES OF THE ITEMS ON THE FLOOR', '#f3e6c4');
   }
 
   dispose() {
