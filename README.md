@@ -757,22 +757,38 @@ blender --background --python tools/blender/build_races.py -- --only dwarf   # a
 blender --background --python tools/blender/build_dragon.py
 ```
 
+Without Blender installed, its Python module does the same (`pip install bpy`, then
+`python -c "import bpy, runpy, sys; sys.argv = ['blender']; runpy.run_path('tools/blender/build_mage.py', run_name='__main__')"`).
 Pass `-- --preview DIR` to also render front, three-quarter, side and back views. The
 scripts save `.blend` files to `tools/blender/blend/` for editing by hand. Models are
 split into rigid parts on the rig's pivots and animated in code; if one fails to load,
 the game falls back to the older primitive model.
 
-The wizard has a rig of its own (`MageRig` in `src/render/models.js`). Its steps follow the
-way it actually moves rather than the way it faces, so it strafes and backs away on its
-feet and shuffles round when it turns on the spot. Its hips rise and sway over the
-standing foot, its staff swings like a walking stick, and the robe's hem (bent in the
-vertex shader, a worn cape with it) is pushed by the legs and swings on after a stop or a
-turn. Casts are gestures blended over the walk: bolts and aimed spells thrust the staff
-head at the foe, spells on the wizard itself raise it overhead, and thunderwave slams its
-foot into the floor; the lifesteal ray and a word of death hold their pose. The staff turns
-in the hand, and spells leave from its head. Bolts are drawn easing from the staff head
-onto their line of flight, while the bolt itself still flies, and hits, from the wizard's
-centre. Beams, cone of cold and the flaming sphere also start at the staff head.
+The wizard is modelled in more parts than the rest (`build_mage.py`), joined up by a rig of
+its own (`MageRig` in `src/render/models.js`). Its arms bend at the elbow: a pose says where
+each hand is and the arm reaches it, so the staff hand rests bent at the staff and the other
+hangs loose. The staff stands on the floor while the wizard stands; at a walk it is planted
+ahead, walked past and swung on to the next spot, once every two steps, and at a run it is
+carried, its head tipped forward. The steps follow the way the wizard actually moves rather
+than the way it faces, so it strafes and backs away on its feet and shuffles round when it
+turns on the spot; its hips rise and sway over the standing foot, and its head turns to where
+it is turning before the body gets there. The beard and the long hair (two lengths each), the
+point of each sleeve and the bent tip of a pointed hat swing from their pivots as the wizard
+moves, stops, turns and casts. The robe's hem (bent in the vertex shader, a worn cloak and
+whatever hangs from the belt with it) is pushed by the legs, swings on after a stop or a turn,
+and billows on a slam, a landing or a held spell.
+
+Casts are gestures blended over the walk, springing a little past their height and settling
+back: bolts and aimed spells lunge with the staff head at the foe, the staff-side foot
+stepping out; spells on the wizard itself raise both arms; and thunderwave drives the staff's
+foot into the floor with both hands. The lifesteal ray and a word of death hold their pose. A
+blow rocks the wizard back on its heels, and a blink lands with a dip. It also shows how it is
+taken up: asleep it dozes on its staff with its head bowed, lifted it floats with its arms
+out and its boots dangling, rooted it twists and tugs at its feet, and afraid it runs with an
+arm over its head. Left standing with nothing to do, its hand goes to its beard now and then.
+The staff turns in the hand, and spells leave from its head. Bolts are drawn easing from the
+staff head onto their line of flight, while the bolt itself still flies, and hits, from the
+wizard's centre. Beams, cone of cold and the flaming sphere also start at the staff head.
 
 ## Differences from the 2D game
 

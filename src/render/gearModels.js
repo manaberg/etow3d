@@ -4,8 +4,9 @@ import { glowSprite } from './models.js';
 // Gear on the models: hats on heads, robes recolouring the body, staffs and
 // rings in the hands, and the same pieces lying on the floor as loot. A rig
 // that can wear gear carries a `wardrobe` (set up in models.js): its
-// materials by role, the base parts a hat or staff replaces, and its skin
-// material, from which the head and hands are found.
+// materials by role, the base parts a hat or staff replaces (and what a
+// cloak covers), and its skin material, from which the head and hands are
+// found.
 
 const geoCache = new Map();
 function geo(key, make) {
@@ -77,14 +78,29 @@ function buildHat(look, material) {
       break;
     }
     default: {
-      // the wizard's pointed hat, its tip bent back
-      g.add(mesh(geo('hat.pt.brim', () => new THREE.CylinderGeometry(0.56, 0.6, 0.04, 18)), felt, 0, 0, 0));
-      const cone = mesh(geo('hat.pt.cone', () => new THREE.CylinderGeometry(0.12, 0.32, 0.62, 14)), felt, 0, 0.32, -0.02);
-      cone.rotation.x = -0.1;
+      // the wizard's pointed hat: a brim that droops at its edge and a cone
+      // in three lengths, each bent further back; the upper two nod on the
+      // wizard's head (`dangles`, for MageRig.addDangle)
+      const brim = mesh(geo('hat.pt.brim', () => new THREE.LatheGeometry([new THREE.Vector2(0.3, 0.035), new THREE.Vector2(0.46, 0.015), new THREE.Vector2(0.62, -0.045)], 20)), felt, 0, 0, 0);
+      const under = mesh(geo('hat.pt.under', () => new THREE.LatheGeometry([new THREE.Vector2(0.62, -0.045), new THREE.Vector2(0.46, -0.012), new THREE.Vector2(0.3, 0.0)], 20)), felt, 0, 0, 0);
+      g.add(brim, under);
+      const cone = mesh(geo('hat.pt.cone', () => new THREE.CylinderGeometry(0.2, 0.32, 0.36, 14)), felt, 0, 0.19, -0.01);
+      cone.rotation.x = -0.06;
       g.add(cone);
-      const tip = mesh(geo('hat.pt.tip', () => new THREE.ConeGeometry(0.12, 0.42, 12)), felt, 0, 0.78, -0.14);
-      tip.rotation.x = -0.55;
-      g.add(tip);
+      const mid = new THREE.Group();
+      mid.position.set(0, 0.32, -0.03);
+      mid.rotation.x = -0.26;
+      mid.add(mesh(geo('hat.pt.mid', () => new THREE.CylinderGeometry(0.105, 0.205, 0.36, 12)), felt, 0, 0.17, 0));
+      g.add(mid);
+      const tip = new THREE.Group();
+      tip.position.set(0, 0.3, -0.012);
+      tip.rotation.x = -0.5;
+      tip.add(mesh(geo('hat.pt.tip', () => new THREE.ConeGeometry(0.108, 0.42, 10)), felt, 0, 0.16, 0));
+      mid.add(tip);
+      g.userData.dangles = [
+        [mid, { up: true, follow: 0.12, drag: 0.012, kick: 0.006, stiff: 150, damp: 9, min: -0.3, max: 0.3, side: 0.3 }],
+        [tip, { up: true, follow: 0.3, drag: 0.03, kick: 0.012, stiff: 70, damp: 5, min: -0.6, max: 0.7, side: 0.6 }]
+      ];
       g.add(mesh(geo('hat.pt.band', () => new THREE.CylinderGeometry(0.325, 0.33, 0.08, 14)), band, 0, 0.06, 0));
       if (look.glow) {
         // stars scattered over the cone
@@ -96,6 +112,38 @@ function buildHat(look, material) {
       }
     }
   }
+  return g;
+}
+
+// A cloak round the back, open at the front: it hangs from the shoulders
+// (y = 0.9) past the hem (y = -0.9), its pleats deepening on the way down.
+function capeGeometry() {
+  const rings = 7;
+  const segs = 30;
+  const start = Math.PI * 0.32;
+  const span = Math.PI * 1.36;
+  const positions = [];
+  const index = [];
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    for (let s = 0; s <= segs; s++) {
+      const u = s / segs;
+      const a = start + span * u;
+      const r = (0.5 + 0.36 * t) * (1 + 0.075 * t * Math.cos(u * Math.PI * 13));
+      positions.push(Math.sin(a) * r, 0.9 - 1.8 * t, Math.cos(a) * r);
+    }
+  }
+  for (let i = 0; i < rings; i++) {
+    for (let s = 0; s < segs; s++) {
+      const a = i * (segs + 1) + s;
+      const c = a + segs + 1;
+      index.push(a, c, a + 1, a + 1, c, c + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
   return g;
 }
 
@@ -333,8 +381,9 @@ function measure(rig, w) {
     const box = boundsOf(arm, w.skin, skip);
     return box.isEmpty() ? -0.7 : box.min.y + 0.12;
   };
-  w.handL = hand(rig.limbs.armL);
-  w.handR = hand(rig.limbs.armR);
+  // (a rig whose hands are not on its arms says where they are itself)
+  w.handL = w.handL ?? hand(rig.limbs.armL);
+  w.handR = w.handR ?? hand(rig.limbs.armR);
   // what each material looked like before any gear
   w.base = {};
   for (const role in w.mats) {
@@ -361,6 +410,10 @@ export function dressRig(rig, inventory) {
   for (const o of w.worn) {
     o.parent.remove(o);
   }
+  for (const d of w.wornDangles || []) {
+    rig.removeDangle(d);
+  }
+  w.wornDangles = [];
   const old = new Set(w.wornMats || []);
   rig.materials = rig.materials.filter((m) => !old.has(m));
   w.worn = [];
@@ -379,6 +432,11 @@ export function dressRig(rig, inventory) {
     for (const o of w.hide[slot]) {
       o.visible = !eq[slot];
     }
+  }
+  // long hair goes inside a cloak
+  const caped = !!(eq.robe && eq.robe.type.look.cape && w.cape);
+  for (const o of w.tuck || []) {
+    o.visible = !caped;
   }
   // pieces the rig flashes red with when hit
   const tracked = (color, glow) => {
@@ -411,7 +469,7 @@ export function dressRig(rig, inventory) {
       // a cloak round the back, from under the mantle and flaring past the hem
       const cloth = tracked(look.cape);
       cloth.side = THREE.DoubleSide;
-      const cape = mesh(geo('cape.worn', () => new THREE.CylinderGeometry(0.5, 0.86, 1.8, 14, 1, true, Math.PI * 0.32, Math.PI * 1.36)), cloth, 0, w.cape.y - 0.9, w.cape.z);
+      const cape = mesh(geo('cape.worn', capeGeometry), cloth, 0, w.cape.y - 0.9, w.cape.z);
       wear(rig.body, cape);
       // on the wizard it swings with the robe's hem
       if (rig.swayCloth) {
@@ -425,20 +483,30 @@ export function dressRig(rig, inventory) {
     hat.scale.setScalar(w.hatScale);
     hat.rotation.x = -0.08;
     wear(rig.head, hat);
+    // on the wizard the bends of a pointed hat nod as it moves
+    if (rig.addDangle) {
+      for (const [part, how] of hat.userData.dangles || []) {
+        w.wornDangles.push(rig.addDangle(part, how));
+      }
+    }
   }
   let staff = null;
   if (eq.staff && !w.noStaff) {
     staff = buildStaff(eq.staff.type.look, tracked);
     // in the hand, on the grip that turns it if the rig has one
     const grip = rig.grip;
-    staff.position.set(0, w.handR - (grip ? grip.position.y : 0), 0.04);
+    if (w.staffAt) {
+      staff.position.fromArray(w.staffAt);
+    } else {
+      staff.position.set(0, w.handR - (grip ? grip.position.y : 0), 0.04);
+    }
     wear(grip || rig.limbs.armR, staff);
     rig.orbColor = eq.staff.type.look.gem;
   }
   if (rig.holdStaff) {
     rig.holdStaff(staff);
   }
-  for (const [slot, arm, y] of [['ring1', rig.limbs.armL, w.handL], ['ring2', rig.limbs.armR, w.handR]]) {
+  for (const [slot, arm, y] of [['ring1', w.ringL || rig.limbs.armL, w.handL], ['ring2', w.ringR || rig.limbs.armR, w.handR]]) {
     if (eq[slot] && arm) {
       const ring = buildWornRing(eq[slot].type.look, w.ringScale || 1);
       ring.position.set(0, y + 0.02, 0);

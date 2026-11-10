@@ -2,7 +2,8 @@
 
 Characters are made of rigid parts whose origins are the pivots the game animates
 (see the Rig class in src/render/models.js): Body, Head, ArmL, ArmR, LegL and
-LegR. Held items are modelled into the arm that holds them. Materials are named
+LegR. Held items are modelled into the arm that holds them. The wizard has more
+parts than those (build_mage.py), which its own rig joins up. Materials are named
 by role (Skin, Cloth, Gem, ...) so the game can recolour and flash them; a mesh
 using Gem or Glow is unlit in the game and gets a glow sprite.
 
@@ -77,9 +78,10 @@ class Part:
         return verts
 
     def lathe(self, mat_name, profile, segs=16, radial=None, sy=1.0, cap_top=False, cap_bottom=False,
-              offset=(0, 0, 0), smooth=False, arc=None, dy=None, rot=(0, 0, 0)):
+              offset=(0, 0, 0), smooth=False, arc=None, dy=None, rot=(0, 0, 0), dx=None):
         """Revolve [(radius, z), ...] around Z. radial(angle, i) scales a ring's radius,
-        dy[i] shifts a ring along Y, arc=(a0, a1) leaves it open (angle 0 faces front)."""
+        dy[i] and dx[i] shift a ring along Y and X, sy flattens it front to back (a number,
+        or one per ring), arc=(a0, a1) leaves it open (angle 0 faces front)."""
         m = _xform(offset, rot)
         rings = []
         full = arc is None
@@ -90,7 +92,9 @@ class Part:
             for s in range(n):
                 a = a0 + (a1 - a0) * s / segs
                 k = radial(a, i) if radial else 1.0
-                p = Vector((math.sin(a) * r * k, (dy[i] if dy else 0) - math.cos(a) * r * k * sy, z))
+                flat = sy[i] if isinstance(sy, (list, tuple)) else sy
+                p = Vector(((dx[i] if dx else 0) + math.sin(a) * r * k,
+                            (dy[i] if dy else 0) - math.cos(a) * r * k * flat, z))
                 ring.append(self.bm.verts.new(m @ p))
             rings.append(ring)
         for a, b in zip(rings, rings[1:]):
