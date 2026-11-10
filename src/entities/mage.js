@@ -1037,6 +1037,8 @@ export class Mage extends Entity {
     // the lifesteal ray keeps the staff pointed, a word of death keeps it raised
     this.rig.hold = this.rayOn && !this.helpless && this.sheepFrames <= 0 ? 'thrust' : (this.channel ? 'raise' : null);
     this.rig.rooted = this.isStunned || this.helpless || !!this.channel;
+    // asleep on its staff, helpless in the air, held by the feet, or fleeing
+    this.rig.mood = this.lift ? 'float' : this.sleepFrames > 0 ? 'doze' : this.isStunned ? 'strain' : this.isFeared ? 'panic' : null;
     this.rig.animate(dt, moving ? Math.min(1.4, Math.hypot(this.vel.x, this.vel.y) / 100) : 0, Math.atan2(Math.cos(this.aim), Math.sin(this.aim)));
     this.rig.setAlpha(this.invis ? 0.35 : 1);
     this.shieldBubble.visible = this.shielded;

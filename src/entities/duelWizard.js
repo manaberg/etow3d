@@ -1465,6 +1465,7 @@ export class DuelWizard extends Enemy {
     // a word of death keeps the staff raised
     this.rig.hold = this.channel ? 'raise' : null;
     this.rig.rooted = this.isStunned || !!this.sleepFrames || !!this.lift || !!this.channel;
+    this.rig.mood = this.lift ? 'float' : this.sleepFrames ? 'doze' : this.isStunned ? 'strain' : this.isFeared ? 'panic' : null;
     this.rig.animate(dt, this.isStunned ? 0 : Math.min(1.3, Math.hypot(this.vel.x, this.vel.y) / 90), facing);
     this.rig.setAlpha(this.invis ? 0.1 : 1);
     const fx = this.game.fx;
